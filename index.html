@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tasks">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<title>Tasks</title>
+<style>
+:root{
+  --bg:#F2F2F7; --elev:#FFFFFF; --elev2:#FFFFFF;
+  --label:#000000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.3);
+  --sep:rgba(60,60,67,.29); --fill:rgba(116,116,128,.12); --fill2:rgba(116,116,128,.08);
+  --accent:#007AFF; --red:#FF3B30; --green:#34C759; --orange:#FF9500; --gray:#8E8E93;
+  --navbg:rgba(249,249,249,.82); --sheet:#FFFFFF;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#000000; --elev:#1C1C1E; --elev2:#2C2C2E;
+    --label:#FFFFFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
+    --sep:rgba(84,84,88,.65); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.16);
+    --accent:#0A84FF; --red:#FF453A; --green:#30D158; --orange:#FF9F0A; --gray:#8E8E93;
+    --navbg:rgba(30,30,30,.82); --sheet:#1C1C1E;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  background:var(--bg); color:var(--label);
+  font-size:17px; line-height:1.29; letter-spacing:-.022em;
+  overscroll-behavior:none; -webkit-font-smoothing:antialiased;
+}
+button,input,textarea,select{font:inherit;color:inherit;letter-spacing:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+input,textarea{background:none;border:0;outline:none;font-size:17px}
+textarea{resize:none;font-family:inherit}
+
+/* ---------- shell ---------- */
+#app{display:flex;flex-direction:column;height:100%}
+.nav{
+  position:relative;z-index:30;flex:0 0 auto;
+  padding-top:env(safe-area-inset-top);
+  background:var(--navbg);backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  transition:box-shadow .2s;
+}
+.nav.scrolled{box-shadow:0 .33px 0 var(--sep)}
+.navbar{height:44px;display:flex;align-items:center;padding:0 8px;gap:4px}
+.navbar .spacer{flex:1}
+.navtitle{
+  font-size:17px;font-weight:600;letter-spacing:-.02em;
+  position:absolute;left:50%;transform:translateX(-50%);
+  opacity:0;transition:opacity .2s;pointer-events:none;
+  max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center
+}
+.nav.scrolled .navtitle{opacity:1}
+.navbtn{
+  color:var(--accent);font-size:17px;padding:6px 10px;min-height:44px;
+  display:flex;align-items:center;gap:3px
+}
+.navbtn.icon{padding:6px;min-width:44px;justify-content:center}
+.navbtn:disabled{color:var(--label3)}
+.navbtn.back{margin-left:-4px}
+.largetitle{
+  font-size:34px;font-weight:700;letter-spacing:.37px;line-height:1.2;
+  padding:0 20px 8px;margin:0;
+}
+.crumbs{padding:0 20px 10px;font-size:13px;color:var(--label2);
+  white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.crumbs::-webkit-scrollbar{display:none}
+.crumbs button{color:var(--accent);font-size:13px}
+
+#scroll{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#content{padding:8px 0 24px}
+
+/* ---------- list ---------- */
+.sechead{
+  font-size:13px;color:var(--label2);padding:18px 20px 6px;
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px
+}
+.sechead button{font-size:13px;color:var(--accent)}
+.group{
+  background:var(--elev);margin:0 16px;border-radius:10px;overflow:hidden;
+}
+.row{position:relative;overflow:hidden;background:var(--elev)}
+.row + .row .rowin::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:.33px;background:var(--sep)
+}
+.row.indented + .row .rowin::before{left:0}
+.rowin{
+  position:relative;display:flex;align-items:flex-start;gap:11px;
+  padding:11px 14px 11px 16px;min-height:44px;
+  background:var(--elev);transition:transform .22s cubic-bezier(.32,.72,0,1);
+  will-change:transform
+}
+.rowin.dragging{transition:none}
+.row:active .rowin:not(.noflash){background:var(--fill2)}
+.mark{
+  flex:0 0 auto;width:24px;height:24px;margin-top:0;
+  display:flex;align-items:center;justify-content:center
+}
+.circle{
+  width:22px;height:22px;border-radius:50%;border:1.6px solid var(--label3);
+  display:block;transition:background .15s,border-color .15s
+}
+.circle.on{background:var(--accent);border-color:var(--accent)}
+.circle.on::after{
+  content:"";display:block;width:11px;height:6px;border-left:2px solid #fff;
+  border-bottom:2px solid #fff;transform:rotate(-45deg);margin:5px 0 0 4px
+}
+.folder{width:22px;height:22px;color:var(--accent)}
+.body{flex:1 1 auto;min-width:0;padding-right:4px}
+.title{font-size:17px;letter-spacing:-.02em;word-wrap:break-word;overflow-wrap:anywhere}
+.row.done .title{color:var(--label2)}
+.row.dropped .title{color:var(--label3);text-decoration:line-through}
+.sub{font-size:13px;color:var(--label2);margin-top:2px;word-wrap:break-word}
+.trail{flex:0 0 auto;display:flex;align-items:center;gap:6px;color:var(--label2);
+  font-size:15px;align-self:center}
+.chev{width:9px;height:15px;color:var(--label3);flex:0 0 auto}
+.count{font-size:15px;color:var(--label2);font-variant-numeric:tabular-nums}
+
+.actions{
+  position:absolute;top:0;right:0;bottom:0;display:flex;z-index:0
+}
+.actions button{
+  width:82px;color:#fff;font-size:15px;display:flex;align-items:center;
+  justify-content:center;height:100%
+}
+.act-done{background:var(--green)}
+.act-drop{background:var(--gray)}
+.act-del{background:var(--red)}
+
+/* ---------- empty ---------- */
+.empty{text-align:center;padding:64px 40px;color:var(--label2)}
+.empty h2{font-size:20px;font-weight:600;color:var(--label);margin:0 0 6px;letter-spacing:-.02em}
+.empty p{font-size:15px;margin:0 0 20px;line-height:1.4}
+.empty button{color:var(--accent);font-size:17px;padding:10px}
+
+/* ---------- capture bar ---------- */
+.capture{
+  flex:0 0 auto;background:var(--navbg);backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  box-shadow:0 -.33px 0 var(--sep);z-index:20
+}
+.capbtn{display:flex;align-items:center;gap:10px;padding:11px 18px;width:100%;
+  color:var(--accent);font-size:17px;font-weight:500}
+.capbtn .plus{width:22px;height:22px;flex:0 0 auto}
+.capdest{color:var(--label2);font-weight:400;font-size:15px;margin-left:auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%}
+.capform{display:none;padding:10px 16px 12px}
+.capture.open .capform{display:block}
+.capture.open .capbtn{display:none}
+.capfield{
+  background:var(--elev);border-radius:10px;padding:11px 14px;display:flex;
+  align-items:center;gap:10px
+}
+.capfield input{flex:1;min-width:0}
+.caprow{display:flex;align-items:center;gap:14px;padding:10px 4px 0;font-size:15px}
+.caprow .to{color:var(--label2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.caprow button{color:var(--accent);font-size:15px;padding:4px}
+
+/* ---------- tab bar ---------- */
+.tabs{
+  flex:0 0 auto;display:flex;background:var(--navbg);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  box-shadow:0 -.33px 0 var(--sep);padding-bottom:env(safe-area-inset-bottom);z-index:20
+}
+.tab{
+  flex:1;padding:7px 0 5px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--gray);font-size:10px;letter-spacing:0;font-weight:500
+}
+.tab svg{width:26px;height:26px}
+.tab.on{color:var(--accent)}
+.tab .badge{
+  position:absolute;transform:translate(14px,-4px);background:var(--red);color:#fff;
+  border-radius:9px;font-size:11px;font-weight:600;padding:1px 5px;min-width:18px;text-align:center
+}
+
+/* ---------- sheet ---------- */
+.scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;opacity:0;
+  transition:opacity .3s;pointer-events:none
+}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;top:max(env(safe-area-inset-top),12px);
+  background:var(--bg);border-radius:12px 12px 0 0;z-index:51;
+  transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;overflow:hidden
+}
+.sheet.on{transform:translateY(0)}
+.sheethead{
+  flex:0 0 auto;display:flex;align-items:center;padding:0 8px;height:52px;
+  border-bottom:.33px solid var(--sep)
+}
+.sheethead h3{flex:1;text-align:center;font-size:17px;font-weight:600;margin:0;letter-spacing:-.02em}
+.sheethead button{color:var(--accent);font-size:17px;padding:10px;min-width:60px}
+.sheethead button.strong{font-weight:600}
+.sheetbody{flex:1;overflow-y:auto;padding:16px 0 40px;-webkit-overflow-scrolling:touch}
+
+.field{background:var(--elev);margin:0 16px 18px;border-radius:10px;overflow:hidden}
+.field .line{padding:11px 16px;display:flex;align-items:center;gap:12px;min-height:44px}
+.field .line + .line{border-top:.33px solid var(--sep)}
+.field .line label{color:var(--label2);flex:0 0 auto;font-size:17px}
+.field .line .val{flex:1;text-align:right;color:var(--label2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field input.big{font-size:17px;width:100%}
+.field textarea{width:100%;font-size:17px;min-height:88px;line-height:1.35;padding:0}
+.field button.line{width:100%;text-align:left;font-size:17px}
+.field button.line.accent{color:var(--accent);justify-content:center}
+.field button.line.danger{color:var(--red);justify-content:center}
+.fieldnote{font-size:13px;color:var(--label2);margin:-12px 20px 18px;line-height:1.35}
+
+.seg{display:flex;background:var(--fill2);border-radius:9px;padding:2px;margin:0 16px 18px}
+.seg button{
+  flex:1;padding:7px 0;font-size:15px;font-weight:500;border-radius:7px;color:var(--label)
+}
+.seg button.on{background:var(--elev);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+.pickrow{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;width:100%;
+  text-align:left;font-size:17px;background:var(--elev)
+}
+.pickrow + .pickrow{border-top:.33px solid var(--sep)}
+.pickrow.disabled{color:var(--label3)}
+.pickrow .tick{margin-left:auto;color:var(--accent)}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));
+  transform:translate(-50%,12px);background:rgba(40,40,40,.94);color:#fff;
+  padding:10px 18px;border-radius:20px;font-size:15px;z-index:80;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:80%
+}
+@media (prefers-color-scheme: dark){.toast{background:rgba(80,80,84,.96)}}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.01ms !important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="nav" id="nav">
+    <div class="navbar">
+      <button class="navbtn back" id="backBtn" hidden>
+        <svg width="12" height="20" viewBox="0 0 12 20" fill="none"><path d="M10.5 1.5 2 10l8.5 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="backLabel">Back</span>
+      </button>
+      <div class="spacer"></div>
+      <div class="navtitle" id="navTitle"></div>
+      <div class="spacer"></div>
+      <button class="navbtn" id="navRight" hidden></button>
+    </div>
+    <h1 class="largetitle" id="largeTitle">Tasks</h1>
+    <div class="crumbs" id="crumbs" hidden></div>
+  </header>
+
+  <div id="scroll"><div id="content"></div></div>
+
+  <div class="capture" id="capture">
+    <button class="capbtn" id="capOpen">
+      <svg class="plus" viewBox="0 0 22 22" fill="currentColor"><circle cx="11" cy="11" r="11" opacity=".18"/><path d="M11 5.8v10.4M5.8 11h10.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>New task</span>
+      <span class="capdest" id="capDest"></span>
+    </button>
+    <div class="capform">
+      <div class="capfield">
+        <input id="capInput" type="text" placeholder="What needs doing?" enterkeyhint="done"
+               autocomplete="off" autocapitalize="sentences" autocorrect="on">
+      </div>
+      <div class="caprow">
+        <span class="to" id="capTo"></span>
+        <button id="capClose">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab" data-tab="inbox">
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14.5h5l1.6 2.8h6.8L18 14.5h5"/><path d="M4.7 6.4 3 14.5v4.8a1.7 1.7 0 0 0 1.7 1.7h16.6a1.7 1.7 0 0 0 1.7-1.7v-4.8l-1.7-8.1a1.7 1.7 0 0 0-1.6-1.2H6.3a1.7 1.7 0 0 0-1.6 1.2Z"/></svg>
+      <span>Inbox</span><span class="badge" id="inboxBadge" hidden></span>
+    </button>
+    <button class="tab" data-tab="browse">
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.2 8.2a2 2 0 0 1 2-2h4.1l2.3 2.6h9.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2z"/></svg>
+      <span>Browse</span>
+    </button>
+    <button class="tab" data-tab="log">
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.6a7.4 7.4 0 1 0 7.3 6.2"/><path d="M13 8.4V13l3 2.2"/><path d="M20.8 4.4v4.2h-4.2"/></svg>
+      <span>Log</span>
+    </button>
+  </nav>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="sheethead">
+    <button id="sheetCancel">Cancel</button>
+    <h3 id="sheetTitle">Details</h3>
+    <button id="sheetDone" class="strong">Done</button>
+  </div>
+  <div class="sheetbody" id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   TASKS — Phase 1 skeleton
+   Storage: IndexedDB, device-only. Nothing leaves the phone.
+   One node type for everything: a group, a task and a subtask are the same
+   object, distinguished only by `kind` and by whether anything points at it.
+   ========================================================================== */
+
+const DB_NAME = "tasks-db";
+const DB_VER  = 1;
+const INBOX   = "__inbox__";
+const SCHEMA  = 1;
+
+/* ---------- tiny helpers ---------- */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const nowISO = () => new Date().toISOString();
+function uid(){
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+/* ---------- persistence ---------- */
+let db = null;
+
+function openDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains("nodes")){
+        const s = d.createObjectStore("nodes", { keyPath: "id" });
+        s.createIndex("parentId", "parentId", { unique: false });
+        s.createIndex("status", "status", { unique: false });
+      }
+      if (!d.objectStoreNames.contains("meta")){
+        d.createObjectStore("meta", { keyPath: "key" });
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function tx(store, mode){ return db.transaction(store, mode).objectStore(store); }
+
+function putNode(node){
+  return new Promise((res, rej) => {
+    const r = tx("nodes", "readwrite").put(node);
+    r.onsuccess = () => res(); r.onerror = () => rej(r.error);
+  });
+}
+function deleteNode(id){
+  return new Promise((res, rej) => {
+    const r = tx("nodes", "readwrite").delete(id);
+    r.onsuccess = () => res(); r.onerror = () => rej(r.error);
+  });
+}
+function allNodes(){
+  return new Promise((res, rej) => {
+    const r = tx("nodes", "readonly").getAll();
+    r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error);
+  });
+}
+function putMeta(key, value){
+  return new Promise((res, rej) => {
+    const r = tx("meta", "readwrite").put({ key, value });
+    r.onsuccess = () => res(); r.onerror = () => rej(r.error);
+  });
+}
+function getMeta(key){
+  return new Promise((res, rej) => {
+    const r = tx("meta", "readonly").get(key);
+    r.onsuccess = () => res(r.result ? r.result.value : undefined);
+    r.onerror   = () => rej(r.error);
+  });
+}
+
+/* ---------- model ----------
+   Every field the full system will ever need exists from day one, so later
+   phases never have to migrate data you entered today. Phase 1 only *exposes*
+   a handful of them.                                                        */
+function newNode(patch = {}){
+  return Object.assign({
+    id: uid(), parentId: null, order: Date.now(),
+    title: "", notes: "",
+    kind: "task", childMode: "parallel",
+    status: "available", waitingOn: null, followUpDate: null,
+    importance: "normal", importanceOverridden: false,
+    deadline: null, deadlineType: null, expiry: null, deferUntil: null,
+    durationMode: "none", estMinMinutes: null, estMaxMinutes: null,
+    fixedStart: null, fixedEnd: null, actualMinutes: null,
+    category: null, deliverable: null, context: null, energy: null,
+    flagged: false, bumpCount: 0, recurrence: null, links: [],
+    createdAt: nowISO(), touchedAt: nowISO(), completedAt: null
+  }, patch);
+}
+
+/* ---------- in-memory state ----------
+   A personal task list is hundreds of nodes, not millions. Keeping the whole
+   tree in memory and writing through to IndexedDB keeps rendering instant.  */
+const state = {
+  nodes: new Map(),
+  tab: "browse",
+  path: [],            // array of ancestor ids, last = current folder
+  showDone: false,
+  openSwipe: null,
+  editing: null,
+  draft: null
+};
+
+const byId    = id => state.nodes.get(id);
+const isInbox = id => id === INBOX;
+
+function childrenOf(parentId){
+  const out = [];
+  for (const n of state.nodes.values()) if (n.parentId === parentId) out.push(n);
+  out.sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
+  return out;
+}
+function descendants(id, acc = []){
+  for (const c of childrenOf(id)){ acc.push(c); descendants(c.id, acc); }
+  return acc;
+}
+function isDescendantOf(id, maybeAncestor){
+  let cur = byId(id);
+  while (cur && cur.parentId){
+    if (cur.parentId === maybeAncestor) return true;
+    cur = byId(cur.parentId);
+  }
+  return false;
+}
+function progressOf(id){
+  const kids = descendants(id).filter(n => n.status !== "dropped");
+  if (!kids.length) return null;
+  return { done: kids.filter(n => n.status === "done").length, total: kids.length };
+}
+function pathLabel(id){
+  if (id === null) return "Browse";
+  if (id === INBOX) return "Inbox";
+  const n = byId(id);
+  return n ? (n.title || "Untitled") : "Browse";
+}
+
+async function save(node){
+  node.touchedAt = nowISO();
+  state.nodes.set(node.id, node);
+  await putNode(node);
+}
+async function create(patch){
+  const n = newNode(patch);
+  state.nodes.set(n.id, n);
+  await putNode(n);
+  return n;
+}
+async function purge(id){
+  for (const d of descendants(id)){ state.nodes.delete(d.id); await deleteNode(d.id); }
+  state.nodes.delete(id); await deleteNode(id);
+}
+
+/* ---------- status transitions ---------- */
+async function setStatus(node, status){
+  node.status = status;
+  node.completedAt = (status === "done") ? nowISO() : null;
+  await save(node);
+}
+async function toggleDone(node){
+  if (node.status === "done") await setStatus(node, "available");
+  else                        await setStatus(node, "done");
+}
+
+/* ============================================================================
+   RENDERING
+   ========================================================================== */
+const content  = $("#content");
+const navEl    = $("#nav");
+const scrollEl = $("#scroll");
+
+function render(){
+  closeSwipe();
+  if (state.tab === "inbox")       renderInbox();
+  else if (state.tab === "browse") renderBrowse();
+  else                             renderLog();
+  renderChrome();
+  updateBadge();
+}
+
+function renderChrome(){
+  $$(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === state.tab));
+  const dest = captureDest();
+  $("#capDest").textContent = dest.id === INBOX ? "" : pathLabel(dest.id);
+  $("#capTo").textContent   = "Adding to " + pathLabel(dest.id);
+}
+
+function updateBadge(){
+  const n = childrenOf(INBOX).filter(x => x.status !== "done" && x.status !== "dropped").length;
+  const b = $("#inboxBadge");
+  b.hidden = n === 0;
+  b.textContent = n;
+}
+
+function setTitles(large, compact, backTo){
+  $("#largeTitle").textContent = large;
+  $("#navTitle").textContent   = compact || large;
+  const back = $("#backBtn");
+  if (backTo === null || backTo === undefined){ back.hidden = true; }
+  else { back.hidden = false; $("#backLabel").textContent = backTo; }
+}
+
+/* ---------- icons ---------- */
+const ICON_FOLDER = '<svg class="folder" viewBox="0 0 22 22" fill="currentColor"><path d="M2.2 6.6a1.9 1.9 0 0 1 1.9-1.9h3.5l1.9 2.2h8.4a1.9 1.9 0 0 1 1.9 1.9v7.6a1.9 1.9 0 0 1-1.9 1.9H4.1a1.9 1.9 0 0 1-1.9-1.9z"/></svg>';
+const ICON_CHEV   = '<svg class="chev" viewBox="0 0 9 15" fill="none"><path d="M1.4 1.4 7 7.5l-5.6 6.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/* ---------- row markup ---------- */
+function rowHTML(n, opts = {}){
+  const done    = n.status === "done";
+  const dropped = n.status === "dropped";
+  const isGroup = n.kind === "group";
+  const prog    = isGroup ? progressOf(n.id) : null;
+
+  let mark;
+  if (isGroup) mark = `<span class="mark">${ICON_FOLDER}</span>`;
+  else mark = `<span class="mark" data-mark="${n.id}">
+                 <span class="circle${done ? " on" : ""}"></span></span>`;
+
+  const bits = [];
+  if (n.notes) bits.push(esc(n.notes.split("\n")[0]).slice(0, 90));
+  if (opts.showPath && n.parentId && n.parentId !== INBOX)
+    bits.unshift(esc(pathLabel(n.parentId)));
+  const sub = bits.length ? `<div class="sub">${bits.join(" · ")}</div>` : "";
+
+  const trail = isGroup
+    ? `<span class="trail">${prog ? `<span class="count">${prog.done}/${prog.total}</span>` : ""}${ICON_CHEV}</span>`
+    : `<span class="trail">${ICON_CHEV}</span>`;
+
+  const acts = dropped
+    ? `<button class="act-drop" data-act="restore" data-id="${n.id}">Restore</button>
+       <button class="act-del" data-act="delete" data-id="${n.id}">Delete</button>`
+    : `<button class="act-done" data-act="done" data-id="${n.id}">${done ? "Reopen" : "Done"}</button>
+       <button class="act-drop" data-act="drop" data-id="${n.id}">Drop</button>`;
+
+  return `<div class="row${done ? " done" : ""}${dropped ? " dropped" : ""}" data-row="${n.id}">
+    <div class="actions">${acts}</div>
+    <div class="rowin" data-open="${n.id}">
+      ${mark}
+      <div class="body"><div class="title">${esc(n.title || "Untitled")}</div>${sub}</div>
+      ${trail}
+    </div>
+  </div>`;
+}
+
+function listHTML(nodes, opts){
+  return `<div class="group">${nodes.map(n => rowHTML(n, opts)).join("")}</div>`;
+}
+
+/* ---------- views ---------- */
+function visible(nodes){
+  return nodes.filter(n => state.showDone || (n.status !== "done" && n.status !== "dropped"));
+}
+
+function renderBrowse(){
+  const cur = state.path.length ? state.path[state.path.length - 1] : null;
+  const parent = cur ? byId(cur) : null;
+  if (cur && !parent){ state.path = []; return renderBrowse(); }
+
+  setTitles(
+    cur ? (parent.title || "Untitled") : "Browse",
+    cur ? (parent.title || "Untitled") : "Browse",
+    state.path.length ? pathLabel(state.path.length > 1 ? state.path[state.path.length - 2] : null) : null
+  );
+
+  const crumbs = $("#crumbs");
+  if (state.path.length > 1){
+    crumbs.hidden = false;
+    crumbs.innerHTML = ["Browse"].concat(state.path.slice(0, -1).map(pathLabel))
+      .map((lbl, i) => `<button data-crumb="${i}">${esc(lbl)}</button>`).join(" › ");
+  } else crumbs.hidden = true;
+
+  let kids = childrenOf(cur);
+  if (cur === null) kids = kids.filter(n => n.id !== INBOX);
+  const shown = visible(kids);
+  const hidden = kids.length - shown.length;
+
+  if (!kids.length){
+    content.innerHTML = cur
+      ? emptyHTML("Nothing in here yet", "Add a task with the button below, or turn this into a group of steps.", null)
+      : emptyHTML("No groups yet", "Groups are folders. Put related tasks inside one so you can see a project move.",
+                  `<button id="seedBtn">Create an example group</button>`);
+    return;
+  }
+
+  const notes = parent && parent.notes
+    ? `<div class="sechead" style="padding-bottom:2px">${esc(parent.notes.split("\n")[0]).slice(0,140)}</div>` : "";
+
+  content.innerHTML = notes + `
+    <div class="sechead">
+      <span>${shown.length} item${shown.length === 1 ? "" : "s"}</span>
+      ${hidden > 0 || state.showDone
+        ? `<button id="toggleDone">${state.showDone ? "Hide completed" : `Show completed (${hidden})`}</button>`
+        : ""}
+    </div>
+    ${listHTML(shown)}`;
+}
+
+function renderInbox(){
+  setTitles("Inbox", "Inbox", null);
+  $("#crumbs").hidden = true;
+  const kids = visible(childrenOf(INBOX));
+  if (!kids.length){
+    content.innerHTML = emptyHTML(
+      "Inbox is clear",
+      "Capture anything here without deciding what it is. Sort it into a group later.", null);
+    return;
+  }
+  content.innerHTML = `
+    <div class="sechead"><span>Unsorted</span></div>
+    ${listHTML(kids)}`;
+}
+
+function renderLog(){
+  setTitles("Log", "Log", null);
+  $("#crumbs").hidden = true;
+  const items = Array.from(state.nodes.values())
+    .filter(n => n.status === "done" || n.status === "dropped")
+    .sort((a, b) => (b.completedAt || b.touchedAt).localeCompare(a.completedAt || a.touchedAt));
+
+  if (!items.length){
+    content.innerHTML = emptyHTML("Nothing finished yet",
+      "Completed and dropped tasks collect here so you can see what you got done.", null);
+    return;
+  }
+  const days = new Map();
+  for (const n of items){
+    const d = new Date(n.completedAt || n.touchedAt);
+    const key = d.toDateString();
+    if (!days.has(key)) days.set(key, []);
+    days.get(key).push(n);
+  }
+  const today = new Date().toDateString();
+  const yday  = new Date(Date.now() - 864e5).toDateString();
+  content.innerHTML = Array.from(days.entries()).map(([key, ns]) => {
+    const label = key === today ? "Today" : key === yday ? "Yesterday"
+      : new Date(key).toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+    return `<div class="sechead"><span>${label}</span><span>${ns.length}</span></div>
+            ${listHTML(ns, { showPath: true })}`;
+  }).join("");
+}
+
+function emptyHTML(h, p, extra){
+  return `<div class="empty"><h2>${esc(h)}</h2><p>${esc(p)}</p>${extra || ""}</div>`;
+}
+
+/* ============================================================================
+   INTERACTION
+   ========================================================================== */
+
+/* ---------- scroll / collapsing title ---------- */
+scrollEl.addEventListener("scroll", () => {
+  navEl.classList.toggle("scrolled", scrollEl.scrollTop > 16);
+}, { passive: true });
+
+/* ---------- tabs ---------- */
+$$(".tab").forEach(t => t.addEventListener("click", () => {
+  state.tab = t.dataset.tab;
+  scrollEl.scrollTop = 0;
+  render();
+}));
+
+/* ---------- back / crumbs ---------- */
+$("#backBtn").addEventListener("click", () => {
+  state.path.pop(); scrollEl.scrollTop = 0; render();
+});
+content.addEventListener("click", e => {
+  const c = e.target.closest("[data-crumb]");
+  if (!c) return;
+  state.path = state.path.slice(0, Number(c.dataset.crumb));
+  scrollEl.scrollTop = 0; render();
+});
+
+/* ---------- swipe actions ---------- */
+let sw = null;
+function closeSwipe(){
+  if (state.openSwipe){
+    const el = document.querySelector(`[data-row="${state.openSwipe}"] .rowin`);
+    if (el) el.style.transform = "";
+    state.openSwipe = null;
+  }
+}
+content.addEventListener("touchstart", e => {
+  const row = e.target.closest(".row");
+  if (!row) return;
+  if (state.openSwipe && state.openSwipe !== row.dataset.row) closeSwipe();
+  sw = { row, inner: row.querySelector(".rowin"),
+         x: e.touches[0].clientX, y: e.touches[0].clientY,
+         open: state.openSwipe === row.dataset.row, lock: null };
+}, { passive: true });
+
+content.addEventListener("touchmove", e => {
+  if (!sw) return;
+  const dx = e.touches[0].clientX - sw.x;
+  const dy = e.touches[0].clientY - sw.y;
+  if (sw.lock === null){
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    sw.lock = Math.abs(dx) > Math.abs(dy) * 1.3 ? "x" : "y";
+    if (sw.lock === "x") sw.inner.classList.add("dragging");
+  }
+  if (sw.lock !== "x") return;
+  const base = sw.open ? -164 : 0;
+  let t = Math.min(0, Math.max(-210, base + dx));
+  sw.inner.style.transform = `translateX(${t}px)`;
+}, { passive: true });
+
+function endSwipe(){
+  if (!sw) return;
+  const inner = sw.inner;
+  inner.classList.remove("dragging");
+  if (sw.lock === "x"){
+    const m = /translateX\((-?[\d.]+)px\)/.exec(inner.style.transform);
+    const t = m ? parseFloat(m[1]) : 0;
+    if (t < -60){ inner.style.transform = "translateX(-164px)"; state.openSwipe = sw.row.dataset.row; }
+    else { inner.style.transform = ""; state.openSwipe = null; }
+  }
+  sw = null;
+}
+content.addEventListener("touchend", endSwipe, { passive: true });
+content.addEventListener("touchcancel", endSwipe, { passive: true });
+
+/* ---------- taps ---------- */
+content.addEventListener("click", async e => {
+  const actBtn = e.target.closest("[data-act]");
+  if (actBtn){
+    const n = byId(actBtn.dataset.id);
+    if (!n) return;
+    const act = actBtn.dataset.act;
+    closeSwipe();
+    if (act === "done")    { await toggleDone(n); toast(n.status === "done" ? "Completed" : "Reopened"); }
+    if (act === "drop")    { await setStatus(n, "dropped"); toast("Dropped"); }
+    if (act === "restore") { await setStatus(n, "available"); toast("Restored"); }
+    if (act === "delete")  {
+      const kids = descendants(n.id).length;
+      const msg = kids ? `Delete “${n.title}” and ${kids} item${kids === 1 ? "" : "s"} inside it? This cannot be undone.`
+                       : `Delete “${n.title}”? This cannot be undone.`;
+      if (!confirm(msg)) return;
+      await purge(n.id); toast("Deleted");
+    }
+    render();
+    return;
+  }
+
+  if (state.openSwipe){ closeSwipe(); return; }
+
+  const mark = e.target.closest("[data-mark]");
+  if (mark){
+    const n = byId(mark.dataset.mark);
+    if (n){ await toggleDone(n); render(); }
+    return;
+  }
+
+  const open = e.target.closest("[data-open]");
+  if (open){
+    const n = byId(open.dataset.open);
+    if (!n) return;
+    if (n.kind === "group" && state.tab === "browse"){
+      state.path.push(n.id); scrollEl.scrollTop = 0; render();
+    } else openSheet(n.id);
+    return;
+  }
+
+  if (e.target.id === "toggleDone"){ state.showDone = !state.showDone; render(); return; }
+  if (e.target.id === "seedBtn")   { await seed(); return; }
+});
+
+/* ---------- capture ---------- */
+function captureDest(){
+  if (state.tab === "browse" && state.path.length)
+    return { id: state.path[state.path.length - 1] };
+  return { id: INBOX };
+}
+const capture = $("#capture"), capInput = $("#capInput");
+
+$("#capOpen").addEventListener("click", () => {
+  capture.classList.add("open");
+  renderChrome();
+  capInput.focus();
+});
+$("#capClose").addEventListener("click", () => {
+  capture.classList.remove("open"); capInput.value = ""; capInput.blur();
+});
+capInput.addEventListener("keydown", async e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const title = capInput.value.trim();
+  if (!title) return;
+  const dest = captureDest().id;
+  const sibs = childrenOf(dest);
+  await create({ title, parentId: dest,
+                 order: sibs.length ? sibs[sibs.length - 1].order + 1000 : Date.now() });
+  capInput.value = "";
+  render();
+  // stays open and focused for rapid entry
+});
+
+/* ============================================================================
+   DETAIL SHEET
+   ========================================================================== */
+const sheet = $("#sheet"), scrim = $("#scrim"), sheetBody = $("#sheetBody");
+
+function openSheet(id){
+  const n = byId(id);
+  if (!n) return;
+  state.editing = id;
+  state.draft = JSON.parse(JSON.stringify(n));
+  drawSheet();
+  scrim.classList.add("on"); sheet.classList.add("on");
+}
+function closeSheet(){
+  sheet.classList.remove("on"); scrim.classList.remove("on");
+  state.editing = null; state.draft = null;
+}
+scrim.addEventListener("click", closeSheet);
+$("#sheetCancel").addEventListener("click", closeSheet);
+$("#sheetDone").addEventListener("click", async () => {
+  const d = state.draft, n = byId(state.editing);
+  if (!n){ closeSheet(); return; }
+  Object.assign(n, {
+    title: d.title.trim(), notes: d.notes,
+    kind: d.kind, childMode: d.childMode, parentId: d.parentId
+  });
+  await save(n);
+  closeSheet(); render();
+});
+
+function drawSheet(){
+  const d = state.draft;
+  const n = byId(state.editing);
+  const kids = descendants(d.id);
+  const openKids = kids.filter(k => k.status !== "done" && k.status !== "dropped").length;
+  const created = new Date(n.createdAt).toLocaleDateString(undefined,
+    { month:"short", day:"numeric", year:"numeric" });
+
+  $("#sheetTitle").textContent = d.kind === "group" ? "Group" : "Task";
+
+  sheetBody.innerHTML = `
+    <div class="field">
+      <div class="line"><input class="big" id="fTitle" value="${esc(d.title)}"
+        placeholder="Title" autocapitalize="sentences"></div>
+      <div class="line" style="align-items:flex-start;padding-top:12px">
+        <textarea id="fNotes" placeholder="Notes">${esc(d.notes)}</textarea></div>
+    </div>
+
+    <div class="seg" id="fKind">
+      <button data-kind="task"${d.kind === "task" ? ' class="on"' : ""}>Task</button>
+      <button data-kind="group"${d.kind === "group" ? ' class="on"' : ""}>Group</button>
+    </div>
+    <div class="fieldnote">${d.kind === "group"
+      ? "A group holds other tasks and groups, nested as deep as you like."
+      : "Switch to a group the moment this turns out to be more than one action."}</div>
+
+    ${d.kind === "group" ? `
+      <div class="seg" id="fMode">
+        <button data-mode="parallel"${d.childMode === "parallel" ? ' class="on"' : ""}>Any order</button>
+        <button data-mode="sequential"${d.childMode === "sequential" ? ' class="on"' : ""}>In order</button>
+      </div>
+      <div class="fieldnote">In order means only the first unfinished step counts as
+        available. Ranking uses this in Phase 2.</div>` : ""}
+
+    <div class="field">
+      <button class="line" id="fMove">
+        <label>Location</label>
+        <span class="val">${esc(pathLabel(d.parentId))}</span>
+        ${ICON_CHEV}
+      </button>
+      ${d.kind === "group" ? `<div class="line"><label>Contains</label>
+        <span class="val">${kids.length} item${kids.length === 1 ? "" : "s"}${
+          kids.length ? `, ${openKids} open` : ""}</span></div>` : ""}
+      <div class="line"><label>Status</label><span class="val">${statusLabel(n.status)}</span></div>
+      <div class="line"><label>Added</label><span class="val">${created}</span></div>
+    </div>
+
+    <div class="field">
+      ${n.status === "done"
+        ? `<button class="line accent" data-sheetact="reopen">Mark not done</button>`
+        : `<button class="line accent" data-sheetact="done">Mark done</button>`}
+      ${n.status === "dropped"
+        ? `<button class="line accent" data-sheetact="restore">Restore</button>`
+        : `<button class="line accent" data-sheetact="drop">Drop</button>`}
+    </div>
+
+    <div class="field">
+      <button class="line danger" data-sheetact="delete">Delete permanently</button>
+    </div>
+    <div class="fieldnote">Dropping keeps the record in your Log. Deleting does not.</div>
+  `;
+
+  $("#fTitle").addEventListener("input", e => { state.draft.title = e.target.value; });
+  const notes = $("#fNotes");
+  notes.addEventListener("input", e => {
+    state.draft.notes = e.target.value;
+    e.target.style.height = "auto";
+    e.target.style.height = e.target.scrollHeight + "px";
+  });
+  notes.style.height = "auto"; notes.style.height = Math.max(88, notes.scrollHeight) + "px";
+
+  $$("#fKind button").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.kind === "task" && kids.length){
+      alert("This group still holds " + kids.length + " item" + (kids.length === 1 ? "" : "s") +
+            ". Move or delete them first.");
+      return;
+    }
+    state.draft.kind = b.dataset.kind; drawSheet();
+  }));
+  $$("#fMode button").forEach(b => b.addEventListener("click", () => {
+    state.draft.childMode = b.dataset.mode; drawSheet();
+  }));
+  $("#fMove").addEventListener("click", openPicker);
+
+  sheetBody.querySelectorAll("[data-sheetact]").forEach(b =>
+    b.addEventListener("click", () => sheetAction(b.dataset.sheetact)));
+}
+
+function statusLabel(s){
+  return { available:"Available", waiting:"Waiting on", deferred:"Deferred",
+           someday:"Someday", done:"Done", dropped:"Dropped" }[s] || s;
+}
+
+async function sheetAction(act){
+  const n = byId(state.editing);
+  if (!n) return;
+  if (act === "delete"){
+    const kids = descendants(n.id).length;
+    const msg = kids ? `Delete “${n.title}” and ${kids} item${kids === 1 ? "" : "s"} inside it? This cannot be undone.`
+                     : `Delete “${n.title}”? This cannot be undone.`;
+    if (!confirm(msg)) return;
+    await purge(n.id); closeSheet(); render(); toast("Deleted"); return;
+  }
+  // apply pending text edits first so nothing is lost
+  Object.assign(n, { title: state.draft.title.trim(), notes: state.draft.notes,
+                     kind: state.draft.kind, childMode: state.draft.childMode,
+                     parentId: state.draft.parentId });
+  if (act === "done")    await setStatus(n, "done");
+  if (act === "reopen")  await setStatus(n, "available");
+  if (act === "drop")    await setStatus(n, "dropped");
+  if (act === "restore") await setStatus(n, "available");
+  closeSheet(); render();
+  toast({ done:"Completed", reopen:"Reopened", drop:"Dropped", restore:"Restored" }[act]);
+}
+
+/* ---------- location picker ---------- */
+function openPicker(){
+  const d = state.draft;
+  const rows = [];
+  rows.push({ id: null, label: "Browse (top level)", depth: 0 });
+  rows.push({ id: INBOX, label: "Inbox", depth: 0 });
+
+  const walk = (parentId, depth) => {
+    for (const c of childrenOf(parentId)){
+      if (c.id === INBOX) continue;
+      if (c.kind !== "group") continue;
+      rows.push({ id: c.id, label: c.title || "Untitled", depth });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk(null, 1);
+
+  sheetBody.innerHTML = `
+    <div class="sechead"><span>Move to</span></div>
+    <div class="group">${rows.map(r => {
+      const bad = r.id === d.id || (r.id && isDescendantOf(r.id, d.id));
+      const sel = r.id === d.parentId;
+      return `<button class="pickrow${bad ? " disabled" : ""}" data-pick="${r.id === null ? "" : r.id}"
+                ${bad ? "disabled" : ""} style="padding-left:${16 + r.depth * 18}px">
+                ${r.id === null || r.id === INBOX ? "" : ICON_FOLDER}
+                <span>${esc(r.label)}</span>
+                ${sel ? '<span class="tick">✓</span>' : ""}
+              </button>`;
+    }).join("")}</div>
+    <div class="fieldnote" style="margin-top:18px">A group can go inside another group,
+      as deep as you need. You cannot move something into itself.</div>
+    <div class="field"><button class="line accent" id="pickBack">Back to details</button></div>`;
+
+  $("#sheetTitle").textContent = "Location";
+  sheetBody.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => {
+    const v = b.dataset.pick;
+    state.draft.parentId = v === "" ? null : v;
+    const sibs = childrenOf(state.draft.parentId);
+    state.draft.order = sibs.length ? sibs[sibs.length - 1].order + 1000 : Date.now();
+    drawSheet();
+  }));
+  $("#pickBack").addEventListener("click", drawSheet);
+}
+
+/* ---------- toast ---------- */
+let toastT = null;
+function toast(msg){
+  if (!msg) return;
+  const el = $("#toast");
+  el.textContent = msg; el.classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove("on"), 1600);
+}
+
+/* ---------- example structure ---------- */
+async function seed(){
+  const g = await create({ title: "Secure new home by Oct 18", kind: "group",
+                           childMode: "sequential", importance: "critical",
+                           notes: "Example group. Delete it once you have your own." });
+  const steps = ["Conduct neighborhood research",
+                 "Speak to leasing agents for information",
+                 "Schedule a tour appointment"];
+  let o = Date.now();
+  for (const s of steps){ await create({ title: s, parentId: g.id, order: o += 1000 }); }
+  render();
+  toast("Example group created");
+}
+
+/* ============================================================================
+   BOOT
+   ========================================================================== */
+(async function boot(){
+  try {
+    db = await openDB();
+  } catch (err){
+    document.body.innerHTML =
+      '<div style="padding:60px 28px;font:17px -apple-system,sans-serif">' +
+      '<h2 style="font-size:20px">Storage unavailable</h2>' +
+      '<p style="color:#666;line-height:1.4">This app needs on-device storage, which Safari ' +
+      'blocks in Private Browsing. Open it in a normal tab, then add it to your Home Screen.</p></div>';
+    return;
+  }
+
+  const list = await allNodes();
+  for (const n of list) state.nodes.set(n.id, n);
+
+  if (!state.nodes.has(INBOX)){
+    const inbox = newNode({ id: INBOX, kind: "group", title: "Inbox", order: -1e15 });
+    state.nodes.set(INBOX, inbox);
+    await putNode(inbox);
+  }
+  await putMeta("schemaVersion", SCHEMA);
+
+  const savedTab = await getMeta("lastTab");
+  if (savedTab) state.tab = savedTab;
+
+  render();
+})();
+
+window.addEventListener("pagehide", () => { putMeta("lastTab", state.tab); });
+</script>
+</body>
+</html>
