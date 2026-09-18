@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tasks">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" id="metaTheme" content="#F2F2F7">
+<meta name="theme-color" id="metaThemeL" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" id="metaThemeD" media="(prefers-color-scheme: dark)" content="#000000">
 <title>Tasks</title>
 <style>
 /* =========================================================================
@@ -419,6 +420,49 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .unit{color:var(--label2);font-size:15px;flex:0 0 auto;margin-left:6px}
 input[type="time"],input[type="date"]{min-height:30px}
 
+
+/* ===== v2.2: input alignment, lanes, background tasks, plan detail ===== */
+html{background:var(--bg)}
+/* date & time inputs render as right-aligned iOS-style chips; WebKit centers
+   the raw control, so give it an intrinsic-width chip instead of flex:1 */
+.field .line input[type=date],.field .line input[type=time],
+.capsec .line input[type=date],.capsec .line input[type=time]{
+  flex:0 0 auto;width:auto;min-width:0;max-width:46%;
+  background:var(--fill);border-radius:8px;padding:5px 10px;min-height:32px;
+  color:var(--label);text-align:right}
+.field .line label+input[type=date],.field .line label+input[type=time],
+.capsec .line label+input[type=date],.capsec .line label+input[type=time]{margin-left:auto}
+/* numbers: right-aligned, capped width, pushed to the right edge */
+.field .line input[type=number],.capsec .line input[type=number]{
+  flex:0 1 64px;min-width:44px;text-align:right;color:var(--accent)}
+.field .line label+input[type=number],.capsec .line label+input[type=number]{margin-left:auto}
+/* rows never wrap; the ✕ keeps its slot on the same line */
+.field .line,.capsec .line{flex-wrap:nowrap}
+.clearx{flex:0 0 22px}
+.field .line label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex-shrink:1}
+/* the plan: checkbox on the LEFT, per-task color on the bar */
+.planrow .mark{flex:0 0 24px}
+.planrow .pbar{background:var(--pc,var(--accent))}
+.planrow.ghost .pbar{background:repeating-linear-gradient(180deg,var(--pc,var(--accent)) 0 5px,transparent 5px 9px);opacity:.6}
+.planrow.fuzzy .pbar{background:linear-gradient(180deg,var(--pc,var(--accent)),transparent);opacity:.55}
+.planrow.bg{background:var(--fill2)}
+.planrow.bg .pbar{background:repeating-linear-gradient(180deg,var(--pc,var(--gray)) 0 3px,transparent 3px 6px);opacity:.5}
+.planrow.unavail{opacity:.5}
+.planrow.unavail .pbar{background:var(--sleep);border-radius:2px}
+.planrow .why{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* background tasks on the calendar: hollow, stitched border, never opaque */
+.dayblock.bgtask,.wkblk.bgtask{background:transparent;border:1.4px dashed var(--label3);
+  border-left:3px dashed var(--gray);opacity:.85}
+.dayblock.unav,.wkblk.unav{left:0;right:0;border-radius:0;border-left:0;
+  background:repeating-linear-gradient(45deg,var(--sleep) 0 8px,transparent 8px 16px);
+  color:var(--label2);font-size:11px;display:flex;align-items:center;justify-content:center}
+.wkblk.unav{font-size:9px}
+/* day-of-week chips in the unavailable-time editor */
+.daychips{display:flex;gap:6px;padding:0 20px;flex-wrap:wrap}
+.daychips button{width:40px;height:40px;border-radius:50%;background:var(--fill);color:var(--label);
+  font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s}
+.daychips button.on{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -571,7 +615,7 @@ function newNode(p={}){ return Object.assign({
   category:null, deliverable:null, context:null, energy:null,
   flagged:false, bumpCount:0, recurrence:null, links:[],
   dependsOn:[], dependencyMode:"none",
-  timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false,
+  timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false, background:false,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=["#007AFF","#34C759","#FF9500","#FF3B30","#AF52DE","#30B0C7","#FFCC00","#FF2D55","#8E8E93","#5856D6","#A2845E","#32ADE6"];
@@ -586,7 +630,7 @@ const DEFAULTS={
     {name:"People",icon:"👥",color:"#30B0C7"}],
   deliverables:["Decision","Document","Research","Meeting","Message","Call","Errand","Purchase","Sketch","Habit"],
   contexts:["@anywhere","@phone","@computer","@errand","@home","@out"],
-  availableHours:6, deepEnd:"12:00", shallowStart:"15:00", dayStart:"08:00", dayEnd:"20:00",
+  unavailable:[], deepWindows:[],
   sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false},
   theme:{id:"system",mode:"auto",hideTaskIcons:false,bgDim:.35,hasBg:false},
   notif:{master:true,offsets:[60],atTime:"09:00",
@@ -607,9 +651,14 @@ function mergeDefaults(s){
   /* v1 stored categories as plain strings — upgrade them to objects */
   out.categories=(out.categories||[]).map((c,i)=>typeof c==="string"
     ? {name:c,icon:CAT_ICONS[i%CAT_ICONS.length],color:PALETTE[i%PALETTE.length]} : c);
-  /* v2.0 stored schedule anchors as whole-number hours — upgrade to clock times */
+  /* v2.0/v2.1 stored schedule anchors — upgrade to the sleep-derived model */
   for(const k of ["dayStart","dayEnd","deepEnd","shallowStart"])
     if(typeof out[k]==="number") out[k]=String(clamp(Math.round(out[k]),0,23)).padStart(2,"0")+":00";
+  if(!Array.isArray(out.unavailable)) out.unavailable=[];
+  if(!(s&&Array.isArray(s.deepWindows)))                 /* nothing saved yet */
+    out.deepWindows=out.deepEnd?[{from:(out.sleep&&out.sleep.wake)||"07:00",to:out.deepEnd}]
+                               :(Array.isArray(out.deepWindows)?out.deepWindows:[]);
+  for(const k of ["availableHours","dayStart","dayEnd","deepEnd","shallowStart"]) delete out[k];
   return out;
 }
 const catByName=n=>state.settings.categories.find(c=>c.name===n)||null;
@@ -671,10 +720,51 @@ function wakeSpanMin(d){
   if(span<=0) span+=1440;              /* bed after midnight */
   return clamp(span,0,1440);
 }
+/* recurring unavailable blocks (commute, meals, practice…) hitting a given day */
+function unavailFor(d){
+  const dow=new Date(d).getDay();
+  return (state.settings.unavailable||[])
+    .filter(u=>u.from&&u.to&&(!u.days||!u.days.length||u.days.includes(dow)))
+    .map(u=>{ let a=hmToMin(u.from), b=hmToMin(u.to); if(b<=a) b+=1440;
+      return {label:u.label||"Unavailable",from:a,to:b}; })
+    .sort((a,b)=>a.from-b.from);
+}
+/* capacity is COMPUTED, never entered: waking span minus unavailable blocks.
+   A per-date override from the Calendar tab still wins. */
 function hoursFor(d){
   const k=dayKey(d);
-  const base=state.dayHours[k]!=null?state.dayHours[k]:state.settings.availableHours;
-  return Math.min(base, wakeSpanMin(d)/60);  /* sleep is subtracted automatically */
+  if(state.dayHours[k]!=null) return Math.min(state.dayHours[k], wakeSpanMin(d)/60);
+  const sl=sleepFor(d);
+  const wake=hmToMin(sl.wake); let bedAbs=hmToMin(sl.bed); if(bedAbs<=wake) bedAbs+=1440;
+  let span=bedAbs-wake;
+  for(const u of unavailFor(d)){ const a=Math.max(u.from,wake), b=Math.min(u.to,bedAbs);
+    if(b>a) span-=b-a; }
+  return clamp(span,0,1440)/60;
+}
+/* what is genuinely left of TODAY: from now to bed, minus unavailable still ahead */
+function hoursLeftToday(){
+  const d=new Date(), sl=sleepFor(d);
+  const wake=hmToMin(sl.wake); let bedAbs=hmToMin(sl.bed); if(bedAbs<=wake) bedAbs+=1440;
+  const from=Math.max(d.getHours()*60+d.getMinutes(), wake);
+  if(from>=bedAbs) return 0;
+  let span=bedAbs-from;
+  for(const u of unavailFor(d)){ const a=Math.max(u.from,from), b=Math.min(u.to,bedAbs);
+    if(b>a) span-=b-a; }
+  return clamp(span,0,1440)/60;
+}
+/* deep-focus windows: user-defined, any time of day (late night welcome) */
+function inDeepWindow(m){ const ws=state.settings.deepWindows||[];
+  return ws.some(w=>{ let a=hmToMin(w.from), b=hmToMin(w.to); if(b<=a) b+=1440; return m>=a&&m<b; }); }
+function nextDeepStart(m){
+  const st=(state.settings.deepWindows||[]).map(w=>hmToMin(w.from)).filter(a=>a>m).sort((x,y)=>x-y);
+  return st.length?st[0]:null; }
+/* a task's display color: its own, else its category's, else nearest ancestor's */
+function nodeColor(n){
+  if(n.color) return n.color;
+  let c=n.category&&catByName(n.category); if(c&&c.color) return c.color;
+  for(const a of ancestors(n.id)){ if(a.color) return a.color;
+    c=a.category&&catByName(a.category); if(c&&c.color) return c.color; }
+  return null;
 }
 
 /* ===========================================================================
@@ -896,7 +986,10 @@ function todayBands(){
   const quick=rest.filter(n=>!shouldIds.has(n.id)&&minMinutes(n)>0&&minMinutes(n)<=10).slice(0,8);
 
   const committed=[...fixed,...must,...should].reduce((t,n)=>{
-    if(n.fixedStart&&n.fixedEnd) return t+(new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN;
+    if(n.background) return t;                       /* runs alongside — costs no attention */
+    if(n.fixedStart&&n.fixedEnd){                    /* only the part still ahead counts */
+      const rem=(new Date(n.fixedEnd)-Math.max(new Date(n.fixedStart),now))/MIN;
+      return t+Math.max(0,rem); }
     return t+(n.estMaxMinutes||0); },0);
 
   const doneToday=all.filter(n=>n.completedAt&&sameDay(n.completedAt,now));
@@ -937,7 +1030,7 @@ function projection(){
 function loadOn(d,proj){
   const k=dayKey(d);
   let m=0;
-  for(const f of fixedOn(d)) if(f.fixedEnd) m+=(new Date(f.fixedEnd)-new Date(f.fixedStart))/MIN;
+  for(const f of fixedOn(d)) if(f.fixedEnd&&!f.background) m+=(new Date(f.fixedEnd)-new Date(f.fixedStart))/MIN;
   for(const p of (proj[k]||[])) m+=p.minutes;
   return m;
 }
@@ -948,27 +1041,38 @@ function loadOn(d,proj){
    For today: the full ranked queue (must + should), laid out from now.
    For any other day: that day's fixed blocks, its slice of projected work,
    and anything due that day, laid into free waking time.
-   Deep-focus work goes before the deep cutoff; sleep is never booked over.
+   Deep-focus work is steered into the user-set deep windows; sleep and
+   unavailable blocks are never booked over; background blocks never obstruct.
    Tasks without an estimate are "fuzzy": planned at a soft 30m guess.
    =========================================================================== */
 function planFor(day,proj){
   day=day||new Date();
-  const s=state.settings, sl=sleepFor(day);
+  const sl=sleepFor(day);
   const wake=hmToMin(sl.wake), bed=hmToMin(sl.bed);
   const bedAbs=bed<=wake?bed+1440:bed;
   const d0=startOfDay(day);
-  const dayEndMin=hmToMin(s.dayEnd)<=hmToMin(s.dayStart)?hmToMin(s.dayEnd)+1440:hmToMin(s.dayEnd);
   const isToday=sameDay(day,new Date());
-  const end=new Date(d0.getTime()+Math.min(bedAbs,dayEndMin)*MIN);
+  const end=new Date(d0.getTime()+bedAbs*MIN);   /* the day simply runs wake → bed */
+
+  /* unavailable blocks: obstacles the planner routes around, shown on the day */
+  const unavail=unavailFor(day).map(u=>({
+    start:new Date(d0.getTime()+Math.max(u.from,wake)*MIN),
+    end:new Date(d0.getTime()+Math.min(u.to,bedAbs)*MIN),
+    minutes:0,unavail:true,label:u.label}))
+    .filter(u=>u.end>u.start);
+  for(const u of unavail) u.minutes=Math.round((u.end-u.start)/MIN);
 
   const fixed=fixedOn(day).filter(n=>n.status!=="done")
     .map(n=>({node:n,start:new Date(n.fixedStart),
       end:n.fixedEnd?new Date(n.fixedEnd):new Date(new Date(n.fixedStart).getTime()+30*MIN),
-      minutes:0,fixed:true}))
+      minutes:0,fixed:true,bg:!!n.background}))
     .sort((a,b)=>a.start-b.start);
   for(const f of fixed) f.minutes=Math.round((f.end-f.start)/MIN);
 
-  let cursor=new Date(d0.getTime()+Math.max(wake,hmToMin(s.dayStart))*MIN);
+  /* background blocks (laundry, dishwasher…) are NOT obstacles: work overlaps them */
+  const busy=[...fixed.filter(f=>!f.bg),...unavail].sort((a,b)=>a.start-b.start);
+
+  let cursor=new Date(d0.getTime()+wake*MIN);
   if(isToday&&cursor<new Date()) cursor=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
 
   /* build the queue */
@@ -994,7 +1098,7 @@ function planFor(day,proj){
     if(n.deadline&&n.deadlineHasTime&&sameDay(n.deadline,day)){
       const dl=new Date(n.deadline); it.dueBy=dl; }
   }
-  /* ordering: hard due-times first, then deadline, then score; deep before shallow */
+  /* ordering: hard due-times first, then deadline, then score */
   items.sort((x,y)=>{
     if(!!x.dueBy!==!!y.dueBy) return x.dueBy?-1:1;
     if(x.dueBy&&y.dueBy) return x.dueBy-y.dueBy;
@@ -1003,30 +1107,53 @@ function planFor(day,proj){
     if(dx&&!dy) return -1; if(dy&&!dx) return 1;
     return score(y.node)-score(x.node);
   });
-  items=[...items.filter(i=>i.node.energy==="deep"&&!i.dueBy),...items.filter(i=>!(i.node.energy==="deep"&&!i.dueBy))]
-    .sort((a,b)=>((a.dueBy?0:1)-(b.dueBy?0:1)));   /* keep dueBy items at the front */
 
-  const overlaps=(a,b)=>fixed.find(f=>a<f.end&&b>f.start);
+  const overlaps=(a,b)=>busy.find(f=>a<f.end&&b>f.start);
+  const hasWindows=(state.settings.deepWindows||[]).length>0;
   const placed=[], unplaced=[];
   for(const it of items){
-    let ok=false, guard=0, c2=new Date(cursor);
-    while(!ok&&guard++<48){
+    let ok=false, guard=0, c2=new Date(cursor), triedDeep=false;
+    while(!ok&&guard++<64){
       if(c2>=end) break;
+      const cm=Math.round((c2-d0)/MIN)%1440;
+      /* steer deep-focus work into the user's chosen windows (any hour, incl. night) */
+      if(it.node.energy==="deep"&&!it.dueBy&&hasWindows&&!inDeepWindow(cm)&&!triedDeep){
+        const nx=nextDeepStart(cm);
+        if(nx!=null){ c2=new Date(d0.getTime()+nx*MIN); triedDeep=true; continue; }
+        triedDeep=true;                        /* no window left — place it anywhere */
+      }
       const fin=new Date(c2.getTime()+it.minutes*MIN);
       const hit=overlaps(c2,fin);
       if(hit){ c2=new Date(hit.end.getTime()+10*MIN); continue; }
-      const cm=c2.getHours()*60+c2.getMinutes();
-      if(it.node.energy==="deep"&&!it.dueBy&&cm>=hmToMin(s.deepEnd)&&cm<hmToMin(s.shallowStart)){
-        c2=new Date(startOfDay(c2).getTime()+hmToMin(s.shallowStart)*MIN); continue; }
       if(fin>end) break;
       it.start=c2; it.end=fin;
       if(it.dueBy&&fin>it.dueBy) it.late=true;
-      placed.push(it); cursor=new Date(fin.getTime()+10*MIN); ok=true;
+      placed.push(it);
+      /* deep-window placements shouldn't drag ordinary work to that hour */
+      if(!(it.node.energy==="deep"&&triedDeep)) cursor=new Date(fin.getTime()+10*MIN);
+      ok=true;
     }
     if(!ok) unplaced.push(it);
   }
-  const all=[...fixed,...placed].sort((a,b)=>a.start-b.start);
+  const all=[...unavail,...fixed,...placed].sort((a,b)=>a.start-b.start);
   return {blocks:all,unplaced,end,fixedCount:fixed.length};
+}
+
+/* side-by-side lanes for overlapping calendar blocks (meeting over laundry).
+   Standard interval layout: greedy lane assignment inside each overlap cluster. */
+function layoutLanes(list){
+  const bs=list.slice().sort((a,b)=>a.start-b.start||b.end-a.end);
+  let cluster=[], laneEnds=[], clusterEnd=-1;
+  const finish=cl=>{ if(!cl.length) return; const n=Math.max(...cl.map(x=>x.lane+1));
+    cl.forEach(x=>{x.lanes=n;}); };
+  for(const b of bs){
+    if(cluster.length&&b.start>=clusterEnd){ finish(cluster); cluster=[]; laneEnds=[]; clusterEnd=-1; }
+    let li=laneEnds.findIndex(e=>e<=b.start);
+    if(li<0){ li=laneEnds.length; laneEnds.push(b.end); } else laneEnds[li]=b.end;
+    b.lane=li; cluster.push(b); clusterEnd=Math.max(clusterEnd,+b.end);
+  }
+  finish(cluster);
+  return bs;
 }
 
 /* ===========================================================================
@@ -1303,47 +1430,59 @@ function renderToday(){
 
 function todayHTML(d){
   const b=todayBands();
-  const capMin=hoursFor(d)*60;
+  const capMin=hoursLeftToday()*60;                 /* shrinks as the day goes on */
   const over=b.committed>capMin;
   const pct=clamp(b.committed/Math.max(capMin,1)*100,0,100);
   const seg1=Math.min(pct,100), seg2=over?clamp((b.committed-capMin)/Math.max(capMin,1)*100,0,100):0;
-  const sl=sleepFor(d);
+  const leftLbl=capMin>=60?(Math.round(capMin/60*10)/10)+"h left today":mins(Math.round(capMin))+" left today";
 
   let html=`<div class="cap">
     <div class="top"><span><b>${mins(Math.round(b.committed))}</b> lined up</span>
-      <span style="color:var(--label2)">${(Math.round(hoursFor(d)*10)/10)}h available</span></div>
-    <div class="bar"><div class="seg1" style="width:${seg1}%"></div><div class="seg2" style="width:${seg2}%"></div></div>
-    <div class="msg${over?" over":""}">${
-      b.committed===0 ? "Nothing estimated yet. Add rough durations and this becomes a real check."
-      : over ? "That is "+mins(Math.round(b.committed-capMin))+" more than you have. Drop something or push it out."
-      : "Fits, with "+mins(Math.round(capMin-b.committed))+" to spare."}
-      Sleep ${esc(fmtHM(sl.bed))}–${esc(fmtHM(sl.wake))} is already subtracted.</div></div>`;
+      <span style="color:${over?"var(--orange)":"var(--label2)"}">${over?"+"+mins(Math.round(b.committed-capMin))+" over · ":""}${leftLbl}</span></div>
+    <div class="bar"><div class="seg1" style="width:${seg1}%"></div><div class="seg2" style="width:${seg2}%"></div></div></div>`;
 
   /* THE PLAN — the system's live proposal for the whole day, in order */
   const pl=planFor(d);
   const now=Date.now();
   if(pl.blocks.length){
-    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} – wind-down</span>`)+`<div class="plan">`;
+    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} – ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
     for(const bk of pl.blocks){
-      const past=bk.end.getTime()<now;
-      const cls=bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost");
-      const why=bk.fixed?(bk.node.fixedEnd?"fixed":"fixed · open end")
-        :[bk.node.energy==="deep"?"deep focus":null,
-          bk.late?"⚠︎ after its due time":(bk.dueBy?"due by "+fmtTime(bk.node.deadline):(bk.node.deadline?"due "+relDay(bk.node.deadline):null)),
-          bk.slice?"part of "+mins(bk.node.estMaxMinutes):null,
-          bk.fuzzy?"~"+mins(bk.minutes)+" guess":null].filter(Boolean).join(" · ");
-      html+=`<div class="planrow ${cls}${past?" past":""}" data-open="${bk.node.id}">
+      if(bk.unavail){
+        html+=`<div class="planrow unavail">
+          <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+          <div class="pbar"></div>
+          <div class="body"><div class="title" style="font-size:15px">${esc(bk.label)}</div>
+            <div class="why">unavailable</div></div></div>`;
+        continue;
+      }
+      const n=bk.node, past=bk.end.getTime()<now;
+      const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
+      const col=nodeColor(n);
+      const cat=n.category&&catByName(n.category);
+      const bits=[];
+      if(bk.bg) bits.push("⟳ runs alongside");
+      else if(bk.fixed) bits.push(n.fixedEnd?"until "+fmtTime(n.fixedEnd):"fixed · open end");
+      if(bk.late) bits.push("⚠︎ after its due time");
+      else if(bk.dueBy) bits.push("due by "+fmtTime(n.deadline));
+      else if(n.deadline) bits.push("due "+relDay(n.deadline));
+      if(n.energy==="deep") bits.push("deep focus");
+      if(bk.slice) bits.push("part of "+mins(n.estMaxMinutes));
+      if(bk.fuzzy) bits.push("~"+mins(bk.minutes)+" guess");
+      if(effImportance(n)==="critical"||effImportance(n)==="high") bits.push(IMP_LABEL[effImportance(n)].toLowerCase());
+      if(n.context) bits.push(n.context);
+      if(n.deliverable) bits.push(n.deliverable.toLowerCase());
+      if(cat) bits.push(`<span style="color:${esc(cat.color||"var(--label2)")}">${cat.icon?esc(cat.icon)+" ":""}${esc(cat.name)}</span>`);
+      html+=`<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
+        <span class="mark" data-mark="${n.id}"><span class="circle${n.status==="done"?" on":""}"></span></span>
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
-        <div class="pbar"></div>
-        <div class="body"><div class="title" style="font-size:15px">${esc(bk.node.title||"Untitled")}</div>
-          ${why?`<div class="why">${why}</div>`:""}</div>
-        ${bk.fixed?"":`<span class="mark" data-mark="${bk.node.id}" style="margin:0"><span class="circle${bk.node.status==="done"?" on":""}"></span></span>`}
+        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+          ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
       </div>`;
     }
     if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more didn’t fit before your day ends: ${
       esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}. Trim estimates, push deadlines, or let them go.</div>`;
-    html+=`</div>
-    <div class="fieldnote" style="margin-top:-6px">Solid bar = fixed. Dashed = the system’s proposal, re-figured live from deadlines, importance, energy and your hours. Fading bar = no estimate, planned at a soft 30m. Tap the circle to finish without opening.</div>`;
+    html+=`</div>`;
   } else if(b.waiting.length||b.blocked.length||b.doneToday.length){
     html+=sec("The plan")+`<div class="plan"><div class="plannote">Nothing to place — everything open is waiting, blocked, or done.</div></div>`;
   }
@@ -1505,13 +1644,22 @@ function weekColsHTML(proj){
     blocks+=`<div class="wkblk sleepz" style="top:30px;height:${wake/60*PPH}px"></div>`;
     if(bed>wake) blocks+=`<div class="wkblk sleepz" style="top:${30+bed/60*PPH}px;height:${(1440-bed)/60*PPH}px"></div>`;
     const pl=planFor(d,proj);
-    for(const bk of pl.blocks){
-      if(bk.fixed&&!state.layers.fixed) continue;
-      if(!bk.fixed&&!state.layers.projected) continue;
+    const vis=pl.blocks.filter(bk=>{
+      if(bk.unavail) return true;
+      if(bk.fixed&&!state.layers.fixed) return false;
+      if(!bk.fixed&&!bk.unavail&&!state.layers.projected) return false;
+      return true; });
+    layoutLanes(vis);
+    for(const bk of vis){
       const top=30+(bk.start.getHours()*60+bk.start.getMinutes())/60*PPH;
       const h=Math.max(13,(bk.end-bk.start)/HOUR*PPH);
-      const cls=bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2");
-      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px">${esc(bk.node.title||"")}</div>`;
+      if(bk.unavail){
+        blocks+=`<div class="wkblk unav" style="top:${top}px;height:${h}px;left:0;right:0">${esc(bk.label||"")}</div>`;
+        continue; }
+      const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
+      const L=bk.lanes||1, li=bk.lane||0;
+      const pos=L>1?`left:calc(2px + (100% - 4px)*${li}/${L});width:calc((100% - 4px)/${L} - 2px);right:auto;`:"";
+      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}</div>`;
     }
     if(state.layers.deadline){
       const dls=Array.from(state.nodes.values()).filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
@@ -1522,7 +1670,7 @@ function weekColsHTML(proj){
       ${blocks}</div>`;
   }
   return calNav()+`<div class="wkcolwrap"><div class="wkcols">${cols}</div></div>
-    <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid blocks are fixed; dashed are the plan; gradient-edged are fuzzy — committed to the day, not to a length. Dimmed bands are sleep. Tap a header to open that day.</div>`;
+    <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid = fixed, dashed = the plan, gradient-edged = fuzzy, hollow stitched = running in the background. Overlaps sit side-by-side. Dimmed bands are sleep and unavailable time. Tap a header to open that day.</div>`;
 }
 
 /* ---- day: true hour-by-hour visual layout ---- */
@@ -1539,20 +1687,32 @@ function dayViewHTML(d,proj){
   inner+=`<div class="dayblock sleepz" style="top:0;height:${wake/60*PPH}px">Sleep · wake ${esc(fmtHM(sl.wake))}</div>`;
   if(bed>wake) inner+=`<div class="dayblock sleepz" style="top:${bed/60*PPH}px;height:${(1440-bed)/60*PPH}px">Sleep · bed ${esc(fmtHM(sl.bed))}</div>`;
 
-  /* every task for the day, placed by the plan engine */
+  /* every task for the day, placed by the plan engine; overlapping blocks
+     (a meeting during the laundry) sit side-by-side in lanes */
   const pl=planFor(d,proj);
-  for(const bk of pl.blocks){
-    if(bk.fixed&&!state.layers.fixed) continue;
-    if(!bk.fixed&&!state.layers.projected) continue;
+  const vis=pl.blocks.filter(bk=>{
+    if(bk.unavail) return true;
+    if(bk.fixed&&!state.layers.fixed) return false;
+    if(!bk.fixed&&!bk.unavail&&!state.layers.projected) return false;
+    return true; });
+  const laned=vis.filter(bk=>!bk.unavail);
+  layoutLanes(laned);
+  for(const bk of vis){
     const top=(bk.start.getHours()*60+bk.start.getMinutes())/60*PPH;
     const h=Math.max(26,(bk.end-bk.start)/HOUR*PPH);
-    const cls=bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2");
+    if(bk.unavail){
+      inner+=`<div class="dayblock unav" style="top:${top}px;height:${h}px">${esc(bk.label||"Unavailable")} · ${esc(fmtTime(bk.start.toISOString()))}–${esc(fmtTime(bk.end.toISOString()))}</div>`;
+      continue; }
+    const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
+    const col=nodeColor(bk.node);
+    const L=bk.lanes||1, li=bk.lane||0;
+    const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
     const sub=bk.fixed
-      ? esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?"–"+esc(fmtTime(bk.node.fixedEnd)):" · open end")
+      ? (bk.bg?"⟳ runs alongside · ":"")+esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?"–"+esc(fmtTime(bk.node.fixedEnd)):" · open end")
       : [bk.fuzzy?"~"+mins(bk.minutes)+", flexible":mins(bk.minutes),
          bk.late?"⚠︎ after due time":(bk.dueBy?"due by "+esc(fmtTime(bk.node.deadline)):(bk.node.deadline?"due "+esc(relDay(bk.node.deadline)):null)),
          bk.slice?"part of "+mins(bk.node.estMaxMinutes):null].filter(Boolean).join(" · ");
-    inner+=`<div class="dayblock${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px${bk.fixed&&bk.node.color?";border-left-color:"+bk.node.color:""}">
+    inner+=`<div class="dayblock${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}${col?"border-left-color:"+esc(col)+";":""}">
       <div class="bt">${esc(bk.node.title||"Untitled")}</div><div class="bs">${sub}</div></div>`;
   }
   /* due-time ticks: hard marks where something must be finished */
@@ -1577,7 +1737,7 @@ function dayViewHTML(d,proj){
        <span>${mins(Math.round(loadOn(d,proj)))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>
      <div class="daywrap"><div class="dayaxis" style="height:${height}px">${inner}</div></div>`
     +unpl
-    +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Dashed blocks are the plan, drawn to scale. Gradient-edged blocks are fuzzy — on the day, but not pinned to a length. A red line is a hard due time. Tap an empty slot to put a task there.</div>`;
+    +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed, dashed are the plan, gradient-edged are fuzzy, hollow stitched ones run in the background — things that overlap sit side-by-side. Hatched bands are unavailable time. A red line is a hard due time. Tap an empty slot to put a task there.</div>`;
 }
 
 /* ===========================================================================
@@ -2075,7 +2235,7 @@ function confirmDelete(n){
                   :`Delete “${n.title}”? This cannot be undone.`);
 }
 async function askHours(k){
-  const cur=state.dayHours[k]!=null?state.dayHours[k]:state.settings.availableHours;
+  const cur=state.dayHours[k]!=null?state.dayHours[k]:Math.round(hoursFor(new Date(k+"T12:00:00"))*10)/10;
   const v=prompt("Hours available on "+k,String(cur));
   if(v===null) return;
   const num=Number(v);
@@ -2184,7 +2344,7 @@ async function flushTaskSave(){
   if(!_dirty) return; _dirty=false;
   const n=applyDraft(); if(n) await save(n);
 }
-const CLRX=(k,has)=>has?`<button class="clearx" data-clearx="${esc(k)}" aria-label="Clear">✕</button>`:"";
+const CLRX=(k,has)=>has?`<span class="clearx" data-clearx="${esc(k)}" role="button" aria-label="Clear">✕</span>`:"";
 
 /* ---------- option picker (generic, stack-based) ---------- */
 function openOptions(cfg){
@@ -2221,8 +2381,9 @@ function applyDraft(){
     importance:d.importance,importanceOverridden:d.importanceOverridden,
     deadline:d.deadline,deadlineType:d.deadlineType,deadlineHasTime:!!d.deadlineHasTime,
     expiry:d.expiry,deferUntil:d.deferUntil,
-    durationMode:d.durationMode,estMinMinutes:d.estMinMinutes,estMaxMinutes:d.estMaxMinutes,
-    fixedStart:d.fixedStart,fixedEnd:d.fixedEnd,actualMinutes:d.actualMinutes,
+    durationMode:d.fixedStart?"fixed":(d.estMaxMinutes!=null?"estimate":"none"),
+    estMinMinutes:d.estMinMinutes,estMaxMinutes:d.estMaxMinutes,
+    fixedStart:d.fixedStart,fixedEnd:d.fixedEnd,background:!!d.background,actualMinutes:d.actualMinutes,
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
     flagged:d.flagged,bumpCount:d.bumpCount,recurrence:d.recurrence,links:d.links,
     dependsOn:d.dependsOn||[],dependencyMode:d.dependencyMode||"none",
@@ -2278,35 +2439,30 @@ function drawSheet(){
   <div class="fieldnote">Category is a cross-cutting label (Health, Work) that follows the task anywhere in the tree. ${src?"Importance is inherited from the group; pick one here to override it for this item only.":""}</div>`;
 
   /* WHEN */
+  const fixedVal=d.fixedStart?fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart)+(d.fixedEnd?"–"+fmtTime(d.fixedEnd):"")+(d.background?" ⟳":""):"None";
   h+=secBig("When")+`<div class="field">
-    <div class="line"><label>Deadline</label><input type="date" id="fDeadline" value="${dateInput(d.deadline)}">${CLRX("deadline",!!d.deadline)}</div>
-    ${d.deadline?`<div class="line"><label>Due time</label><input type="time" id="fDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("dltime",!!d.deadlineHasTime)}</div>
-    <button class="line" id="fDeadlineType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    <div class="line"><label>Due</label><input type="date" id="fDeadline" value="${dateInput(d.deadline)}">${CLRX("deadline",!!d.deadline)}</div>
+    ${d.deadline?`<div class="line"><label>…by</label><input type="time" id="fDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("dltime",!!d.deadlineHasTime)}</div>
+    <button class="line" id="fDeadlineType"><label>How firm</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    <button class="line" id="fFixed"><label>At a set time</label><span class="val${d.fixedStart?" set":""}">${esc(fixedVal)}</span>${CLRX("fixed",!!d.fixedStart)}${ICON_CHEV}</button>
+  </div>
+  <div class="fieldnote">Two simple ideas: <b>Due</b> is when it must be finished (no time picked = end of that day). <b>At a set time</b> pins it to the calendar like an appointment — and can be marked as running in the background. ✕ clears anything.</div>
+  <div class="field"><button class="line" id="fMoreWhen"><label style="color:var(--accent)">More timing options</label><span class="val">${[d.timeframe?tfLabel(d.timeframe):null,d.deferUntil?"starts "+relDay(d.deferUntil):null,d.expiry?"moot "+relDay(d.expiry):null].filter(Boolean).join(" · ")||""}</span>${ICON_CHEV}</button>
+  ${d._moreWhen?`
     ${!d.deadline?`<button class="line" id="fTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
     <div class="line"><label>Start on or after</label><input type="date" id="fDefer" value="${dateInput(d.deferUntil)}">${CLRX("defer",!!d.deferUntil)}</div>
-    <div class="line"><label>Moot after</label><input type="date" id="fExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
+    <div class="line"><label>Moot after</label><input type="date" id="fExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>`:""}
   </div>
-  <div class="fieldnote">A hard deadline has real consequences; a soft one is self-set and weighs less. No due time means end of day. A timeframe ("sometime in March") is a commitment to a period, not a date. Moot after: past that date the task stops mattering and drops itself. Tap ✕ to clear any of these.</div>`;
+  ${d._moreWhen?`<div class="fieldnote">A timeframe ("sometime in March") is a commitment to a period, not a date. "Start on or after" hides it until then. "Moot after" means past that date it stops mattering and drops itself.</div>`:""}`;
 
-  /* EFFORT */
-  h+=secBig("Effort")+`<div class="seg" id="fDur">
-      <button data-dur="none"${d.durationMode==="none"?' class="on"':""}>No time</button>
-      <button data-dur="estimate"${d.durationMode==="estimate"?' class="on"':""}>Rough</button>
-      <button data-dur="fixed"${d.durationMode==="fixed"?' class="on"':""}>Fixed block</button></div>`;
-  if(d.durationMode==="estimate") h+=`<div class="field">
-      <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="fEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="fEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="unit">min</span></div>
-    </div><div class="fieldnote">A range stays honest. Capacity uses the high end; quick wins use the low end.</div>`;
-  if(d.durationMode==="fixed") h+=`<div class="field">
-      <div class="line"><label>Day</label><input type="date" id="fFixDay" value="${dateInput(d.fixedStart)}"></div>
-      <div class="line"><label>Start</label><input type="time" id="fFixStart" value="${timeInput(d.fixedStart)}"></div>
-      <div class="line"><label>End</label><input type="time" id="fFixEnd" value="${timeInput(d.fixedEnd)}">${CLRX("fixed",!!d.fixedStart)}</div>
-    </div><div class="fieldnote">A fixed block sits at its time on the calendar and in the plan, like an appointment. ✕ clears the whole block.</div>`;
-  h+=`<div class="field">
+  /* EFFORT — no modes to choose; just say roughly how long it takes */
+  h+=secBig("Effort")+`<div class="field">
+    <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="fEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="fEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="unit">min</span></div>
     <button class="line" data-pick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${CLRX("energy",!!d.energy)}${ICON_CHEV}</button>
     <button class="line" data-pick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${CLRX("context",!!d.context)}${ICON_CHEV}</button>
     ${n.status==="done"?`<div class="line"><label>Actually took</label><input type="number" inputmode="numeric" id="fActual" value="${d.actualMinutes??""}" placeholder="min"><span class="unit">min</span></div>`:""}
   </div>
-  <div class="fieldnote">Deep focus work is laid out before your deep-focus cutoff; shallow work after. ${n.status==="done"?"Logging what it actually took feeds the monthly estimate-accuracy stat.":""}</div>`;
+  <div class="fieldnote">A rough range is enough — the plan uses the high end, quick wins the low end. Deep focus tasks are steered into your deep-focus windows from Settings. ${n.status==="done"?"Logging what it actually took feeds the monthly estimate-accuracy stat.":""}</div>`;
 
   /* DEPENDENCIES */
   const depNames=deps.map(x=>`<div class="line"><label style="font-weight:400">${esc(x.title||"Untitled")}</label>
@@ -2374,25 +2530,25 @@ function wireDetail(){
   if(nt){ const grow=()=>{ nt.style.height="auto"; nt.style.height=Math.max(80,nt.scrollHeight)+"px"; };
     nt.addEventListener("input",e=>{ d.notes=e.target.value; grow(); Q(); }); grow(); }
 
-  $$("#fDur button").forEach(b=>b.addEventListener("click",()=>{
-    d.durationMode=b.dataset.dur;
-    if(d.durationMode!=="fixed"){ d.fixedStart=null; d.fixedEnd=null; }
-    if(d.durationMode==="none"){ d.estMinMinutes=null; d.estMaxMinutes=null; }
-    Q(); drawSheet(); }));
   $$("#fDepMode button").forEach(b=>b.addEventListener("click",()=>{
     d.dependencyMode=b.dataset.dm; Q(); drawSheet(); }));
 
+  /* IMPORTANT: date/time inputs are never redrawn on "change" — iOS fires
+     change while the wheels are still open, and rebuilding the DOM then
+     kicks the picker shut. State updates silently; the sheet redraws on blur. */
   on("#fDeadline","change",e=>{
     const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
     d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
     if(d.deadline&&!d.deadlineType) d.deadlineType="hard";
     if(!d.deadline){ d.deadlineType=null; d.deadlineHasTime=false; }
-    if(d.deadline) d.timeframe=null; Q(); drawSheet(); });
+    if(d.deadline) d.timeframe=null; Q(); });
+  on("#fDeadline","blur",()=>setTimeout(drawSheet,80));
   on("#fDlTime","change",e=>{
     if(!d.deadline) return;
     if(e.target.value){ d.deadline=new Date(dateInput(d.deadline)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
     else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
-    Q(); drawSheet(); });
+    Q(); });
+  on("#fDlTime","blur",()=>setTimeout(drawSheet,80));
   on("#fDeadlineType","click",()=>openOptions({title:"Deadline type",
     options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
     current:d.deadlineType,onPick:v=>{ d.deadlineType=v; Q(); }}));
@@ -2402,11 +2558,8 @@ function wireDetail(){
   on("#fEstMin","input",e=>{ d.estMinMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
   on("#fEstMax","input",e=>{ d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
   on("#fActual","input",e=>{ d.actualMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
-  const fixDay=()=>{ const day=$("#fFixDay").value, s=$("#fFixStart").value, en=$("#fFixEnd").value;
-    if(day&&s){ d.fixedStart=new Date(day+"T"+s+":00").toISOString();
-      d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; }
-    else { d.fixedStart=null; d.fixedEnd=null; } Q(); };
-  ["#fFixDay","#fFixStart","#fFixEnd"].forEach(s=>on(s,"change",fixDay));
+  on("#fFixed","click",()=>openFixedSheet(d,Q));
+  on("#fMoreWhen","click",()=>{ d._moreWhen=!d._moreWhen; drawSheet(); });
   on("#fWaitOn","input",e=>{ d.waitingOn=e.target.value; Q(); });
   on("#fFollow","change",e=>{ d.followUpDate=e.target.value?new Date(e.target.value+"T09:00:00").toISOString():null; Q(); });
   on("#fFlag","click",()=>{ d.flagged=!d.flagged; Q(); drawSheet(); });
@@ -2429,7 +2582,7 @@ function wireDetail(){
     if(k==="timeframe") d.timeframe=null;
     if(k==="defer") d.deferUntil=null;
     if(k==="expiry") d.expiry=null;
-    if(k==="fixed"){ d.fixedStart=null; d.fixedEnd=null; d.durationMode=d.estMaxMinutes?"estimate":"none"; }
+    if(k==="fixed"){ d.fixedStart=null; d.fixedEnd=null; d.background=false; d.durationMode=d.estMaxMinutes?"estimate":"none"; }
     if(k==="follow") d.followUpDate=null;
     if(k==="category") d.category=null;
     if(k==="deliverable") d.deliverable=null;
@@ -2782,7 +2935,8 @@ function openGroupSheet(id){
     $$("#gColors button").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; G(); draw(); }));
     $$("#gMode button").forEach(b=>b.addEventListener("click",()=>{ d.childMode=b.dataset.mode; G(); draw(); }));
     on("#gDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null;
-      if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null; G(); draw(); });
+      if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null; G(); });
+    on("#gDeadline","blur",()=>setTimeout(draw,80));
     on("#gDeadlineType","click",()=>openOptions({title:"Deadline type",
       options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
       current:d.deadlineType,onPick:v=>{ d.deadlineType=v; G(); }}));
@@ -2987,14 +3141,17 @@ function drawCapture(){
     <div class="capbd">${body}</div></div>`;
 
   const whenBody=`
-    <div class="line"><label>Deadline</label><input type="date" id="cDeadline" value="${dateInput(d.deadline)}">${CLRX("cdeadline",!!d.deadline)}</div>
-    ${d.deadline?`<div class="line"><label>Due time</label><input type="time" id="cDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("cdltime",!!d.deadlineHasTime)}</div>
-    <button class="line" id="cDlType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    <div class="line"><label>Due</label><input type="date" id="cDeadline" value="${dateInput(d.deadline)}">${CLRX("cdeadline",!!d.deadline)}</div>
+    ${d.deadline?`<div class="line"><label>…by</label><input type="time" id="cDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("cdltime",!!d.deadlineHasTime)}</div>
+    <button class="line" id="cDlType"><label>How firm</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    <button class="line" id="cFixed"><label>At a set time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.background?" ⟳":""):"None"}</span>${CLRX("cfixed",!!d.fixedStart)}${ICON_CHEV}</button>
+    <div class="fieldnote inline"><b>Due</b> = must be finished by then (no time = end of day). <b>At a set time</b> = pinned to the calendar like an appointment, with an option to run in the background.</div>
+    <button class="line" id="cMoreWhen" style="color:var(--accent)">More timing options ${d._moreWhen?"▴":"▾"}</button>
+    ${d._moreWhen?`
     ${!d.deadline?`<button class="line" id="cTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("ctimeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
     <div class="line"><label>Start on or after</label><input type="date" id="cDefer" value="${dateInput(d.deferUntil)}">${CLRX("cdefer",!!d.deferUntil)}</div>
     <div class="line"><label>Moot after</label><input type="date" id="cExpiry" value="${dateInput(d.expiry)}">${CLRX("cexpiry",!!d.expiry)}</div>
-    <button class="line" id="cFixed"><label>Fixed block</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart)):"None"}</span>${CLRX("cfixed",!!d.fixedStart)}${ICON_CHEV}</button>
-    <div class="fieldnote inline">No due time means end of day. Soft deadlines weigh less. A timeframe ("sometime in March") stays off the calendar until you pin a date. ✕ clears anything.</div>`;
+    <div class="fieldnote inline">A timeframe is "sometime in a period" with no date yet. "Start on or after" hides it until then. "Moot after" drops it once it stops mattering.</div>`:""}`;
   const whenSum=d.deadline?relDay(d.deadline)+(d.deadlineHasTime?" "+fmtTime(d.deadline):""):(d.timeframe?tfLabel(d.timeframe):(d.fixedStart?fmtDate(d.fixedStart):""));
 
   const effortBody=`
@@ -3070,17 +3227,20 @@ function wireCapture(){
   on("#cNotes","input",e=>{ d.notes=e.target.value; });
   on("#cSteps","input",e=>{ state.capSubs=e.target.value.split("\n"); });
   on("#cGroup","click",()=>{ keepText(); openPicker(d,null); });
-  on("#cDeadline","change",e=>{ keepText(); S("deadline");
+  /* never redraw while a wheel picker is open — update state, redraw on blur */
+  on("#cDeadline","change",e=>{ S("deadline");
     const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
     d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
     if(d.deadline&&!d.deadlineType) d.deadlineType="soft";
     if(!d.deadline){ d.deadlineType=null; d.deadlineHasTime=false; }
-    if(d.deadline) d.timeframe=null; drawCapture(); });
-  on("#cDlTime","change",e=>{ keepText(); S("deadline");
+    if(d.deadline) d.timeframe=null; });
+  on("#cDeadline","blur",()=>{ keepText(); setTimeout(drawCapture,80); });
+  on("#cDlTime","change",e=>{ S("deadline");
     if(!d.deadline) return;
     if(e.target.value){ d.deadline=new Date(dateInput(d.deadline)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
-    else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
-    drawCapture(); });
+    else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }});
+  on("#cDlTime","blur",()=>{ keepText(); setTimeout(drawCapture,80); });
+  on("#cMoreWhen","click",()=>{ keepText(); d._moreWhen=!d._moreWhen; drawCapture(); });
   on("#cDlType","click",()=>{ keepText(); openOptions({title:"Deadline type",
     options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
     current:d.deadlineType,onPick:v=>{ d.deadlineType=v; S("deadline"); }}); });
@@ -3091,7 +3251,7 @@ function wireCapture(){
     if(d.estMaxMinutes!=null&&d.durationMode==="none") d.durationMode="estimate"; });
   on("#cEstMax","input",e=>{ S("dur"); d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value));
     if(d.estMaxMinutes!=null) d.durationMode="estimate"; });
-  on("#cFixed","click",()=>{ keepText(); openCapFixed(d); });
+  on("#cFixed","click",()=>{ keepText(); openFixedSheet(d,null); });
   on("#cIcon","click",()=>{ keepText(); openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; }); });
   on("#cFlagB","click",()=>{ keepText(); d.flagged=!d.flagged; drawCapture(); });
   on("#cNotify","click",()=>{ keepText(); openNotifyEditor(d.notify,v=>{ d.notify=v; },
@@ -3112,7 +3272,7 @@ function wireCapture(){
     if(k==="ctimeframe"){ d.timeframe=null; S("deadline"); }
     if(k==="cdefer") d.deferUntil=null;
     if(k==="cexpiry") d.expiry=null;
-    if(k==="cfixed"){ d.fixedStart=null; d.fixedEnd=null; if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none"; }
+    if(k==="cfixed"){ d.fixedStart=null; d.fixedEnd=null; d.background=false; if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none"; }
     if(k==="cenergy") d.energy=null;
     if(k==="cctx"){ d.context=null; S("ctx"); }
     if(k==="cdeliv") d.deliverable=null;
@@ -3122,25 +3282,31 @@ function wireCapture(){
     drawCapture(); }));
   on("#cSaveMore","click",async()=>{ await commitCapture(true); });
 }
-function openCapFixed(d){
-  sheetPush(()=>{
-    showSheet("Fixed block",
-      `<div class="field">
-        <div class="line"><label>Day</label><input type="date" id="xDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
-        <div class="line"><label>Start</label><input type="time" id="xStart" value="${timeInput(d.fixedStart)}"></div>
-        <div class="line"><label>End</label><input type="time" id="xEnd" value="${timeInput(d.fixedEnd)}"></div>
-       </div>
-       <div class="fieldnote">Sits at its time on the calendar and in the plan, like an appointment. Applied when you go back.</div>
-       <div class="field"><button class="line accent" id="xClear">No fixed time</button></div>`,null);
-    SHEET.leave=()=>{
-      const day=$("#xDay"), s=$("#xStart"), e=$("#xEnd");
-      if(day&&s&&day.value&&s.value){ d.fixedStart=new Date(day.value+"T"+s.value+":00").toISOString();
-        d.fixedEnd=e&&e.value?new Date(day.value+"T"+e.value+":00").toISOString():null; d.durationMode="fixed"; }
-    };
-    $("#xClear").addEventListener("click",()=>{ d.fixedStart=null; d.fixedEnd=null;
-      if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none";
-      SHEET.leave=null; sheetPop(); });
-  });
+function openFixedSheet(d,onChange){
+  sheetPush(()=>drawFixedSheet(d,onChange));
+}
+function drawFixedSheet(d,onChange){
+  showSheet("At a set time",
+    `<div class="field">
+      <div class="line"><label>Day</label><input type="date" id="xDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+      <div class="line"><label>Start</label><input type="time" id="xStart" value="${timeInput(d.fixedStart)}"></div>
+      <div class="line"><label>End</label><input type="time" id="xEnd" value="${timeInput(d.fixedEnd)}"></div>
+     </div>
+     <div class="fieldnote">Sits at its time on the calendar and in the plan, like an appointment. Applied when you go back.</div>
+     <div class="field"><button class="line" id="xBg"><label>Runs in the background</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button></div>
+     <div class="fieldnote">Laundry, the dishwasher, a download — it occupies the time slot but not you. It never blocks other work, other tasks can be planned right over it, and it doesn't count against your hours.</div>
+     <div class="field"><button class="line accent" id="xClear">No set time</button></div>`,null);
+  SHEET.leave=()=>{
+    const day=$("#xDay"), st=$("#xStart"), e=$("#xEnd");
+    if(day&&st&&day.value&&st.value){ d.fixedStart=new Date(day.value+"T"+st.value+":00").toISOString();
+      d.fixedEnd=e&&e.value?new Date(day.value+"T"+e.value+":00").toISOString():null; d.durationMode="fixed";
+      if(onChange) onChange(); }
+  };
+  $("#xBg").addEventListener("click",()=>{ d.background=!d.background;
+    if(onChange) onChange(); drawFixedSheet(d,onChange); });
+  $("#xClear").addEventListener("click",()=>{ d.fixedStart=null; d.fixedEnd=null; d.background=false;
+    if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none";
+    if(onChange) onChange(); SHEET.leave=null; sheetPop(); });
 }
 async function commitCapture(again){
   const d=state.capDraft; if(!d) return;
@@ -3181,6 +3347,8 @@ async function commitCapture(again){
   const subs=state.capSubs.map(s=>s.trim()).filter(Boolean);
   if(subs.length) d.kind="group";
   d.order=nextOrder(d.parentId);
+  delete d._moreWhen;
+  d.durationMode=d.fixedStart?"fixed":(d.estMaxMinutes!=null?"estimate":"none");
   const n=newNode(d); state.nodes.set(n.id,n); await putNode(n);
   let o=Date.now();
   for(const s of subs){ const sp=parseNL(s);
@@ -3236,7 +3404,7 @@ function drawFilters(){
      </div>
      <div class="field"><button class="line accent" id="fClear">Clear filter</button></div>
      ${state.filters.length?sec("Saved")+`<div class="group">${state.filters.map((s,i)=>
-        `<button class="pickrow" data-saved="${i}"><span>${esc(s.name)}</span><button class="tick" data-delsaved="${i}" style="color:var(--red)">Remove</button></button>`).join("")}</div>`:""}
+        `<button class="pickrow" data-saved="${i}"><span>${esc(s.name)}</span><span class="tick" data-delsaved="${i}" role="button" style="color:var(--red)">Remove</span></button>`).join("")}</div>`:""}
      <div class="field" style="margin-top:18px"><div class="line">
         <input class="big" id="fName" placeholder="Name this filter…"></div>
         <button class="line accent" id="fSave">Save filter</button></div>
@@ -3273,17 +3441,28 @@ function drawSettings(){
     `<div class="fieldnote" style="margin:2px 20px 12px">Changes save as you make them.</div>
      ${secBig("Schedule")}
      <div class="field">
-      <div class="line"><label>Hours per day</label><input type="number" inputmode="decimal" step="0.5" min="0" max="24" id="sHours" value="${s.availableHours}"><span class="unit">h</span></div>
-      <div class="line"><label>Day starts</label><input type="time" id="sStart" value="${s.dayStart}"></div>
-      <div class="line"><label>Day ends</label><input type="time" id="sEnd" value="${s.dayEnd}"></div>
-      <button class="line" data-s="sleep"><label>Sleep schedule</label><span class="val">${esc(fmtHM(s.sleep.bed))}–${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
+      <button class="line" data-s="sleep"><label>Sleep</label><span class="val">${esc(fmtHM(s.sleep.bed))} – ${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
+      <div class="line"><label>Hours per day</label><span class="val">${Math.round(hoursFor(new Date())*10)/10}h today · computed</span></div>
      </div>
-     <div class="fieldnote">Hours per day is how much task work realistically fits, and feeds the capacity check; a single date can be overridden from the Calendar tab. The plan lays work out between day start and day end. Sleep is subtracted automatically.</div>
+     <div class="fieldnote">Your day is simply what's between waking up and going to bed. Capacity is computed from that — nothing to type in: sleep and the unavailable blocks below are subtracted automatically. One specific date can still be overridden from its day on the Calendar tab.</div>
+     ${sec("Unavailable time","<span>subtracted every day it applies</span>")}
      <div class="field">
-      <div class="line"><label>Deep focus until</label><input type="time" id="sDeepEnd" value="${s.deepEnd}"></div>
-      <div class="line"><label>Shallow work from</label><input type="time" id="sShallow" value="${s.shallowStart}"></div>
+      ${(s.unavailable||[]).map((u,i)=>`<button class="line" data-unav="${i}">
+        <label style="font-weight:400">${esc(u.label||"Unavailable")}</label>
+        <span class="val">${(!u.days||!u.days.length)?"Daily":u.days.map(x=>["S","M","T","W","T","F","S"][x]).join(" ")} · ${esc(fmtHM(u.from))}–${esc(fmtHM(u.to))}</span>
+        <span class="clearx" data-rmunav="${i}" role="button" aria-label="Remove">✕</span></button>`).join("")}
+      <button class="line accent" id="unavAdd">Add a block of unavailable time</button>
      </div>
-     <div class="fieldnote">The plan puts deep-focus work before the first time and shallow work after the second.</div>
+     <div class="fieldnote">Commute, dinner, practice — time that isn't sleep but isn't for tasks either. The plan routes around these and they show dimmed on the Day and Week views.</div>
+     ${sec("Deep focus windows")}
+     <div class="field">
+      ${(s.deepWindows||[]).map((w,i)=>`<button class="line" data-deepw="${i}">
+        <label style="font-weight:400">Window ${i+1}</label>
+        <span class="val">${esc(fmtHM(w.from))} – ${esc(fmtHM(w.to))}</span>
+        <span class="clearx" data-rmdeepw="${i}" role="button" aria-label="Remove">✕</span></button>`).join("")}
+      <button class="line accent" id="deepAdd">Add a window</button>
+     </div>
+     <div class="fieldnote">When your brain does its best work — early morning, late night, both, whenever. Tasks marked Deep focus get steered into these windows. No windows means deep work can land anywhere.</div>
      ${secBig("Appearance")}
      <div class="field">
       <button class="line" data-s="appearance"><label>Theme and looks</label><span class="val">${esc((THEMES.find(t=>t.id===s.theme.id)||THEMES[0]).name)}</span>${ICON_CHEV}</button>
@@ -3308,11 +3487,20 @@ function drawSettings(){
       <button class="line danger" id="sWipe" style="justify-content:flex-start">Erase everything</button>
      </div>
      <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`,null);
-  $("#sHours").addEventListener("change",e=>{ s.availableHours=clamp(Number(e.target.value)||6,0,24); setSave(); });
-  $("#sStart").addEventListener("change",e=>{ s.dayStart=e.target.value||"08:00"; setSave(); });
-  $("#sEnd").addEventListener("change",e=>{ s.dayEnd=e.target.value||"20:00"; setSave(); });
-  $("#sDeepEnd").addEventListener("change",e=>{ s.deepEnd=e.target.value||"12:00"; setSave(); });
-  $("#sShallow").addEventListener("change",e=>{ s.shallowStart=e.target.value||"15:00"; setSave(); });
+  $("#unavAdd").addEventListener("click",()=>{
+    s.unavailable.push({label:"",from:"17:30",to:"18:30",days:[]});
+    saveSettings(); sheetPush(()=>drawUnavail(s.unavailable.length-1)); });
+  $("#deepAdd").addEventListener("click",()=>{
+    s.deepWindows.push({from:"21:00",to:"23:00"});
+    saveSettings(); sheetPush(()=>drawDeepWindow(s.deepWindows.length-1)); });
+  sheetBody.querySelectorAll("[data-unav]").forEach(b=>b.addEventListener("click",()=>{
+    const i=Number(b.dataset.unav); sheetPush(()=>drawUnavail(i)); }));
+  sheetBody.querySelectorAll("[data-deepw]").forEach(b=>b.addEventListener("click",()=>{
+    const i=Number(b.dataset.deepw); sheetPush(()=>drawDeepWindow(i)); }));
+  sheetBody.querySelectorAll("[data-rmunav]").forEach(b=>b.addEventListener("click",async e=>{
+    e.stopPropagation(); s.unavailable.splice(Number(b.dataset.rmunav),1); await saveSettings(); drawSettings(); }));
+  sheetBody.querySelectorAll("[data-rmdeepw]").forEach(b=>b.addEventListener("click",async e=>{
+    e.stopPropagation(); s.deepWindows.splice(Number(b.dataset.rmdeepw),1); await saveSettings(); drawSettings(); }));
   sheetBody.querySelectorAll("[data-set]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.set;
     sheetPush(k==="categories"?drawCategories:()=>drawList(k)); }));
@@ -3332,6 +3520,46 @@ function drawSettings(){
     await ensureInbox();
     await saveSettings(); closeSheet(); state.path=[]; render(); toast("Erased");
   });
+}
+/* ---- unavailable-time block editor: saves as you change it ---- */
+function drawUnavail(i){
+  const u=state.settings.unavailable[i]; if(!u){ sheetPop(); return; }
+  const dows=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  showSheet("Unavailable time",
+    `<div class="field">
+      <div class="line"><label>Label</label><input class="big" id="uvLabel" style="text-align:right" placeholder="Commute, dinner…" value="${esc(u.label||"")}"></div>
+      <div class="line"><label>From</label><input type="time" id="uvFrom" value="${u.from}"></div>
+      <div class="line"><label>To</label><input type="time" id="uvTo" value="${u.to}"></div>
+     </div>
+     ${sec("Days","<span>none picked = every day</span>")}
+     <div class="daychips" id="uvDays">${dows.map((dn,di)=>
+       `<button data-dow="${di}"${(u.days||[]).includes(di)?' class="on"':""}>${dn}</button>`).join("")}</div>
+     <div class="fieldnote" style="margin-top:14px">This time is subtracted from your capacity and the plan routes around it. Saved as you change it.</div>
+     <div class="field" style="margin-top:14px"><button class="line danger" id="uvDel">Remove this block</button></div>`,null);
+  $("#uvLabel").addEventListener("input",e=>{ u.label=e.target.value; setSave(); });
+  $("#uvFrom").addEventListener("change",e=>{ u.from=e.target.value||u.from; setSave(); });
+  $("#uvTo").addEventListener("change",e=>{ u.to=e.target.value||u.to; setSave(); });
+  sheetBody.querySelectorAll("#uvDays button").forEach(b=>b.addEventListener("click",()=>{
+    const di=Number(b.dataset.dow); u.days=u.days||[];
+    u.days=u.days.includes(di)?u.days.filter(x=>x!==di):u.days.concat(di).sort();
+    setSave(); drawUnavail(i); }));
+  $("#uvDel").addEventListener("click",async()=>{
+    state.settings.unavailable.splice(i,1); await saveSettings(); sheetPop(); });
+}
+/* ---- deep-focus window editor ---- */
+function drawDeepWindow(i){
+  const w=state.settings.deepWindows[i]; if(!w){ sheetPop(); return; }
+  showSheet("Deep focus window",
+    `<div class="field">
+      <div class="line"><label>From</label><input type="time" id="dwFrom" value="${w.from}"></div>
+      <div class="line"><label>To</label><input type="time" id="dwTo" value="${w.to}"></div>
+     </div>
+     <div class="fieldnote">Tasks marked Deep focus are pulled toward this window — late-night deep work is perfectly valid. A window crossing midnight (22:00 – 01:00) works. Saved as you change it.</div>
+     <div class="field" style="margin-top:14px"><button class="line danger" id="dwDel">Remove this window</button></div>`,null);
+  $("#dwFrom").addEventListener("change",e=>{ w.from=e.target.value||w.from; setSave(); });
+  $("#dwTo").addEventListener("change",e=>{ w.to=e.target.value||w.to; setSave(); });
+  $("#dwDel").addEventListener("click",async()=>{
+    state.settings.deepWindows.splice(i,1); await saveSettings(); sheetPop(); });
 }
 function drawList(key){
   const arr=state.settings[key];
@@ -3448,7 +3676,10 @@ function applyTheme(){
     root.style.setProperty("--press","#232326"); root.style.setProperty("--navbg","rgba(10,10,12,.85)"); }
   else{ root.style.removeProperty("--bg"); root.style.removeProperty("--elev");
     root.style.removeProperty("--press"); root.style.removeProperty("--navbg"); }
-  $("#metaTheme").setAttribute("content",wantDark?(th.oled?"#000000":"#000000"):"#F2F2F7");
+  const bgD="#000000", bgL="#F2F2F7";
+  $("#metaThemeL").setAttribute("content",t.mode==="dark"?bgD:bgL);
+  $("#metaThemeD").setAttribute("content",t.mode==="light"?bgL:bgD);
+  document.documentElement.style.background=getComputedStyle(document.documentElement).getPropertyValue("--bg")||("");
   document.body.dataset.hasdark=wantDark?"1":"0";
   document.body.style.setProperty("--bgdim","rgba(0,0,0,"+(t.bgDim!=null?t.bgDim:.35)+")");
   if(!darkMQ){ darkMQ=window.matchMedia("(prefers-color-scheme: dark)");
@@ -3661,7 +3892,7 @@ function drawBackups(){
      <div class="group">${state.snaps.map(s=>`<div class="pickrow">
         <span>${esc(new Date(s.ts).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}
           <span class="path">${s.kind==="weekly"?"weekly":"daily"} · ${s.items} items</span></span>
-        <button class="tick" data-restore="${s.id}">Restore</button></div>`).join("")||'<div class="pickrow"><span>First snapshot is taken automatically at next launch.</span></div>'}</div>
+        <span class="tick" data-restore="${s.id}" role="button">Restore</span></div>`).join("")||'<div class="pickrow"><span>First snapshot is taken automatically at next launch.</span></div>'}</div>
      <div class="field" style="margin-top:16px"><button class="line accent" id="bkNow">Take a snapshot now</button></div>`,
     null);
   sheetBody.querySelectorAll("[data-bx]").forEach(b=>b.addEventListener("click",async()=>{ await doExport("json"); drawBackups(); }));
