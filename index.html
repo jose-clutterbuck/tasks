@@ -362,6 +362,63 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 :root[data-dark="1"] .toast{background:rgba(80,80,84,.96)}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){*{transition-duration:.01ms !important}}
+
+/* ===== v2.1: motion, sheet nav, clearables, plan, fuzzy blocks ===== */
+[hidden]{display:none!important}
+@keyframes viewin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+#content.anim{animation:viewin .22s cubic-bezier(.2,.7,.3,1)}
+@keyframes shfwd{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+@keyframes shback{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.sheetbody.fwd{animation:shfwd .2s cubic-bezier(.2,.7,.3,1)}
+.sheetbody.back{animation:shback .2s cubic-bezier(.2,.7,.3,1)}
+.seg button{transition:background .16s,color .16s,box-shadow .16s}
+.tab,.navbtn,.line,.pickrow,.row .rowin,.themecard,.cal{transition:background .14s,opacity .14s}
+.toggle{transition:background .18s}.toggle::after{transition:transform .18s}
+.fab{transition:transform .16s,box-shadow .16s}.fab:active{transform:scale(.92)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.sheetback{display:flex;align-items:center;gap:2px;min-width:64px;justify-content:flex-start}
+.sheetback svg{flex:0 0 auto}
+.sheetback span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px}
+.clearx{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--fill);color:var(--label2);
+  font-size:11px;display:flex;align-items:center;justify-content:center;margin-left:6px}
+.clearx:active{background:var(--press)}
+/* today plan timeline */
+.plan{background:var(--elev);border-radius:12px;margin:0 16px 16px;overflow:hidden}
+.planrow{display:flex;gap:12px;padding:11px 14px;align-items:center;position:relative}
+.planrow + .planrow{border-top:.33px solid var(--sep)}
+.planrow .pt{flex:0 0 66px;text-align:right;font-size:13px;color:var(--label2)}
+.planrow .pt b{display:block;color:var(--label);font-size:14px;font-weight:600}
+.planrow .pbar{flex:0 0 4px;align-self:stretch;border-radius:2px;background:var(--accent);opacity:.9}
+.planrow.ghost .pbar{background:repeating-linear-gradient(180deg,var(--accent) 0 5px,transparent 5px 9px);opacity:.6}
+.planrow.fuzzy .pbar{background:linear-gradient(180deg,var(--accent),transparent);opacity:.55}
+.planrow.past{opacity:.45}
+.planrow .body{flex:1;min-width:0}
+.planrow .why{font-size:12px;color:var(--label2);margin-top:1px}
+.plannote{padding:10px 16px;font-size:13px;color:var(--label2);border-top:.33px solid var(--sep)}
+/* fuzzy calendar blocks: gradient border, soft fill */
+.dayblock.fuzzy,.wkblk.fuzzy{border-left-style:none;border:1.4px dashed transparent;
+  background:linear-gradient(var(--elev),var(--elev)) padding-box,
+    linear-gradient(160deg,var(--accent),rgba(var(--accent-rgb),.06)) border-box;}
+.dayblock.fuzzy{border-radius:9px}
+.dayblock.plan2,.wkblk.plan2{background:rgba(var(--accent-rgb),.10);border-left:3px dashed var(--accent)}
+.dlTick{position:absolute;left:52px;right:6px;height:0;border-top:2px solid var(--red);opacity:.75}
+.dlTick::after{content:attr(data-l);position:absolute;right:0;top:-15px;font-size:10px;color:var(--red);font-weight:600}
+/* capture parse chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px 2px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(var(--accent-rgb),.13);color:var(--accent);
+  font-size:13px;font-weight:500;border-radius:14px;padding:4px 8px 4px 10px;animation:viewin .18s}
+.chip b{font-weight:600}
+.chip .x{width:15px;height:15px;border-radius:50%;background:rgba(var(--accent-rgb),.22);display:flex;
+  align-items:center;justify-content:center;font-size:9px}
+/* browse attention card */
+.attn{background:var(--elev);border-radius:12px;margin:0 16px 16px;overflow:hidden}
+.attn .arow{display:flex;align-items:center;gap:10px;padding:12px 14px;width:100%;text-align:left}
+.attn .arow + .arow{border-top:.33px solid var(--sep)}
+.attn .aico{flex:0 0 30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.attn .arow .n{margin-left:auto;color:var(--label2);font-size:14px;display:flex;align-items:center;gap:4px}
+.unit{color:var(--label2);font-size:15px;flex:0 0 auto;margin-left:6px}
+input[type="time"],input[type="date"]{min-height:30px}
+
 </style>
 </head>
 <body>
@@ -406,9 +463,11 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet">
   <div class="sheethead">
-    <button id="sheetCancel">Cancel</button>
+    <button id="sheetBack" class="sheetback">
+      <svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10.5 1.5 2 10l8.5 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="sheetBackLbl">Close</span></button>
     <h3 id="sheetTitle">Details</h3>
-    <button id="sheetDone" class="strong">Done</button>
+    <button id="sheetDone" class="strong" hidden>Done</button>
   </div>
   <div class="sheetbody" id="sheetBody"></div>
 </div>
@@ -512,7 +571,7 @@ function newNode(p={}){ return Object.assign({
   category:null, deliverable:null, context:null, energy:null,
   flagged:false, bumpCount:0, recurrence:null, links:[],
   dependsOn:[], dependencyMode:"none",
-  timeframe:null, icon:null, color:null, notify:null,
+  timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=["#007AFF","#34C759","#FF9500","#FF3B30","#AF52DE","#30B0C7","#FFCC00","#FF2D55","#8E8E93","#5856D6","#A2845E","#32ADE6"];
@@ -527,7 +586,7 @@ const DEFAULTS={
     {name:"People",icon:"👥",color:"#30B0C7"}],
   deliverables:["Decision","Document","Research","Meeting","Message","Call","Errand","Purchase","Sketch","Habit"],
   contexts:["@anywhere","@phone","@computer","@errand","@home","@out"],
-  availableHours:6, deepStart:9, deepEnd:12, shallowStart:15, dayStart:8, dayEnd:20,
+  availableHours:6, deepEnd:"12:00", shallowStart:"15:00", dayStart:"08:00", dayEnd:"20:00",
   sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false},
   theme:{id:"system",mode:"auto",hideTaskIcons:false,bgDim:.35,hasBg:false},
   notif:{master:true,offsets:[60],atTime:"09:00",
@@ -548,6 +607,9 @@ function mergeDefaults(s){
   /* v1 stored categories as plain strings — upgrade them to objects */
   out.categories=(out.categories||[]).map((c,i)=>typeof c==="string"
     ? {name:c,icon:CAT_ICONS[i%CAT_ICONS.length],color:PALETTE[i%PALETTE.length]} : c);
+  /* v2.0 stored schedule anchors as whole-number hours — upgrade to clock times */
+  for(const k of ["dayStart","dayEnd","deepEnd","shallowStart"])
+    if(typeof out[k]==="number") out[k]=String(clamp(Math.round(out[k]),0,23)).padStart(2,"0")+":00";
   return out;
 }
 const catByName=n=>state.settings.categories.find(c=>c.name===n)||null;
@@ -556,7 +618,6 @@ const state={
   nodes:new Map(), settings:mergeDefaults(null), dayHours:{}, filters:[],
   tab:"today", path:[], showDone:true, openSwipe:null,
   editing:null, draft:null, pressTimer:null,
-  todayMode:"today",
   calMode:"month", calCursor:startOfDay(new Date()), calSel:startOfDay(new Date()),
   layers:{fixed:true,deadline:true,projected:true},
   activeFilter:null, browseMode:"all", browseCat:null, browseCtx:null, search:"",
@@ -882,77 +943,90 @@ function loadOn(d,proj){
 }
 
 /* ===========================================================================
-   AUTO PLAN — the timeline layout used by Today ("shape of the day") and by
-   the Calendar Day view. Recomputed live on every render; never stored.
-   Kept from v1's buildDay, sleep-aware, deep-focus-aware.
+   PLAN ENGINE — one placer for Today, the Calendar Day view and the Week
+   columns. Recomputed live on every render; never stored.
+   For today: the full ranked queue (must + should), laid out from now.
+   For any other day: that day's fixed blocks, its slice of projected work,
+   and anything due that day, laid into free waking time.
+   Deep-focus work goes before the deep cutoff; sleep is never booked over.
+   Tasks without an estimate are "fuzzy": planned at a soft 30m guess.
    =========================================================================== */
-function autoPlan(day){
+function planFor(day,proj){
   day=day||new Date();
-  const b=todayBands(), s=state.settings;
-  const sl=sleepFor(day);
+  const s=state.settings, sl=sleepFor(day);
   const wake=hmToMin(sl.wake), bed=hmToMin(sl.bed);
-  const bedAbs=bed<=wake?bed+1440:bed;         /* minutes since midnight, bed may cross it */
-
-  const blocks=fixedOn(day).filter(n=>n.status!=="done")
-    .map(n=>({start:new Date(n.fixedStart),end:n.fixedEnd?new Date(n.fixedEnd):new Date(new Date(n.fixedStart).getTime()+30*MIN),node:n}))
-    .sort((a,b2)=>a.start-b2.start);
-
+  const bedAbs=bed<=wake?bed+1440:bed;
   const d0=startOfDay(day);
-  let cursor=new Date(d0.getTime()+Math.max(wake,s.dayStart*60)*MIN);
-  if(sameDay(day,new Date())&&cursor<new Date()) cursor=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
-  const end=new Date(d0.getTime()+Math.min(bedAbs,s.dayEnd<=s.dayStart?s.dayEnd*60+1440:s.dayEnd*60)*MIN);
+  const dayEndMin=hmToMin(s.dayEnd)<=hmToMin(s.dayStart)?hmToMin(s.dayEnd)+1440:hmToMin(s.dayEnd);
+  const isToday=sameDay(day,new Date());
+  const end=new Date(d0.getTime()+Math.min(bedAbs,dayEndMin)*MIN);
 
-  const queue=[...b.must,...b.should].filter(n=>!n.fixedStart);
-  queue.sort((x,y)=>{
-    const dx=x.deadline?new Date(x.deadline):null, dy=y.deadline?new Date(y.deadline):null;
+  const fixed=fixedOn(day).filter(n=>n.status!=="done")
+    .map(n=>({node:n,start:new Date(n.fixedStart),
+      end:n.fixedEnd?new Date(n.fixedEnd):new Date(new Date(n.fixedStart).getTime()+30*MIN),
+      minutes:0,fixed:true}))
+    .sort((a,b)=>a.start-b.start);
+  for(const f of fixed) f.minutes=Math.round((f.end-f.start)/MIN);
+
+  let cursor=new Date(d0.getTime()+Math.max(wake,hmToMin(s.dayStart))*MIN);
+  if(isToday&&cursor<new Date()) cursor=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
+
+  /* build the queue */
+  let items=[];
+  if(isToday){
+    const b=todayBands();
+    items=[...b.must,...b.should].filter(n=>!n.fixedStart)
+      .map(n=>({node:n,minutes:n.estMaxMinutes||30,fuzzy:!n.estMaxMinutes}));
+  }else{
+    const k=dayKey(day);
+    const seen=new Set();
+    for(const p of ((proj&&proj[k])||[])){ seen.add(p.node.id);
+      items.push({node:p.node,minutes:p.minutes,over:p.over,fuzzy:false,slice:p.minutes<(p.node.estMaxMinutes||0)}); }
+    for(const n of state.nodes.values()){
+      if(n.kind!=="task"||seen.has(n.id)||n.fixedStart) continue;
+      if(n.status==="done"||n.status==="dropped") continue;
+      if(n.deadline&&sameDay(n.deadline,day)) items.push({node:n,minutes:n.estMaxMinutes||30,fuzzy:!n.estMaxMinutes});
+    }
+  }
+  /* due-time constraint */
+  for(const it of items){
+    const n=it.node;
+    if(n.deadline&&n.deadlineHasTime&&sameDay(n.deadline,day)){
+      const dl=new Date(n.deadline); it.dueBy=dl; }
+  }
+  /* ordering: hard due-times first, then deadline, then score; deep before shallow */
+  items.sort((x,y)=>{
+    if(!!x.dueBy!==!!y.dueBy) return x.dueBy?-1:1;
+    if(x.dueBy&&y.dueBy) return x.dueBy-y.dueBy;
+    const dx=x.node.deadline?new Date(x.node.deadline):null, dy=y.node.deadline?new Date(y.node.deadline):null;
     if(dx&&dy&&dx-dy!==0) return dx-dy;
     if(dx&&!dy) return -1; if(dy&&!dx) return 1;
-    return score(y)-score(x);
+    return score(y.node)-score(x.node);
   });
-  const ordered=[...queue.filter(n=>n.energy==="deep"),...queue.filter(n=>n.energy!=="deep")];
-  const overlaps=(a1,a2)=>blocks.find(bl=>a1<bl.end&&a2>bl.start);
-  const fmt=d=>d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+  items=[...items.filter(i=>i.node.energy==="deep"&&!i.dueBy),...items.filter(i=>!(i.node.energy==="deep"&&!i.dueBy))]
+    .sort((a,b)=>((a.dueBy?0:1)-(b.dueBy?0:1)));   /* keep dueBy items at the front */
 
-  const plan=[]; let unplaced=0;
-  for(const n of ordered){
-    const dur=n.estMaxMinutes||30;
-    let placed=false, guard=0;
-    while(!placed&&guard++<48){
-      if(cursor>=end) break;
-      const finish=new Date(cursor.getTime()+dur*MIN);
-      const hit=overlaps(cursor,finish);
-      if(hit){ cursor=new Date(hit.end.getTime()+10*MIN); continue; }
-      if(n.energy==="deep"&&cursor.getHours()>=s.deepEnd&&cursor.getHours()<s.shallowStart){
-        cursor=new Date(cursor); cursor.setHours(s.shallowStart,0,0,0); continue; }
-      if(finish>end) break;
-      plan.push({ts:cursor.getTime(),endTs:finish.getTime(),label:fmt(cursor),title:n.title,minutes:dur,id:n.id,
-        why:n.energy==="deep"?"deep focus":(n.deadline?"due "+relDay(n.deadline):""),ghost:true});
-      cursor=new Date(finish.getTime()+10*MIN);
-      placed=true;
+  const overlaps=(a,b)=>fixed.find(f=>a<f.end&&b>f.start);
+  const placed=[], unplaced=[];
+  for(const it of items){
+    let ok=false, guard=0, c2=new Date(cursor);
+    while(!ok&&guard++<48){
+      if(c2>=end) break;
+      const fin=new Date(c2.getTime()+it.minutes*MIN);
+      const hit=overlaps(c2,fin);
+      if(hit){ c2=new Date(hit.end.getTime()+10*MIN); continue; }
+      const cm=c2.getHours()*60+c2.getMinutes();
+      if(it.node.energy==="deep"&&!it.dueBy&&cm>=hmToMin(s.deepEnd)&&cm<hmToMin(s.shallowStart)){
+        c2=new Date(startOfDay(c2).getTime()+hmToMin(s.shallowStart)*MIN); continue; }
+      if(fin>end) break;
+      it.start=c2; it.end=fin;
+      if(it.dueBy&&fin>it.dueBy) it.late=true;
+      placed.push(it); cursor=new Date(fin.getTime()+10*MIN); ok=true;
     }
-    if(!placed) unplaced++;
+    if(!ok) unplaced.push(it);
   }
-  for(const bl of blocks) plan.push({ts:bl.start.getTime(),endTs:bl.end.getTime(),label:fmt(bl.start),
-    title:bl.node.title,minutes:Math.round((bl.end-bl.start)/MIN),id:bl.node.id,why:"fixed"});
-  plan.sort((a,b2)=>a.ts-b2.ts);
-  return {plan,unplaced,end};
-}
-
-/* week plan: the same live proposal spread over seven days */
-function weekPlan(){
-  const proj=projection();
-  const out=[];
-  for(let i=0;i<7;i++){
-    const d=addDays(new Date(),i);
-    const k=dayKey(d);
-    const fx=fixedOn(d).filter(n=>n.status!=="done");
-    const due=Array.from(state.nodes.values())
-      .filter(n=>n.kind==="task"&&n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
-    const pj=(proj[k]||[]);
-    const load=loadOn(d,proj), cap=hoursFor(d)*60;
-    out.push({d,k,fx,due,pj,load,cap});
-  }
-  return out;
+  const all=[...fixed,...placed].sort((a,b)=>a.start-b.start);
+  return {blocks:all,unplaced,end,fixedCount:fixed.length};
 }
 
 /* ===========================================================================
@@ -997,7 +1071,7 @@ function scheduledAlerts(days=14){
     const cfg=effNotify(n);
     if(nf.types.deadline&&n.deadline&&cfg.enabled){
       let base=new Date(n.deadline);
-      if(base.getHours()===0&&base.getMinutes()===0||timeInput(n.deadline)==="17:00"){
+      if(!n.deadlineHasTime){
         const [h,m]=(cfg.atTime||"09:00").split(":"); base=new Date(base); base.setHours(+h,+m,0,0);
       }
       for(const off of cfg.offsets){
@@ -1123,10 +1197,15 @@ function render(){
   $("#navExtra").innerHTML="";
   $("#subTitle").hidden=true;
   $("#crumbs").hidden=true;
+  const viewKey=[state.tab,state.calMode,state.browseMode,state.browseCat,state.browseCtx,
+    state.logMode,state.path.join(".")].join("|");
   if(state.tab==="today") renderToday();
   else if(state.tab==="calendar") renderCalendar();
   else if(state.tab==="browse") renderBrowse();
   else renderLog();
+  if(render._vk!==undefined&&render._vk!==viewKey){
+    content.classList.remove("anim"); void content.offsetWidth; content.classList.add("anim"); }
+  render._vk=viewKey;
   $$(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===state.tab));
   const lb=$("#logTab").querySelector(".badge");
   if(backupDue()&&state.settings.notif.types.backup){ if(!lb) $("#logTab").insertAdjacentHTML("beforeend",'<span class="badge"></span>'); }
@@ -1219,13 +1298,10 @@ function renderToday(){
   setTitles("Today",d.toLocaleDateString(undefined,{weekday:"long"}),null);
   $("#subTitle").hidden=false;
   $("#subTitle").textContent=d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
-  $("#navExtra").innerHTML=`<div class="seg mini" id="todaySeg">
-      <button data-tmode="today"${state.todayMode==="today"?' class="on"':""}>Today</button>
-      <button data-tmode="week"${state.todayMode==="week"?' class="on"':""}>This week</button></div>`;
-  content.innerHTML = state.todayMode==="week" ? todayWeekHTML() : todayDayHTML(d);
+  content.innerHTML=todayHTML(d);
 }
 
-function todayDayHTML(d){
+function todayHTML(d){
   const b=todayBands();
   const capMin=hoursFor(d)*60;
   const over=b.committed>capMin;
@@ -1243,43 +1319,43 @@ function todayDayHTML(d){
       : "Fits, with "+mins(Math.round(capMin-b.committed))+" to spare."}
       Sleep ${esc(fmtHM(sl.bed))}–${esc(fmtHM(sl.wake))} is already subtracted.</div></div>`;
 
-  if(b.fixed.length) html+=sec("Fixed")+`<div class="tl">`+b.fixed.map(n=>
-    `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtTime(n.fixedStart))}</div>
-      <div class="tlbar"></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}</div>
-      <div class="sub">${n.fixedEnd?esc("until "+fmtTime(n.fixedEnd)):""}${n.deliverable?' <span class="dot">·</span> '+esc(n.deliverable):""}</div>
-      </div></div>`).join("")+`</div>`;
+  /* THE PLAN — the system's live proposal for the whole day, in order */
+  const pl=planFor(d);
+  const now=Date.now();
+  if(pl.blocks.length){
+    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} – wind-down</span>`)+`<div class="plan">`;
+    for(const bk of pl.blocks){
+      const past=bk.end.getTime()<now;
+      const cls=bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost");
+      const why=bk.fixed?(bk.node.fixedEnd?"fixed":"fixed · open end")
+        :[bk.node.energy==="deep"?"deep focus":null,
+          bk.late?"⚠︎ after its due time":(bk.dueBy?"due by "+fmtTime(bk.node.deadline):(bk.node.deadline?"due "+relDay(bk.node.deadline):null)),
+          bk.slice?"part of "+mins(bk.node.estMaxMinutes):null,
+          bk.fuzzy?"~"+mins(bk.minutes)+" guess":null].filter(Boolean).join(" · ");
+      html+=`<div class="planrow ${cls}${past?" past":""}" data-open="${bk.node.id}">
+        <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+        <div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(bk.node.title||"Untitled")}</div>
+          ${why?`<div class="why">${why}</div>`:""}</div>
+        ${bk.fixed?"":`<span class="mark" data-mark="${bk.node.id}" style="margin:0"><span class="circle${bk.node.status==="done"?" on":""}"></span></span>`}
+      </div>`;
+    }
+    if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more didn’t fit before your day ends: ${
+      esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}. Trim estimates, push deadlines, or let them go.</div>`;
+    html+=`</div>
+    <div class="fieldnote" style="margin-top:-6px">Solid bar = fixed. Dashed = the system’s proposal, re-figured live from deadlines, importance, energy and your hours. Fading bar = no estimate, planned at a soft 30m. Tap the circle to finish without opening.</div>`;
+  } else if(b.waiting.length||b.blocked.length||b.doneToday.length){
+    html+=sec("The plan")+`<div class="plan"><div class="plannote">Nothing to place — everything open is waiting, blocked, or done.</div></div>`;
+  }
 
-  if(b.must.length) html+=sec("Must",`<span>${b.must.length}</span>`)+listHTML(b.must,{est:true});
-  if(b.should.length) html+=sec("Should")+listHTML(b.should,{est:true,showPath:true});
   if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
   if(b.blocked.length) html+=sec("Blocked","<span>waiting on other tasks</span>")+listHTML(b.blocked,{showPath:true,hideNotes:true});
-  if(b.quick.length) html+=sec("Quick wins","<span>under 10m</span>")+listHTML(b.quick,{est:true});
+  if(b.quick.length) html+=sec("Quick wins","<span>under 10m · not in the plan</span>")+listHTML(b.quick,{est:true});
   if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
 
-  if(!b.fixed.length&&!b.must.length&&!b.should.length&&!b.waiting.length&&!b.quick.length&&!b.doneToday.length&&!b.blocked.length)
-    html+=emptyHTML("Nothing on deck","Tap + to capture something, or open Browse and give a few things deadlines so they can rank.",null);
-  return html;
-}
-
-function todayWeekHTML(){
-  const wk=weekPlan();
-  let html=`<div class="fieldnote" style="margin:2px 20px 12px">The same live proposal, spread across seven days, so you can see where the crunch is.</div>`;
-  for(const w of wk){
-    const over=w.load>w.cap;
-    const pct=w.cap?clamp(w.load/w.cap*100,0,100):0;
-    const lbl=sameDay(w.d,new Date())?"Today":w.d.toLocaleDateString(undefined,{weekday:"long"});
-    html+=`<div class="cap" style="margin-bottom:10px" data-gotoday="${w.k}">
-      <div class="top"><span><b>${esc(lbl)}</b> <span style="color:var(--label2);font-weight:400">${esc(fmtDate(w.d))}</span></span>
-        <span style="color:${over?"var(--orange)":"var(--label2)"}">${mins(Math.round(w.load))} / ${Math.round(w.cap/60*10)/10}h</span></div>
-      <div class="bar"><div class="${over?"seg2":"seg1"}" style="width:${pct}%"></div></div>`;
-    const lines=[];
-    for(const f of w.fx) lines.push(`<div class="sub" style="margin-top:6px">📍 ${esc(fmtTime(f.fixedStart))} ${esc(f.title||"Untitled")}</div>`);
-    for(const n of w.due) lines.push(`<div class="sub" style="margin-top:6px">⏰ due · ${esc(n.title||"Untitled")}</div>`);
-    for(const p of w.pj.slice(0,4)) lines.push(`<div class="sub" style="margin-top:6px">▨ ${esc(mins(p.minutes))} on ${esc(p.node.title||"Untitled")}${p.over?' <span class="pill orange">no room</span>':""}</div>`);
-    if(w.pj.length>4) lines.push(`<div class="sub" style="margin-top:6px">…and ${w.pj.length-4} more</div>`);
-    html+=lines.join("")||`<div class="sub" style="margin-top:6px">Free</div>`;
-    html+=`</div>`;
-  }
+  if(!pl.blocks.length&&!b.waiting.length&&!b.blocked.length&&!b.quick.length&&!b.doneToday.length)
+    html+=emptyHTML("Nothing on deck","Tap + to capture something, or open Browse and give a few things deadlines so they can rank.",
+      `<div style="margin-top:14px"><button class="line accent" style="display:inline-flex;border-radius:10px;background:var(--elev);padding:0 18px" data-act="seed">Show me with an example</button></div>`);
   return html;
 }
 
@@ -1306,12 +1382,12 @@ function renderCalendar(){
   html+=`<div class="field" style="margin-top:20px">
       <button class="line" data-layer="fixed"><label>Fixed blocks</label><span class="val"></span><span class="toggle${state.layers.fixed?" on":""}"></span></button>
       <button class="line" data-layer="deadline"><label>Deadlines</label><span class="val"></span><span class="toggle${state.layers.deadline?" on":""}"></span></button>
-      <button class="line" data-layer="projected"><label>Projected work</label><span class="val"></span><span class="toggle${state.layers.projected?" on":""}"></span></button>
+      <button class="line" data-layer="projected"><label>Planned work</label><span class="val"></span><span class="toggle${state.layers.projected?" on":""}"></span></button>
     </div>
-    <div class="fieldnote">Projected work shows where effort has to land for each deadline to be met. It is computed, not scheduled.</div>`;
+    <div class="fieldnote">Planned work is the system’s proposal — where effort lands for each deadline to be met, given your hours, sleep and fixed blocks. It is computed live, not stored.</div>`;
   content.innerHTML=html;
   if(state.calMode==="day"){ const nl=$("#nowline"); if(nl&&sameDay(state.calSel,new Date()))
-    if(nl.scrollIntoView) nl.scrollIntoView({block:"center"}); }
+    nl.scrollIntoView({block:"center"}); }
 }
 
 function calNav(){
@@ -1418,7 +1494,7 @@ function monthOverviewHTML(proj){
 function weekColsHTML(proj){
   const base=state.calSel;
   const start=addDays(base,-((base.getDay()+7)%7));
-  const PPH=34, startH=0, hours=24, height=hours*PPH+30;
+  const PPH=34, height=24*PPH+30;
   let cols="";
   for(let i=0;i<7;i++){
     const d=addDays(start,i);
@@ -1426,23 +1502,16 @@ function weekColsHTML(proj){
     const sl=sleepFor(d);
     const wake=hmToMin(sl.wake), bed=hmToMin(sl.bed);
     let blocks="";
-    /* sleep zones */
     blocks+=`<div class="wkblk sleepz" style="top:30px;height:${wake/60*PPH}px"></div>`;
-    const bedTop=(bed<=wake?0:bed)/60*PPH;
-    if(bed>wake) blocks+=`<div class="wkblk sleepz" style="top:${30+bedTop}px;height:${(1440-bed)/60*PPH}px"></div>`;
-    if(state.layers.fixed) for(const n of fixedOn(d)){
-      const s=new Date(n.fixedStart), e=n.fixedEnd?new Date(n.fixedEnd):new Date(s.getTime()+30*MIN);
-      const top=30+(s.getHours()*60+s.getMinutes())/60*PPH;
-      const h=Math.max(14,(e-s)/HOUR*PPH);
-      blocks+=`<div class="wkblk" data-open="${n.id}" style="top:${top}px;height:${h}px">${esc(n.title||"")}</div>`;
-    }
-    if(state.layers.projected){
-      let stackTop=30+Math.max(wake,9*60)/60*PPH;
-      for(const p of (proj[k]||[]).slice(0,5)){
-        const h=Math.max(12,p.minutes/60*PPH);
-        blocks+=`<div class="wkblk proj" data-open="${p.node.id}" style="top:${stackTop}px;height:${h}px">${esc(p.node.title||"")}</div>`;
-        stackTop+=h+2;
-      }
+    if(bed>wake) blocks+=`<div class="wkblk sleepz" style="top:${30+bed/60*PPH}px;height:${(1440-bed)/60*PPH}px"></div>`;
+    const pl=planFor(d,proj);
+    for(const bk of pl.blocks){
+      if(bk.fixed&&!state.layers.fixed) continue;
+      if(!bk.fixed&&!state.layers.projected) continue;
+      const top=30+(bk.start.getHours()*60+bk.start.getMinutes())/60*PPH;
+      const h=Math.max(13,(bk.end-bk.start)/HOUR*PPH);
+      const cls=bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2");
+      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px">${esc(bk.node.title||"")}</div>`;
     }
     if(state.layers.deadline){
       const dls=Array.from(state.nodes.values()).filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
@@ -1453,7 +1522,7 @@ function weekColsHTML(proj){
       ${blocks}</div>`;
   }
   return calNav()+`<div class="wkcolwrap"><div class="wkcols">${cols}</div></div>
-    <div class="fieldnote" style="margin-top:10px">Dimmed bands are sleep. Hatched blocks are projected work. Tap a column header to open that day.</div>`;
+    <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid blocks are fixed; dashed are the plan; gradient-edged are fuzzy — committed to the day, not to a length. Dimmed bands are sleep. Tap a header to open that day.</div>`;
 }
 
 /* ---- day: true hour-by-hour visual layout ---- */
@@ -1467,59 +1536,48 @@ function dayViewHTML(d,proj){
     const t=new Date(d); t.setHours(h,0,0,0);
     inner+=`<div class="dayhour tnum" style="top:${h*PPH}px">${t.toLocaleTimeString(undefined,{hour:"numeric"})}</div>`;
   }
-  /* sleep dimmed at both ends */
   inner+=`<div class="dayblock sleepz" style="top:0;height:${wake/60*PPH}px">Sleep · wake ${esc(fmtHM(sl.wake))}</div>`;
   if(bed>wake) inner+=`<div class="dayblock sleepz" style="top:${bed/60*PPH}px;height:${(1440-bed)/60*PPH}px">Sleep · bed ${esc(fmtHM(sl.bed))}</div>`;
-  /* fixed blocks to scale in their actual slots */
-  const fx=state.layers.fixed?fixedOn(d):[];
-  for(const n of fx){
-    const s=new Date(n.fixedStart), e=n.fixedEnd?new Date(n.fixedEnd):new Date(s.getTime()+30*MIN);
-    const top=(s.getHours()*60+s.getMinutes())/60*PPH;
-    const h=Math.max(26,(e-s)/HOUR*PPH);
-    inner+=`<div class="dayblock" data-open="${n.id}" style="top:${top}px;height:${h}px${n.color?";border-left-color:"+n.color:""}">
-      <div class="bt">${esc(n.title||"Untitled")}</div><div class="bs">${esc(fmtTime(n.fixedStart))}${n.fixedEnd?"–"+esc(fmtTime(n.fixedEnd)):""}</div></div>`;
+
+  /* every task for the day, placed by the plan engine */
+  const pl=planFor(d,proj);
+  for(const bk of pl.blocks){
+    if(bk.fixed&&!state.layers.fixed) continue;
+    if(!bk.fixed&&!state.layers.projected) continue;
+    const top=(bk.start.getHours()*60+bk.start.getMinutes())/60*PPH;
+    const h=Math.max(26,(bk.end-bk.start)/HOUR*PPH);
+    const cls=bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2");
+    const sub=bk.fixed
+      ? esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?"–"+esc(fmtTime(bk.node.fixedEnd)):" · open end")
+      : [bk.fuzzy?"~"+mins(bk.minutes)+", flexible":mins(bk.minutes),
+         bk.late?"⚠︎ after due time":(bk.dueBy?"due by "+esc(fmtTime(bk.node.deadline)):(bk.node.deadline?"due "+esc(relDay(bk.node.deadline)):null)),
+         bk.slice?"part of "+mins(bk.node.estMaxMinutes):null].filter(Boolean).join(" · ");
+    inner+=`<div class="dayblock${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px${bk.fixed&&bk.node.color?";border-left-color:"+bk.node.color:""}">
+      <div class="bt">${esc(bk.node.title||"Untitled")}</div><div class="bs">${sub}</div></div>`;
   }
-  /* projected work as hatched blocks where effort has to land: fill free
-     waking time around fixed blocks, deep-focus hours first */
-  if(state.layers.projected){
-    const pj=(proj[k]||[]);
-    const busy=fx.map(n=>{ const s=new Date(n.fixedStart), e=n.fixedEnd?new Date(n.fixedEnd):new Date(s.getTime()+30*MIN);
-      return [s.getHours()*60+s.getMinutes(), e.getHours()*60+e.getMinutes()+(sameDay(s,e)?0:1440)]; })
-      .sort((a,b)=>a[0]-b[0]);
-    let cur=Math.max(wake,state.settings.dayStart*60);
-    const dayEnd=Math.min(bed<=wake?1440:bed,state.settings.dayEnd*60);
-    for(const p of pj){
-      let need=p.minutes, guard=0;
-      while(need>0&&guard++<30&&cur<dayEnd){
-        const hit=busy.find(b=>cur<b[1]&&cur+need>b[0]);
-        let avail=hit?Math.max(0,hit[0]-cur):dayEnd-cur;
-        if(avail<=8){ cur=hit?hit[1]+5:dayEnd; continue; }
-        const put=Math.min(need,avail);
-        const top=cur/60*PPH, hh=Math.max(22,put/60*PPH);
-        inner+=`<div class="dayblock proj" data-open="${p.node.id}" style="top:${top}px;height:${hh}px">
-          <div class="bt">${esc(p.node.title||"Untitled")}</div><div class="bs">${esc(mins(put))} · due ${esc(relDay(p.node.deadline))}${p.over?" · no room":""}</div></div>`;
-        cur+=put+8; need-=put;
-      }
-      if(cur>=dayEnd) break;
-    }
+  /* due-time ticks: hard marks where something must be finished */
+  if(state.layers.deadline) for(const n of state.nodes.values()){
+    if(!n.deadline||!n.deadlineHasTime||!sameDay(n.deadline,d)||n.status==="done"||n.status==="dropped") continue;
+    const dl=new Date(n.deadline), top=(dl.getHours()*60+dl.getMinutes())/60*PPH;
+    inner+=`<div class="dlTick" data-l="${esc((n.title||"due").slice(0,22))} · ${esc(fmtTime(n.deadline))}" style="top:${top}px"></div>`;
   }
-  /* current time as a live line */
   if(sameDay(d,new Date())){
     const now=new Date(), top=(now.getHours()*60+now.getMinutes())/60*PPH;
     inner+=`<div class="nowline" id="nowline" style="top:${top}px"></div>`;
   }
-  /* invisible tap targets: tap any empty slot to create a task there */
   for(let h=0;h<24;h++)
     inner+=`<div class="dayfree" data-slot="${k}T${String(h).padStart(2,"0")}:00" style="top:${h*PPH}px;height:${PPH}px"></div>`;
 
   const dls=state.layers.deadline?Array.from(state.nodes.values())
     .filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped"):[];
+  const unpl=pl.unplaced.length?`<div class="fieldnote warn" style="margin-top:10px">${pl.unplaced.length} task${pl.unplaced.length===1?"":"s"} didn’t fit this day: ${esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}</div>`:"";
   return calNav()
     +(dls.length?sec("Due this day")+listHTML(dls,{hideNotes:true}):"")
     +`<div class="caldate"><span>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</span>
        <span>${mins(Math.round(loadOn(d,proj)))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>
-     <div class="daywrap"><div class="dayaxis" style="height:${height}px">${inner}</div></div>
-     <div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Hatched blocks are projected work — where effort has to land, drawn to scale. Tap an empty slot to put a task there.</div>`;
+     <div class="daywrap"><div class="dayaxis" style="height:${height}px">${inner}</div></div>`
+    +unpl
+    +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Dashed blocks are the plan, drawn to scale. Gradient-edged blocks are fuzzy — on the day, but not pinned to a length. A red line is a hard due time. Tap an empty slot to put a task there.</div>`;
 }
 
 /* ===========================================================================
@@ -1553,6 +1611,46 @@ function searchHTML(ph){
   return `<div class="searchwrap">${ICON_SEARCH}<input id="searchIn" type="search" placeholder="${esc(ph||"Search titles and notes")}"
     value="${esc(state.search)}" autocomplete="off"></div>`;
 }
+/* the smart Browse landing: what needs attention, then the shape of everything */
+function browseHomeHTML(){
+  const now=new Date();
+  const all=Array.from(state.nodes.values()).filter(n=>n.id!==UNSORTED);
+  const open=all.filter(n=>n.status!=="done"&&n.status!=="dropped");
+  const uns=childrenOf(UNSORTED).filter(n=>n.status!=="done"&&n.status!=="dropped");
+  const stalled=open.filter(n=>n.kind==="group"&&isStalled(n));
+  const bumped=open.filter(n=>n.kind==="task"&&n.bumpCount>=4);
+  const expiring=open.filter(n=>n.expiry&&new Date(n.expiry)>now&&new Date(n.expiry)<addDays(now,7));
+  const fups=open.filter(n=>n.status==="waiting"&&n.followUpDate&&new Date(n.followUpDate)<=now);
+  const overdue=open.filter(n=>n.kind==="task"&&n.deadline&&startOfDay(n.deadline)<startOfDay(now)&&effStatus(n)==="available");
+  const rows=[];
+  const arow=(ico,bg,label,n,act)=>`<button class="arow" ${act}>
+    <span class="aico" style="background:${bg}">${ico}</span><span>${label}</span>
+    <span class="n tnum">${n}${ICON_CHEV}</span></button>`;
+  if(uns.length) rows.push(arow("📥","rgba(var(--accent-rgb),.14)","Unsorted — needs a home",uns.length,`data-open="${UNSORTED}"`));
+  if(overdue.length) rows.push(arow("⏰","rgba(255,59,48,.14)","Overdue and still doable",overdue.length,`data-bmode="attn:overdue"`));
+  if(fups.length) rows.push(arow("👋","rgba(255,149,0,.14)","Follow-ups due — chase these",fups.length,`data-bmode="attn:fups"`));
+  if(stalled.length) rows.push(arow("🧱","rgba(255,149,0,.14)","Stalled groups — nothing inside is doable",stalled.length,`data-bmode="attn:stalled"`));
+  if(bumped.length) rows.push(arow("↪️","rgba(255,149,0,.14)","Pushed back 4+ times — split or drop",bumped.length,`data-bmode="attn:bumped"`));
+  if(expiring.length) rows.push(arow("⌛","rgba(142,142,147,.16)","Goes moot within a week",expiring.length,`data-bmode="attn:expiring"`));
+  let html="";
+  if(rows.length) html+=sec("Needs attention")+`<div class="attn">${rows.join("")}</div>`;
+  const recent=open.filter(n=>n.kind==="task"&&!sameDay(n.touchedAt,now))
+    .sort((a,b)=>(b.touchedAt||"").localeCompare(a.touchedAt||"")).slice(0,4);
+  if(recent.length) html+=sec("Jump back in","<span>recently touched</span>")+listHTML(recent,{showPath:true,hideNotes:true});
+  const groups=childrenOf(null).filter(n=>n.kind==="group"&&n.status!=="dropped");
+  if(groups.length) html+=sec("Groups")+listHTML(groups,{forceIcons:true});
+  return html;
+}
+function attnItems(key){
+  const now=new Date();
+  const open=Array.from(state.nodes.values()).filter(n=>n.id!==UNSORTED&&n.status!=="done"&&n.status!=="dropped");
+  if(key==="overdue") return open.filter(n=>n.kind==="task"&&n.deadline&&startOfDay(n.deadline)<startOfDay(now)&&effStatus(n)==="available");
+  if(key==="fups") return open.filter(n=>n.status==="waiting"&&n.followUpDate&&new Date(n.followUpDate)<=now);
+  if(key==="stalled") return open.filter(n=>n.kind==="group"&&isStalled(n));
+  if(key==="bumped") return open.filter(n=>n.kind==="task"&&n.bumpCount>=4);
+  if(key==="expiring") return open.filter(n=>n.expiry&&new Date(n.expiry)>now&&new Date(n.expiry)<addDays(now,7));
+  return [];
+}
 function renderBrowse(){
   const mode=state.browseMode;
   if(mode==="groups") return renderGroupsTree();
@@ -1560,24 +1658,31 @@ function renderBrowse(){
   setTitles("Browse","Browse",null);
   let html=selbarHTML()+searchHTML();
   let items=Array.from(state.nodes.values()).filter(n=>n.id!==UNSORTED);
+  if(mode.startsWith("attn:")){
+    const key=mode.slice(5);
+    const label={overdue:"Overdue",fups:"Follow-ups due",stalled:"Stalled groups",bumped:"Pushed back 4+ times",expiring:"Goes moot soon"}[key]||"Attention";
+    setTitles(label,label,"Browse");
+    const its=attnItems(key).filter(n=>matchSearch(n,state.search)).sort((a,b)=>score(b)-score(a));
+    content.innerHTML=searchHTML()+(its.length?listHTML(its,{showPath:true,est:true}):emptyHTML("All clear","Nothing in this list right now.",null));
+    wireSearch(); return;
+  }
   if(mode==="contexts") return renderContexts(html);
   if(mode==="flagged") items=items.filter(n=>n.flagged&&n.status!=="done"&&n.status!=="dropped");
   if(mode==="someday") items=items.filter(n=>n.status==="someday");
   if(mode.startsWith("filter:")){ const f=state.filters[+mode.slice(7)];
     items=items.filter(n=>matchFilter(n,f)); }
   items=items.filter(n=>matchSearch(n,state.search));
-  if(mode==="all"||mode.startsWith("filter:")){
-    const uns=childrenOf(UNSORTED).filter(n=>n.status!=="done"&&n.status!=="dropped");
-    if(mode==="all"&&!state.search&&uns.length)
-      html+=sec("Unsorted",`<span>${uns.length}</span>`)+`<div class="group">${rowHTML(byId(UNSORTED),{forceIcons:true})}</div>`;
-  }
+  if(mode==="all"&&!state.search) html+=browseHomeHTML();
   const open=items.filter(n=>n.status!=="done"&&n.status!=="dropped").sort((a,b)=>score(b)-score(a));
   const closed=items.filter(n=>n.status==="done"||n.status==="dropped")
     .sort((a,b)=>(b.completedAt||b.touchedAt).localeCompare(a.completedAt||a.touchedAt));
   if(!open.length&&!closed.length)
     html+=emptyHTML(state.search?"No matches":"Nothing here",
       state.search?"Nothing in titles or notes matches that.":"Tap + to capture your first task.",null);
-  else{
+  else if(mode==="all"&&!state.search){
+    if(open.length) html+=sec("Highest ranked right now",`<span>top ${Math.min(open.length,8)} of ${open.length}</span>`)
+      +listHTML(open.filter(n=>n.kind==="task").slice(0,8),{est:true,showPath:true});
+  } else {
     if(open.length) html+=sec(mode==="all"?"Everything":"Items",`<span>${open.length}</span>`)+listHTML(open,{est:true,showPath:true});
     if(closed.length) html+=sec("Completed",`<span>${closed.length}</span>`)+listHTML(closed,{showPath:true,hideNotes:true});
   }
@@ -1834,7 +1939,8 @@ $$(".tab").forEach(t=>t.addEventListener("click",()=>{
   state.tab=t.dataset.tab; scrollEl.scrollTop=0; render(); }));
 $("#backBtn").addEventListener("click",()=>{
   if(state.tab==="browse"){
-    if(state.browseCat){ state.browseCat=null; state.search=""; }
+    if(state.browseMode.startsWith("attn:")){ state.browseMode="all"; state.search=""; }
+    else if(state.browseCat){ state.browseCat=null; state.search=""; }
     else if(state.browseCtx){ state.browseCtx=null; state.search=""; }
     else state.path.pop();
   }
@@ -1888,7 +1994,9 @@ function endSwipe(){
 content.addEventListener("touchend",endSwipe,{passive:true});
 content.addEventListener("touchcancel",endSwipe,{passive:true});
 
-content.addEventListener("click",async e=>{
+document.addEventListener("click",async e=>{
+  if(e.target.closest("#sheet")||e.target.closest(".tabs")||e.target.closest("#fab")||
+     e.target.closest("#moreBtn")||e.target.closest("#backBtn")) return;
   const act=e.target.closest("[data-act]");
   if(act){
     const a=act.dataset.act, n=act.dataset.id?byId(act.dataset.id):null;
@@ -1905,8 +2013,6 @@ content.addEventListener("click",async e=>{
   }
   if(state.openSwipe){ closeSwipe(); return; }
 
-  const tm=e.target.closest("[data-tmode]");
-  if(tm){ state.todayMode=tm.dataset.tmode; render(); return; }
   const gt=e.target.closest("[data-gotoday]");
   if(gt){ state.tab="calendar"; state.calMode="day"; state.calSel=new Date(gt.dataset.gotoday+"T12:00:00");
     state.calCursor=startOfDay(state.calSel); scrollEl.scrollTop=0; render(); return; }
@@ -2017,40 +2123,88 @@ async function completeRecurring(n){
 }
 
 /* ===========================================================================
-   SHEETS
+   SHEETS — iOS-style navigation stack.
+   ‹ Back walks up; the root shows Close. Nothing needs a Save press:
+   edits to an existing item persist as you make them (debounced write).
+   The right-hand button exists only for true one-shot actions
+   (Add a new task, Split, Set date).
    =========================================================================== */
 const sheet=$("#sheet"), scrim=$("#scrim"), sheetBody=$("#sheetBody");
-let sheetOnDone=null, sheetOnCancel=null;
+const SHEET={stack:[],current:null,leave:null,action:null};
 
-function showSheet(title,html,onDone,doneLabel){
+function showSheet(title,html,onAction,actionLabel){
   $("#sheetTitle").textContent=title;
-  $("#sheetDone").textContent=doneLabel||"Done";
+  const done=$("#sheetDone");
+  SHEET.action=onAction||null;
+  if(onAction){ done.hidden=false; done.textContent=actionLabel||"Done"; }
+  else done.hidden=true;
   sheetBody.innerHTML=html; sheetBody.scrollTop=0;
-  sheetOnDone=onDone||null;
+  const lbl=$("#sheetBackLbl"), chev=$("#sheetBack svg");
+  if(SHEET.stack.length){ chev.style.display=""; lbl.textContent=SHEET.stack[SHEET.stack.length-1].title||"Back"; }
+  else { chev.style.display="none"; lbl.textContent="Close"; }
+}
+function animBody(dir){ sheetBody.classList.remove("fwd","back"); void sheetBody.offsetWidth;
+  sheetBody.classList.add(dir); }
+function sheetRoot(draw){
+  SHEET.stack=[]; SHEET.current=draw; SHEET.leave=null;
+  draw(); animBody("fwd");
   scrim.classList.add("on"); sheet.classList.add("on");
 }
-function closeSheet(){ sheet.classList.remove("on"); scrim.classList.remove("on");
-  state.editing=null; state.draft=null; state.capDraft=null; sheetOnDone=null; sheetOnCancel=null; }
-scrim.addEventListener("click",()=>{ if(sheetOnCancel) sheetOnCancel(); closeSheet(); });
-$("#sheetCancel").addEventListener("click",()=>{ if(sheetOnCancel) sheetOnCancel(); closeSheet(); });
-$("#sheetDone").addEventListener("click",async()=>{ if(sheetOnDone) await sheetOnDone(); else closeSheet(); });
+function sheetPush(draw){
+  SHEET.stack.push({draw:SHEET.current,title:$("#sheetTitle").textContent,leave:SHEET.leave});
+  SHEET.current=draw; SHEET.leave=null;
+  draw(); animBody("fwd");
+}
+function sheetPop(){
+  if(SHEET.leave){ const f=SHEET.leave; SHEET.leave=null; try{f();}catch(e){} }
+  if(SHEET.stack.length){
+    const p=SHEET.stack.pop();
+    SHEET.current=p.draw; SHEET.leave=p.leave;
+    p.draw(); animBody("back");
+  } else closeSheet();
+}
+async function closeSheet(){
+  if(SHEET.leave){ const f=SHEET.leave; SHEET.leave=null; try{f();}catch(e){} }
+  await flushTaskSave();
+  sheet.classList.remove("on"); scrim.classList.remove("on");
+  state.editing=null; state.draft=null; state.capDraft=null;
+  SHEET.stack=[]; SHEET.current=null; SHEET.action=null;
+  render();
+}
+scrim.addEventListener("click",()=>{ closeSheet(); });
+$("#sheetBack").addEventListener("click",()=>{ sheetPop(); });
+$("#sheetDone").addEventListener("click",async()=>{ if(SHEET.action) await SHEET.action(); });
 
-/* ---------- option picker (generic) ---------- */
-function openOptions({title,options,current,onPick,allowNew,allowNone,back}){
+/* autosave for the task detail sheet */
+let _saveT=null,_dirty=false;
+function queueTaskSave(){ if(!state.editing) return; _dirty=true;
+  clearTimeout(_saveT); _saveT=setTimeout(flushTaskSave,300); }
+async function flushTaskSave(){
+  clearTimeout(_saveT);
+  if(!_dirty) return; _dirty=false;
+  const n=applyDraft(); if(n) await save(n);
+}
+const CLRX=(k,has)=>has?`<button class="clearx" data-clearx="${esc(k)}" aria-label="Clear">✕</button>`:"";
+
+/* ---------- option picker (generic, stack-based) ---------- */
+function openOptions(cfg){
+  sheetPush(()=>drawOptions(cfg));
+}
+function drawOptions({title,options,current,onPick,allowNew,allowNone,stay}){
   const rows=(allowNone?[{v:null,l:"None"}]:[]).concat(options.map(o=>typeof o==="string"?{v:o,l:o}:o));
   showSheet(title,
     `<div class="group">${rows.map(r=>`<button class="pickrow" data-v="${r.v===null?"":esc(r.v)}">
         <span>${esc(r.l)}${r.note?`<span class="path">${esc(r.note)}</span>`:""}</span>${r.v===current?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
      ${allowNew?`<div class="field" style="margin-top:18px"><div class="line">
         <input class="big" id="optNew" placeholder="Add a new one…" autocapitalize="words"></div>
-        <button class="line accent" id="optAdd">Add</button></div>`:""}
-     <div class="field" style="margin-top:18px"><button class="line accent" id="optBack">Back</button></div>`,
-    null);
-  sheetBody.querySelectorAll("[data-v]").forEach(b=>b.addEventListener("click",()=>{
-    onPick(b.dataset.v===""?null:b.dataset.v); }));
+        <button class="line accent" id="optAdd">Add</button></div>`:""}`,null);
+  sheetBody.querySelectorAll("[data-v]").forEach(b=>b.addEventListener("click",async()=>{
+    await onPick(b.dataset.v===""?null:b.dataset.v); if(!stay) sheetPop(); }));
   const add=$("#optAdd");
-  if(add) add.addEventListener("click",()=>{ const v=$("#optNew").value.trim(); if(!v) return; onPick(v,true); });
-  $("#optBack").addEventListener("click",back||drawSheet);
+  if(add){ const go=async()=>{ const v=$("#optNew").value.trim(); if(!v) return;
+      await onPick(v,true); if(!stay) sheetPop(); };
+    add.addEventListener("click",go);
+    $("#optNew").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();go();} }); }
 }
 
 /* ---------- task detail sheet ---------- */
@@ -2058,15 +2212,15 @@ function openSheet(id){
   const n=byId(id); if(!n) return;
   if(n.kind==="group") return openGroupSheet(id);
   state.editing=id; state.draft=JSON.parse(JSON.stringify(n));
-  sheetOnCancel=null;
-  drawSheet(); scrim.classList.add("on"); sheet.classList.add("on");
+  sheetRoot(drawSheet);
 }
 function applyDraft(){
   const n=byId(state.editing), d=state.draft; if(!n||!d) return null;
-  Object.assign(n,{title:(d.title||"").trim(),notes:d.notes,kind:d.kind,childMode:d.childMode,
+  Object.assign(n,{title:(d.title||"").trim()||n.title,notes:d.notes,kind:d.kind,childMode:d.childMode,
     parentId:d.parentId,order:d.order,status:d.status,waitingOn:d.waitingOn,followUpDate:d.followUpDate,
     importance:d.importance,importanceOverridden:d.importanceOverridden,
-    deadline:d.deadline,deadlineType:d.deadlineType,expiry:d.expiry,deferUntil:d.deferUntil,
+    deadline:d.deadline,deadlineType:d.deadlineType,deadlineHasTime:!!d.deadlineHasTime,
+    expiry:d.expiry,deferUntil:d.deferUntil,
     durationMode:d.durationMode,estMinMinutes:d.estMinMinutes,estMaxMinutes:d.estMaxMinutes,
     fixedStart:d.fixedStart,fixedEnd:d.fixedEnd,actualMinutes:d.actualMinutes,
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
@@ -2106,35 +2260,33 @@ function drawSheet(){
   const waitedBy=dependents(d.id);
   const cat=catByName(d.category);
 
-  $("#sheetTitle").textContent="Task";
-  $("#sheetDone").textContent="Done";
-  sheetOnDone=async()=>{ const x=applyDraft(); if(x) await save(x); closeSheet(); render(); };
-
   let h=`<div class="field">
     <div class="line"><input class="big" id="fTitle" value="${esc(d.title)}" placeholder="Title" autocapitalize="sentences"></div>
     <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="fNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div>
   </div>
-  <div class="why">${esc(explain(n,rank))}</div>`;
+  <div class="why">${esc(explain(n,rank))}</div>
+  <div class="fieldnote" style="margin-top:-6px">Changes save as you make them.</div>`;
 
   /* WHAT IT IS */
   h+=secBig("What it is")+`<div class="field">
     <button class="line" data-pick="importance"><label>Importance</label><span class="val">${IMP_LABEL[effImportance(n)]}${src?" · from "+esc(src.title||"parent"):""}</span>${ICON_CHEV}</button>
-    <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${ICON_CHEV}</button>
-    <button class="line" data-pick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${ICON_CHEV}</button>
-    <button class="line" id="fIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${ICON_CHEV}</button>
+    <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${CLRX("category",!!d.category)}${ICON_CHEV}</button>
+    <button class="line" data-pick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${CLRX("deliverable",!!d.deliverable)}${ICON_CHEV}</button>
+    <button class="line" id="fIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${CLRX("icon",!!d.icon)}${ICON_CHEV}</button>
     <button class="line" id="fFlag"><label>Do today</label><span class="val"></span><span class="toggle${d.flagged?" on":""}"></span></button>
   </div>
   <div class="fieldnote">Category is a cross-cutting label (Health, Work) that follows the task anywhere in the tree. ${src?"Importance is inherited from the group; pick one here to override it for this item only.":""}</div>`;
 
   /* WHEN */
   h+=secBig("When")+`<div class="field">
-    <div class="line"><label>Deadline</label><input type="date" id="fDeadline" value="${dateInput(d.deadline)}"></div>
-    ${d.deadline?`<button class="line" id="fDeadlineType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
-    ${!d.deadline?`<button class="line" id="fTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${ICON_CHEV}</button>`:""}
-    <div class="line"><label>Start on or after</label><input type="date" id="fDefer" value="${dateInput(d.deferUntil)}"></div>
-    <div class="line"><label>Moot after</label><input type="date" id="fExpiry" value="${dateInput(d.expiry)}"></div>
+    <div class="line"><label>Deadline</label><input type="date" id="fDeadline" value="${dateInput(d.deadline)}">${CLRX("deadline",!!d.deadline)}</div>
+    ${d.deadline?`<div class="line"><label>Due time</label><input type="time" id="fDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("dltime",!!d.deadlineHasTime)}</div>
+    <button class="line" id="fDeadlineType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    ${!d.deadline?`<button class="line" id="fTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
+    <div class="line"><label>Start on or after</label><input type="date" id="fDefer" value="${dateInput(d.deferUntil)}">${CLRX("defer",!!d.deferUntil)}</div>
+    <div class="line"><label>Moot after</label><input type="date" id="fExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
   </div>
-  <div class="fieldnote">A hard deadline has real consequences; a soft one is self-set and weighs less. A timeframe ("sometime in March") is a commitment to a period, not a date — it stays off the calendar grid and out of Today until you pin it. Moot after is different from a deadline: past that date the task stops mattering and drops itself. Start on or after hides it until that day.</div>`;
+  <div class="fieldnote">A hard deadline has real consequences; a soft one is self-set and weighs less. No due time means end of day. A timeframe ("sometime in March") is a commitment to a period, not a date. Moot after: past that date the task stops mattering and drops itself. Tap ✕ to clear any of these.</div>`;
 
   /* EFFORT */
   h+=secBig("Effort")+`<div class="seg" id="fDur">
@@ -2142,17 +2294,17 @@ function drawSheet(){
       <button data-dur="estimate"${d.durationMode==="estimate"?' class="on"':""}>Rough</button>
       <button data-dur="fixed"${d.durationMode==="fixed"?' class="on"':""}>Fixed block</button></div>`;
   if(d.durationMode==="estimate") h+=`<div class="field">
-      <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="fEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="fEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="val" style="flex:0 0 auto">min</span></div>
+      <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="fEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="fEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="unit">min</span></div>
     </div><div class="fieldnote">A range stays honest. Capacity uses the high end; quick wins use the low end.</div>`;
   if(d.durationMode==="fixed") h+=`<div class="field">
       <div class="line"><label>Day</label><input type="date" id="fFixDay" value="${dateInput(d.fixedStart)}"></div>
       <div class="line"><label>Start</label><input type="time" id="fFixStart" value="${timeInput(d.fixedStart)}"></div>
-      <div class="line"><label>End</label><input type="time" id="fFixEnd" value="${timeInput(d.fixedEnd)}"></div>
-    </div><div class="fieldnote">A fixed block sits at its time on the calendar and in Today, like an appointment.</div>`;
+      <div class="line"><label>End</label><input type="time" id="fFixEnd" value="${timeInput(d.fixedEnd)}">${CLRX("fixed",!!d.fixedStart)}</div>
+    </div><div class="fieldnote">A fixed block sits at its time on the calendar and in the plan, like an appointment. ✕ clears the whole block.</div>`;
   h+=`<div class="field">
-    <button class="line" data-pick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${ICON_CHEV}</button>
-    <button class="line" data-pick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${ICON_CHEV}</button>
-    ${n.status==="done"?`<div class="line"><label>Actually took</label><input type="number" inputmode="numeric" id="fActual" value="${d.actualMinutes??""}" placeholder="min"></div>`:""}
+    <button class="line" data-pick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${CLRX("energy",!!d.energy)}${ICON_CHEV}</button>
+    <button class="line" data-pick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${CLRX("context",!!d.context)}${ICON_CHEV}</button>
+    ${n.status==="done"?`<div class="line"><label>Actually took</label><input type="number" inputmode="numeric" id="fActual" value="${d.actualMinutes??""}" placeholder="min"><span class="unit">min</span></div>`:""}
   </div>
   <div class="fieldnote">Deep focus work is laid out before your deep-focus cutoff; shallow work after. ${n.status==="done"?"Logging what it actually took feeds the monthly estimate-accuracy stat.":""}</div>`;
 
@@ -2180,8 +2332,8 @@ function drawSheet(){
   h+=secBig("Status")+`<div class="field">
     <button class="line" data-pick="status"><label>State</label><span class="val">${statusLabel(d.status)}${st!==d.status?" · now "+statusLabel(st).toLowerCase():""}</span>${ICON_CHEV}</button>
     ${d.status==="waiting"?`<div class="line"><label>Waiting on</label><input class="big" id="fWaitOn" style="text-align:right" value="${esc(d.waitingOn||"")}" placeholder="who or what"></div>
-      <div class="line"><label>Follow up</label><input type="date" id="fFollow" value="${dateInput(d.followUpDate)}"></div>`:""}
-    <button class="line" data-pick="recurrence"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${ICON_CHEV}</button>
+      <div class="line"><label>Follow up</label><input type="date" id="fFollow" value="${dateInput(d.followUpDate)}">${CLRX("follow",!!d.followUpDate)}</div>`:""}
+    <button class="line" data-pick="recurrence"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
     <button class="line" id="fMove"><label>In group</label><span class="val">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
     ${d.bumpCount?`<div class="line"><label>Pushed back</label><span class="val">${d.bumpCount}×</span></div>`:""}
     <div class="line"><label>Added</label><span class="val">${fmtDate(n.createdAt,{month:"short",day:"numeric",year:"numeric"})}</span></div>
@@ -2208,63 +2360,91 @@ function drawSheet(){
   <div class="field"><button class="line danger" data-do="delete">Delete permanently</button></div>
   <div class="fieldnote">Dropping keeps the record in your Log. Deleting does not.</div>`;
 
-  sheetBody.innerHTML=h;
+  showSheet("Task",h,null);
   wireDetail();
 }
 
 function wireDetail(){
   const d=state.draft, n=byId(state.editing);
   const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
+  const Q=queueTaskSave;
 
-  on("#fTitle","input",e=>{ d.title=e.target.value; });
+  on("#fTitle","input",e=>{ d.title=e.target.value; Q(); });
   const nt=$("#fNotes");
   if(nt){ const grow=()=>{ nt.style.height="auto"; nt.style.height=Math.max(80,nt.scrollHeight)+"px"; };
-    nt.addEventListener("input",e=>{ d.notes=e.target.value; grow(); }); grow(); }
+    nt.addEventListener("input",e=>{ d.notes=e.target.value; grow(); Q(); }); grow(); }
 
   $$("#fDur button").forEach(b=>b.addEventListener("click",()=>{
     d.durationMode=b.dataset.dur;
     if(d.durationMode!=="fixed"){ d.fixedStart=null; d.fixedEnd=null; }
     if(d.durationMode==="none"){ d.estMinMinutes=null; d.estMaxMinutes=null; }
-    drawSheet(); }));
+    Q(); drawSheet(); }));
   $$("#fDepMode button").forEach(b=>b.addEventListener("click",()=>{
-    d.dependencyMode=b.dataset.dm; drawSheet(); }));
+    d.dependencyMode=b.dataset.dm; Q(); drawSheet(); }));
 
-  on("#fDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null;
-    if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null;
-    if(d.deadline) d.timeframe=null; drawSheet(); });
+  on("#fDeadline","change",e=>{
+    const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
+    d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
+    if(d.deadline&&!d.deadlineType) d.deadlineType="hard";
+    if(!d.deadline){ d.deadlineType=null; d.deadlineHasTime=false; }
+    if(d.deadline) d.timeframe=null; Q(); drawSheet(); });
+  on("#fDlTime","change",e=>{
+    if(!d.deadline) return;
+    if(e.target.value){ d.deadline=new Date(dateInput(d.deadline)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
+    else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
+    Q(); drawSheet(); });
   on("#fDeadlineType","click",()=>openOptions({title:"Deadline type",
     options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
-    current:d.deadlineType,onPick:v=>{ d.deadlineType=v; drawSheet(); }}));
-  on("#fTimeframe","click",()=>openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; drawSheet(); }));
-  on("#fDefer","change",e=>{ d.deferUntil=e.target.value?new Date(e.target.value+"T00:00:00").toISOString():null; });
-  on("#fExpiry","change",e=>{ d.expiry=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; });
-  on("#fEstMin","input",e=>{ d.estMinMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); });
-  on("#fEstMax","input",e=>{ d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); });
-  on("#fActual","input",e=>{ d.actualMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); });
+    current:d.deadlineType,onPick:v=>{ d.deadlineType=v; Q(); }}));
+  on("#fTimeframe","click",()=>openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; Q(); }));
+  on("#fDefer","change",e=>{ d.deferUntil=e.target.value?new Date(e.target.value+"T00:00:00").toISOString():null; Q(); });
+  on("#fExpiry","change",e=>{ d.expiry=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; Q(); });
+  on("#fEstMin","input",e=>{ d.estMinMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
+  on("#fEstMax","input",e=>{ d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
+  on("#fActual","input",e=>{ d.actualMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
   const fixDay=()=>{ const day=$("#fFixDay").value, s=$("#fFixStart").value, en=$("#fFixEnd").value;
     if(day&&s){ d.fixedStart=new Date(day+"T"+s+":00").toISOString();
       d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; }
-    else { d.fixedStart=null; d.fixedEnd=null; } };
+    else { d.fixedStart=null; d.fixedEnd=null; } Q(); };
   ["#fFixDay","#fFixStart","#fFixEnd"].forEach(s=>on(s,"change",fixDay));
-  on("#fWaitOn","input",e=>{ d.waitingOn=e.target.value; });
-  on("#fFollow","change",e=>{ d.followUpDate=e.target.value?new Date(e.target.value+"T09:00:00").toISOString():null; });
-  on("#fFlag","click",()=>{ d.flagged=!d.flagged; drawSheet(); });
-  on("#fMove","click",()=>openPicker(d,drawSheet));
-  on("#fIcon","click",()=>openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; drawSheet(); },drawSheet));
-  on("#fNotify","click",()=>openNotifyEditor(d.notify,v=>{ d.notify=v; drawSheet(); },drawSheet,
+  on("#fWaitOn","input",e=>{ d.waitingOn=e.target.value; Q(); });
+  on("#fFollow","change",e=>{ d.followUpDate=e.target.value?new Date(e.target.value+"T09:00:00").toISOString():null; Q(); });
+  on("#fFlag","click",()=>{ d.flagged=!d.flagged; Q(); drawSheet(); });
+  on("#fMove","click",()=>openPicker(d,Q));
+  on("#fIcon","click",()=>openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; Q(); }));
+  on("#fNotify","click",()=>openNotifyEditor(d.notify,v=>{ d.notify=v; Q(); },
     "Overrides the group and category defaults for this task only."));
-  on("#fAddDep","click",()=>openDepPicker(d,drawSheet));
+  on("#fAddDep","click",()=>openDepPicker(d,Q));
   sheetBody.querySelectorAll("[data-rmdep]").forEach(b=>b.addEventListener("click",()=>{
-    d.dependsOn=(d.dependsOn||[]).filter(x=>x!==b.dataset.rmdep); drawSheet(); }));
+    d.dependsOn=(d.dependsOn||[]).filter(x=>x!==b.dataset.rmdep); Q(); drawSheet(); }));
   sheetBody.querySelectorAll("[data-opennode]").forEach(b=>b.addEventListener("click",async()=>{
-    const x=applyDraft(); if(x) await save(x); openSheet(b.dataset.opennode); }));
-  sheetBody.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>pickField(b.dataset.pick,state.draft,drawSheet)));
+    await flushTaskSave(); openSheet(b.dataset.opennode); }));
+  sheetBody.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>pickField(b.dataset.pick,state.draft,Q)));
   sheetBody.querySelectorAll("[data-do]").forEach(b=>b.addEventListener("click",()=>detailAction(b.dataset.do)));
+  sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    const k=b.dataset.clearx;
+    if(k==="deadline"){ d.deadline=null; d.deadlineType=null; d.deadlineHasTime=false; }
+    if(k==="dltime"){ d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
+    if(k==="timeframe") d.timeframe=null;
+    if(k==="defer") d.deferUntil=null;
+    if(k==="expiry") d.expiry=null;
+    if(k==="fixed"){ d.fixedStart=null; d.fixedEnd=null; d.durationMode=d.estMaxMinutes?"estimate":"none"; }
+    if(k==="follow") d.followUpDate=null;
+    if(k==="category") d.category=null;
+    if(k==="deliverable") d.deliverable=null;
+    if(k==="context") d.context=null;
+    if(k==="energy") d.energy=null;
+    if(k==="icon") d.icon=null;
+    if(k==="recur") d.recurrence=null;
+    Q(); drawSheet(); }));
 }
 
 /* searchable multi-select dependency picker with full group paths */
-function openDepPicker(d,back){
-  back=back||drawSheet;
+function openDepPicker(d,onChange){
+  sheetPush(()=>drawDepPicker(d,onChange));
+}
+function drawDepPicker(d,onChange){
   const drawList=q=>{
     const cands=Array.from(state.nodes.values())
       .filter(x=>x.id!==d.id&&x.id!==UNSORTED&&x.kind==="task"&&!isDescendantOf(x.id,d.id)&&x.id!==d.parentId)
@@ -2279,11 +2459,8 @@ function openDepPicker(d,back){
   };
   showSheet("Waits on",
     `<div class="searchwrap" style="margin-top:2px">${ICON_SEARCH}<input id="depSearch" type="search" placeholder="Search tasks" autocomplete="off"></div>
-     <div class="fieldnote" style="margin:0 20px 12px">Pick the tasks that must come first. Circular chains are refused.</div>
-     <div class="group" id="depList">${drawList("")}</div>
-     <div class="field" style="margin-top:18px"><button class="line accent" id="depBack">Back to task</button></div>`,
-    null,"Done");
-  sheetOnDone=back;
+     <div class="fieldnote" style="margin:0 20px 12px">Tap to add or remove. Circular chains are refused. ‹ Back when you're done.</div>
+     <div class="group" id="depList">${drawList("")}</div>`,null);
   const wire=()=>{ $("#depList").querySelectorAll("[data-dep]").forEach(b=>b.addEventListener("click",()=>{
     const id=b.dataset.dep;
     if((d.dependsOn||[]).includes(id)){ d.dependsOn=d.dependsOn.filter(x=>x!==id); }
@@ -2294,15 +2471,18 @@ function openDepPicker(d,back){
       d.dependsOn=(d.dependsOn||[]).concat(id);
       if(d.dependencyMode==="none") d.dependencyMode="required";
     }
+    if(onChange) onChange();
     $("#depList").innerHTML=drawList($("#depSearch").value); wire();
   })); };
   wire();
   $("#depSearch").addEventListener("input",e=>{ $("#depList").innerHTML=drawList(e.target.value); wire(); });
-  $("#depBack").addEventListener("click",back);
 }
 
 /* timeframe picker */
-function openTimeframe(cur,cb,back){
+function openTimeframe(cur,cb){
+  sheetPush(()=>drawTimeframe(cur,cb));
+}
+function drawTimeframe(cur,cb){
   const now=new Date(), opts=[];
   for(let i=0;i<12;i++){ const d=new Date(now.getFullYear(),now.getMonth()+i,1);
     opts.push({v:"month|"+d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),
@@ -2324,110 +2504,115 @@ function openTimeframe(cur,cb,back){
     if(o.g!==g){ h+=(g?`</div>`:"")+sec(o.g)+`<div class="group">`; g=o.g; }
     h+=`<button class="pickrow" data-tf="${o.v}"><span>${esc(o.l)}</span>${o.v===curV?'<span class="tick">✓</span>':""}</button>`;
   }
-  h+=`</div><div class="field" style="margin-top:18px"><button class="line accent" id="tfBack">Back</button></div>`;
+  h+=`</div>`;
   showSheet("Timeframe",h,null);
   sheetBody.querySelectorAll("[data-tf]").forEach(b=>b.addEventListener("click",()=>{
     const v=b.dataset.tf;
     cb(v?{type:v.split("|")[0],value:v.split("|")[1]}:null);
+    sheetPop();
   }));
-  $("#tfBack").addEventListener("click",back||drawSheet);
 }
 
 /* one-tap "needs a date": convert a timeframe into a real deadline */
 function openNeedsDate(id){
   const n=byId(id); if(!n) return;
+  sheetRoot(()=>drawNeedsDate(n));
+}
+function drawNeedsDate(n){
   const s=tfStart(n.timeframe), e=tfEnd(n.timeframe);
   const def=s&&e?new Date((s.getTime()+e.getTime())/2):addDays(new Date(),14);
   showSheet("Pin a date",
-    `<div class="fieldnote" style="margin:0 20px 14px">"${esc(n.title||"Untitled")}" is aimed at ${esc(tfLabel(n.timeframe))}. Give it a real deadline and it joins the calendar and Today like everything else.</div>
+    `<div class="fieldnote" style="margin:0 20px 14px">"${esc(n.title||"Untitled")}" is aimed at ${esc(tfLabel(n.timeframe))}. Give it a real deadline and it joins the calendar and the plan like everything else.</div>
      <div class="field"><div class="line"><label>Deadline</label><input type="date" id="ndDate" value="${dayKey(def)}"></div></div>
      <div class="seg" id="ndType"><button data-t="soft" class="on">Soft — self-set</button><button data-t="hard">Hard — real consequence</button></div>`,
     async()=>{
       const v=$("#ndDate").value; if(!v){ closeSheet(); return; }
       n.deadline=new Date(v+"T17:00:00").toISOString();
       n.deadlineType=$("#ndType .on").dataset.t; n.timeframe=null;
-      await save(n); closeSheet(); render(); toast("Dated — it now ranks like everything else");
+      await save(n); closeSheet(); toast("Dated — it now ranks like everything else");
     },"Set date");
   $$("#ndType button").forEach(b=>b.addEventListener("click",()=>{
     $$("#ndType button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); }));
 }
 
-/* notify override editor (used by task sheet, group sheet, and per-cat/group defaults) */
-function openNotifyEditor(cur,cb,back,note){
+/* notify override editor — applied automatically when you go back */
+function openNotifyEditor(cur,cb,note){
   const cfg=cur?JSON.parse(JSON.stringify(cur)):{enabled:true,offsets:[],atTime:null};
+  let cleared=false;
+  sheetPush(()=>drawNotifyEditor(cfg,note,()=>{ cleared=true; cb(null); }));
+  SHEET.leave=()=>{ if(!cleared) cb(cfg); };
+}
+function drawNotifyEditor(cfg,note,onClear){
   const allOffsets=[0,10,30,60,180,1440,2880,10080];
-  const draw=()=>{
-    showSheet("Alerts",
-      `<div class="field"><button class="line" id="neOn"><label>Alerts for this</label><span class="val"></span><span class="toggle${cfg.enabled?" on":""}"></span></button></div>
-       ${note?`<div class="fieldnote">${esc(note)}</div>`:""}
-       ${cfg.enabled?sec("Lead times","<span>pick any</span>")+`<div class="group">${allOffsets.map(o=>
-         `<button class="pickrow" data-off="${o}"><span>${esc(offsetLabel(o))}</span>${(cfg.offsets||[]).includes(o)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
-       <div class="fieldnote" style="margin-top:10px">None picked = use the app default (${state.settings.notif.offsets.map(offsetLabel).join(", ")}).</div>
-       <div class="field"><div class="line"><label>Day-level alerts at</label><input type="time" id="neAt" value="${cfg.atTime||state.settings.notif.atTime}"></div></div>
-       <div class="fieldnote">Used for deadlines that are dates rather than times.</div>`:""}
-       <div class="field" style="margin-top:8px"><button class="line accent" id="neClear">Use inherited default</button>
-       <button class="line accent" id="neBack">Back</button></div>`,
-      ()=>{ cb(cfg); },"Apply");
-    $("#neOn").addEventListener("click",()=>{ cfg.enabled=!cfg.enabled; draw(); });
-    const at=$("#neAt"); if(at) at.addEventListener("change",e=>{ cfg.atTime=e.target.value||null; });
-    sheetBody.querySelectorAll("[data-off]").forEach(b=>b.addEventListener("click",()=>{
-      const o=Number(b.dataset.off);
-      cfg.offsets=(cfg.offsets||[]).includes(o)?cfg.offsets.filter(x=>x!==o):(cfg.offsets||[]).concat(o).sort((a,b2)=>a-b2);
-      draw(); }));
-    $("#neClear").addEventListener("click",()=>{ cb(null); });
-    $("#neBack").addEventListener("click",back);
-  };
-  draw();
+  showSheet("Alerts",
+    `<div class="field"><button class="line" id="neOn"><label>Alerts for this</label><span class="val"></span><span class="toggle${cfg.enabled?" on":""}"></span></button></div>
+     ${note?`<div class="fieldnote">${esc(note)}</div>`:""}
+     ${cfg.enabled?sec("Lead times","<span>pick any</span>")+`<div class="group">${allOffsets.map(o=>
+       `<button class="pickrow" data-off="${o}"><span>${esc(offsetLabel(o))}</span>${(cfg.offsets||[]).includes(o)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
+     <div class="fieldnote" style="margin-top:10px">None picked = use the app default (${state.settings.notif.offsets.map(offsetLabel).join(", ")}).</div>
+     <div class="field"><div class="line"><label>Day-level alerts at</label><input type="time" id="neAt" value="${cfg.atTime||state.settings.notif.atTime}"></div></div>
+     <div class="fieldnote">Used for deadlines that are dates rather than times. Applied when you go back.</div>`:""}
+     <div class="field" style="margin-top:8px"><button class="line accent" id="neClear">Use inherited default</button></div>`,
+    null);
+  $("#neOn").addEventListener("click",()=>{ cfg.enabled=!cfg.enabled; drawNotifyEditor(cfg,note,onClear); });
+  const at=$("#neAt"); if(at) at.addEventListener("change",e=>{ cfg.atTime=e.target.value||null; });
+  sheetBody.querySelectorAll("[data-off]").forEach(b=>b.addEventListener("click",()=>{
+    const o=Number(b.dataset.off);
+    cfg.offsets=(cfg.offsets||[]).includes(o)?cfg.offsets.filter(x=>x!==o):(cfg.offsets||[]).concat(o).sort((a,b2)=>a-b2);
+    drawNotifyEditor(cfg,note,onClear); }));
+  $("#neClear").addEventListener("click",()=>{ onClear(); sheetPop(); });
 }
 
 /* icon picker */
-function openIconPicker(set,cur,cb,back){
+function openIconPicker(set,cur,cb){
+  sheetPush(()=>drawIconPicker(set,cur,cb));
+}
+function drawIconPicker(set,cur,cb){
   showSheet("Icon",
     `<div class="icongrid">${set.map(i=>`<button data-ic="${esc(i)}"${i===cur?' class="on"':""}>${esc(i)}</button>`).join("")}</div>
      <div class="field"><div class="line"><label>Any emoji</label><input id="icCustom" style="text-align:right" maxlength="4" placeholder="🙂" value=""></div>
-     <button class="line accent" id="icNone">No icon</button>
-     <button class="line accent" id="icBack">Back</button></div>`,
-    ()=>{ const v=$("#icCustom").value.trim(); if(v) cb(v); else back(); },"Apply");
-  sheetBody.querySelectorAll("[data-ic]").forEach(b=>b.addEventListener("click",()=>cb(b.dataset.ic)));
-  $("#icNone").addEventListener("click",()=>cb(null));
-  $("#icBack").addEventListener("click",back);
+     <button class="line accent" id="icNone">No icon</button></div>`,null);
+  SHEET.leave=()=>{ const el=$("#icCustom"); const v=el?el.value.trim():""; if(v) cb(v); };
+  sheetBody.querySelectorAll("[data-ic]").forEach(b=>b.addEventListener("click",()=>{ cb(b.dataset.ic); SHEET.leave=null; sheetPop(); }));
+  $("#icNone").addEventListener("click",()=>{ cb(null); SHEET.leave=null; sheetPop(); });
+  $("#icCustom").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); sheetPop(); } });
 }
 
-function pickField(which,d,back){
-  back=back||drawSheet;
+function pickField(which,d,onChange){
+  const Q=onChange||(()=>{});
   if(which==="importance") return openOptions({title:"Importance",
     options:[{v:"critical",l:"Critical — something breaks"},{v:"high",l:"High"},{v:"normal",l:"Normal"},{v:"low",l:"Low"}],
-    current:d.importanceOverridden?d.importance:null,back,
-    onPick:v=>{ d.importance=v; d.importanceOverridden=true; back(); }});
+    current:d.importanceOverridden?d.importance:null,
+    onPick:v=>{ d.importance=v; d.importanceOverridden=true; Q(); }});
   if(which==="category") return openOptions({title:"Category",
     options:state.settings.categories.map(c=>({v:c.name,l:(c.icon?c.icon+"  ":"")+c.name})),
-    current:d.category,allowNew:true,allowNone:true,back,
+    current:d.category,allowNew:true,allowNone:true,
     onPick:async(v,isNew)=>{ if(isNew&&v&&!catByName(v)){
         state.settings.categories.push({name:v,icon:CAT_ICONS[state.settings.categories.length%CAT_ICONS.length],color:PALETTE[state.settings.categories.length%PALETTE.length]});
         await saveSettings(); }
-      d.category=v; back(); }});
+      d.category=v; Q(); }});
   if(which==="deliverable") return openOptions({title:"Deliverable",options:state.settings.deliverables,
-    current:d.deliverable,allowNew:true,allowNone:true,back,
+    current:d.deliverable,allowNew:true,allowNone:true,
     onPick:async(v,isNew)=>{ if(isNew&&v&&!state.settings.deliverables.includes(v)){ state.settings.deliverables.push(v); await saveSettings(); }
-      d.deliverable=v; back(); }});
+      d.deliverable=v; Q(); }});
   if(which==="context") return openOptions({title:"Context",options:state.settings.contexts,
-    current:d.context,allowNew:true,allowNone:true,back,
+    current:d.context,allowNew:true,allowNone:true,
     onPick:async(v,isNew)=>{ if(isNew&&v&&!state.settings.contexts.includes(v)){ state.settings.contexts.push(v); await saveSettings(); }
-      d.context=v; back(); }});
+      d.context=v; Q(); }});
   if(which==="energy") return openOptions({title:"Energy",
-    options:[{v:"deep",l:"Deep focus"},{v:"shallow",l:"Shallow"}],current:d.energy,allowNone:true,back,
-    onPick:v=>{ d.energy=v; back(); }});
+    options:[{v:"deep",l:"Deep focus"},{v:"shallow",l:"Shallow"}],current:d.energy,allowNone:true,
+    onPick:v=>{ d.energy=v; Q(); }});
   if(which==="status") return openOptions({title:"State",
     options:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on someone"},
              {v:"someday",l:"Someday — not committed"},{v:"done",l:"Done"},{v:"dropped",l:"Dropped"}],
-    current:d.status,back,onPick:v=>{ d.status=v; if(v==="done"&&!d.completedAt) d.completedAt=nowISO();
-      if(v!=="done") d.completedAt=null; back(); }});
+    current:d.status,onPick:v=>{ d.status=v; if(v==="done"&&!d.completedAt) d.completedAt=nowISO();
+      if(v!=="done") d.completedAt=null; Q(); }});
   if(which==="recurrence") return openOptions({title:"Repeats",
     options:[{v:"none",l:"Never"},{v:"daily",l:"Every day"},{v:"weekdays",l:"Weekdays"},
              {v:"weekly",l:"Every 7 days"},{v:"monthly",l:"Every month"},{v:"after3",l:"3 days after I finish it"},
              {v:"after7",l:"7 days after I finish it"},{v:"after30",l:"30 days after I finish it"}],
-    current:recurKey(d.recurrence),back,
-    onPick:v=>{ d.recurrence=recurFrom(v); back(); }});
+    current:recurKey(d.recurrence),
+    onPick:v=>{ d.recurrence=recurFrom(v); Q(); }});
 }
 function recurKey(r){ if(!r) return "none";
   if(r.mode==="afterDone") return "after"+r.every;
@@ -2445,45 +2630,48 @@ function recurFrom(v){
 }
 
 async function detailAction(a){
-  const n=applyDraft(); if(!n) return;
-  if(a==="delete"){ if(!confirmDelete(n)) return; await purge(n.id); closeSheet(); render(); toast("Deleted"); return; }
-  if(a==="done"){ await save(n); await setStatus(n,"done"); closeSheet(); render(); toast("Completed"); return; }
-  if(a==="reopen"){ n.status="available"; n.completedAt=null; await save(n); closeSheet(); render(); toast("Reopened"); return; }
-  if(a==="drop"){ await save(n); await setStatus(n,"dropped"); closeSheet(); render(); toast("Dropped"); return; }
-  if(a==="restore"){ await setStatus(n,"available"); closeSheet(); render(); toast("Restored"); return; }
+  await flushTaskSave();
+  const n=byId(state.editing); if(!n) return;
+  if(a==="delete"){ if(!confirmDelete(n)) return; await purge(n.id); closeSheet(); toast("Deleted"); return; }
+  if(a==="done"){ await setStatus(n,"done"); closeSheet(); toast("Completed"); return; }
+  if(a==="reopen"){ n.status="available"; n.completedAt=null; await save(n); closeSheet(); toast("Reopened"); return; }
+  if(a==="drop"){ await setStatus(n,"dropped"); closeSheet(); toast("Dropped"); return; }
+  if(a==="restore"){ await setStatus(n,"available"); closeSheet(); toast("Restored"); return; }
   if(a==="tomorrow"){
     const t=addDays(new Date(),1);
     if(n.deadline){ const old=new Date(n.deadline); t.setHours(old.getHours(),old.getMinutes(),0,0); n.deadline=t.toISOString(); }
     else { t.setHours(17,0,0,0); n.deadline=t.toISOString(); n.deadlineType=n.deadlineType||"soft"; }
     n.bumpCount=(n.bumpCount||0)+1; n.flagged=false;
-    await save(n); closeSheet(); render();
+    await save(n); closeSheet();
     toast(n.bumpCount>=4?"Pushed to tomorrow — that is "+n.bumpCount+" times now":"Pushed to tomorrow"); return; }
   if(a==="duplicate"){
     await create(Object.assign({},n,{id:uid(),title:n.title+" (copy)",order:nextOrder(n.parentId),
       status:"available",completedAt:null,createdAt:nowISO(),touchedAt:nowISO(),bumpCount:0,dependsOn:[...(n.dependsOn||[])]}));
-    closeSheet(); render(); toast("Duplicated"); return; }
-  if(a==="togroup"){ n.kind="group"; await save(n); closeSheet(); openGroupSheet(n.id); return; }
-  if(a==="addchild"){ await save(n); openAddChild(n); return; }
-  if(a==="split"){ await save(n); openSplit(n); return; }
+    closeSheet(); toast("Duplicated"); return; }
+  if(a==="togroup"){ n.kind="group"; await save(n); openGroupSheet(n.id); return; }
+  if(a==="addchild"){ openAddChild(n); return; }
+  if(a==="split"){ openSplit(n); return; }
 }
 
-/* ---------- add child / split (kept from v1) ---------- */
-function openAddChild(n){
+/* ---------- add child / split ---------- */
+function openAddChild(n){ sheetPush(()=>drawAddChild(n)); }
+function drawAddChild(n){
   showSheet("Steps inside",
-    `<div class="fieldnote" style="margin:0 20px 14px">One per line. ${esc(n.title)} becomes a group holding them.</div>
+    `<div class="fieldnote" style="margin:0 20px 14px">One per line. ${esc(n.title)} becomes a group holding them. The same shorthand works here — "call agent tomorrow 20m".</div>
      <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px">
-       <textarea id="bulk" style="min-height:200px" placeholder="Conduct neighborhood research&#10;Speak to leasing agents&#10;Schedule a tour"></textarea></div></div>`,
+       <textarea id="bulk" style="min-height:200px" placeholder="Conduct neighborhood research&#10;Speak to leasing agents 30m&#10;Schedule a tour @phone"></textarea></div></div>`,
     async()=>{
       const lines=$("#bulk").value.split("\n").map(s=>s.trim()).filter(Boolean);
-      if(!lines.length){ closeSheet(); return; }
+      if(!lines.length){ sheetPop(); return; }
       n.kind="group"; await save(n);
       let o=nextOrder(n.id);
-      for(const l of lines){ await create({title:l,parentId:n.id,order:o+=1000}); }
-      closeSheet(); render(); toast(lines.length+" step"+(lines.length===1?"":"s")+" added");
+      for(const l of lines){ const p=parseNL(l); await create(Object.assign({title:p.title||l,parentId:n.id,order:o+=1000},p.patch)); }
+      closeSheet(); toast(lines.length+" step"+(lines.length===1?"":"s")+" added");
     },"Add");
-  setTimeout(()=>$("#bulk").focus(),350);
+  setTimeout(()=>{ const b=$("#bulk"); if(b) b.focus(); },350);
 }
-function openSplit(n){
+function openSplit(n){ sheetPush(()=>drawSplit(n)); }
+function drawSplit(n){
   showSheet("Split",
     `<div class="fieldnote" style="margin:0 20px 14px">One per line. The original becomes a group and each line becomes a task inside it. Notes are kept on the group.</div>
      <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px">
@@ -2493,14 +2681,15 @@ function openSplit(n){
       if(lines.length<2){ toast("Give it at least two lines"); return; }
       n.kind="group"; await save(n);
       let o=nextOrder(n.id);
-      for(const l of lines){ await create({title:l,parentId:n.id,order:o+=1000,
-        importance:n.importance,category:n.category,context:n.context}); }
-      closeSheet(); render(); toast("Split into "+lines.length);
+      for(const l of lines){ const p=parseNL(l); await create(Object.assign({title:p.title||l,parentId:n.id,order:o+=1000,
+        importance:n.importance,category:n.category,context:n.context},p.patch)); }
+      closeSheet(); toast("Split into "+lines.length);
     },"Split");
 }
 
 /* ---------- "In group" picker ---------- */
-function openPicker(d,back){
+function openPicker(d,onChange){ sheetPush(()=>drawPicker(d,onChange)); }
+function drawPicker(d,onChange){
   const rows=[{id:null,label:"Browse (top level)",depth:0},{id:UNSORTED,label:"Unsorted",depth:0}];
   (function walk(p,depth){ for(const c of childrenOf(p)){ if(c.id===UNSORTED||c.kind!=="group") continue;
     rows.push({id:c.id,label:c.title||"Untitled",depth,icon:c.icon,color:c.color}); walk(c.id,depth+1); } })(null,1);
@@ -2511,39 +2700,43 @@ function openPicker(d,back){
        return `<button class="pickrow${bad?" disabled":""}" data-pick2="${r.id===null?"":r.id}" ${bad?"disabled":""}
          style="padding-left:${16+r.depth*18}px">${r.id===null||r.id===UNSORTED?"":(r.icon?`<span class="nodeicon">${esc(r.icon)}</span>`:ICON_FOLDER(r.color))}
          <span>${esc(r.label)}</span>${r.id===d.parentId?'<span class="tick">✓</span>':""}</button>`;}).join("")}</div>
-     <div class="fieldnote" style="margin-top:18px">Where something lives is set only here, by moving it. Groups nest as deep as you need; nothing can move into itself.</div>
-     <div class="field"><button class="line accent" id="pickBack">Back</button></div>`,null);
+     <div class="fieldnote" style="margin-top:18px">Where something lives is set only here, by moving it. Groups nest as deep as you need; nothing can move into itself.</div>`,null);
   sheetBody.querySelectorAll("[data-pick2]").forEach(b=>b.addEventListener("click",()=>{
-    const v=b.dataset.pick2; d.parentId=v===""?null:v; d.order=nextOrder(d.parentId); back(); }));
-  $("#pickBack").addEventListener("click",back);
+    const v=b.dataset.pick2; d.parentId=v===""?null:v; d.order=nextOrder(d.parentId);
+    if(onChange) onChange(); sheetPop(); }));
 }
 
 /* ===========================================================================
-   GROUP SHEET — groups are not tasks with a checkbox; they get their own
-   creation and editing surface.
+   GROUP SHEET — groups get their own surface. Existing groups save as you
+   edit; a brand-new one is created with the Create button.
    =========================================================================== */
+let _gSaveT=null;
 function openGroupSheet(id){
   const isNew=!id;
   let g=id?byId(id):null;
   const d=g?JSON.parse(JSON.stringify(g)):newNode({kind:"group",parentId:
     (state.tab==="browse"&&state.browseMode==="groups"&&state.path.length)?state.path[state.path.length-1]:null});
   d.kind="group";
+  const G=()=>{ if(!g) return;                       /* autosave for existing groups */
+    Object.assign(g,d,{title:(d.title||"").trim()||g.title});
+    clearTimeout(_gSaveT); _gSaveT=setTimeout(()=>save(g),300); };
   const draw=()=>{
     const kids=g?descendants(d.id):[];
     const prog=g?progressOf(d.id):null;
     const cat=catByName(d.category);
     const stalled=g&&isStalled(g);
     const gn=state.settings.notif.perGroup[d.id];
-    showSheet("Group",
+    showSheet(isNew?"New group":"Group",
     `<div class="field">
       <div class="line"><input class="big" id="gTitle" value="${esc(d.title)}" placeholder="Group name" autocapitalize="sentences"></div>
       <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="gNotes" placeholder="What this group is for (one line shows under its name)">${esc(d.notes||"")}</textarea></div>
     </div>
+    ${isNew?"":`<div class="fieldnote" style="margin-top:-6px">Changes save as you make them.</div>`}
     ${stalled?`<div class="fieldnote warn">Stalled — nothing inside can be acted on. Add a next step or unblock one.</div>`:""}
     ${secBig("Looks")}
     <div class="field">
-      <button class="line" id="gIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"Folder"}</span>${ICON_CHEV}</button>
-      <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${ICON_CHEV}</button>
+      <button class="line" id="gIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"Folder"}</span>${CLRX("gicon",!!d.icon)}${ICON_CHEV}</button>
+      <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${CLRX("gcat",!!d.category)}${ICON_CHEV}</button>
     </div>
     <div class="colorrow" id="gColors">${PALETTE.map(c=>`<button data-col="${c}" style="background:${c}"${d.color===c?' class="on"':""}></button>`).join("")}
       <button data-col="" style="background:var(--fill);color:var(--label2);font-size:11px;display:flex;align-items:center;justify-content:center"${!d.color?' class="on"':""}>none</button></div>
@@ -2555,14 +2748,14 @@ function openGroupSheet(id){
     <div class="fieldnote">In order means only the first unfinished step counts as available; the rest wait their turn.</div>
     <div class="field">
       <button class="line" data-pick="importance"><label>Importance</label><span class="val">${d.importanceOverridden?IMP_LABEL[d.importance]:"Not set"}</span>${ICON_CHEV}</button>
-      <div class="line"><label>Deadline</label><input type="date" id="gDeadline" value="${dateInput(d.deadline)}"></div>
+      <div class="line"><label>Deadline</label><input type="date" id="gDeadline" value="${dateInput(d.deadline)}">${CLRX("gdeadline",!!d.deadline)}</div>
       ${d.deadline?`<button class="line" id="gDeadlineType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
     </div>
     <div class="fieldnote">Importance set on a group flows down to everything inside unless a task overrides it. A group deadline pulls its unfinished contents up the ranking as it nears.</div>
     ${secBig("Notifications")}
     <div class="field"><button class="line" id="gNotify"><label>Default for tasks here</label>
       <span class="val${gn?" set":""}">${gn?(gn.enabled?"On":"Off"):"Inherit"}</span>${ICON_CHEV}</button></div>
-    <div class="fieldnote">Every task inside inherits this unless the task sets its own. Saved immediately.</div>
+    <div class="fieldnote">Every task inside inherits this unless the task sets its own.</div>
     ${g?secBig("Status")+`<div class="field">
       <button class="line" id="gMove"><label>In group</label><span class="val">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
       <div class="line"><label>Contains</label><span class="val">${kids.length} item${kids.length===1?"":"s"}${prog?" · "+prog.done+"/"+prog.total+" done":""}</span></div>
@@ -2576,45 +2769,181 @@ function openGroupSheet(id){
     </div>
     <div class="field"><button class="line danger" id="gDelete">Delete permanently</button></div>
     <div class="fieldnote">Deleting removes everything inside it too.</div>`:""}`,
-    async()=>{
-      d.title=($("#gTitle").value||"").trim();
-      d.notes=$("#gNotes").value;
-      if(!d.title&&isNew){ closeSheet(); return; }
-      if(isNew&&!g){ g=newNode(d); state.nodes.set(g.id,g); await putNode(g); }
-      else Object.assign(g,d);
-      await save(g); closeSheet(); render(); toast(isNew?"Group created":"Saved");
-    },isNew?"Create":"Done");
+    isNew?async()=>{
+      d.title=($("#gTitle").value||"").trim(); d.notes=$("#gNotes").value;
+      if(!d.title){ toast("Give it a name"); $("#gTitle").focus(); return; }
+      g=newNode(d); state.nodes.set(g.id,g); await save(g);
+      closeSheet(); toast("Group created");
+    }:null,"Create");
     const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
-    on("#gTitle","input",e=>{ d.title=e.target.value; });
-    on("#gNotes","input",e=>{ d.notes=e.target.value; });
-    on("#gIcon","click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),d.icon,v=>{ d.icon=v; draw(); },draw));
-    $$("#gColors button").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; draw(); }));
-    $$("#gMode button").forEach(b=>b.addEventListener("click",()=>{ d.childMode=b.dataset.mode; draw(); }));
+    on("#gTitle","input",e=>{ d.title=e.target.value; G(); });
+    on("#gNotes","input",e=>{ d.notes=e.target.value; G(); });
+    on("#gIcon","click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),d.icon,v=>{ d.icon=v; G(); }));
+    $$("#gColors button").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; G(); draw(); }));
+    $$("#gMode button").forEach(b=>b.addEventListener("click",()=>{ d.childMode=b.dataset.mode; G(); draw(); }));
     on("#gDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null;
-      if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null; draw(); });
+      if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null; G(); draw(); });
     on("#gDeadlineType","click",()=>openOptions({title:"Deadline type",
       options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
-      current:d.deadlineType,back:draw,onPick:v=>{ d.deadlineType=v; draw(); }}));
+      current:d.deadlineType,onPick:v=>{ d.deadlineType=v; G(); }}));
     on("#gNotify","click",()=>openNotifyEditor(state.settings.notif.perGroup[d.id],async v=>{
       if(v) state.settings.notif.perGroup[d.id]=v; else delete state.settings.notif.perGroup[d.id];
-      await saveSettings(); draw(); },draw,"Default for every task inside this group."));
-    on("#gMove","click",()=>openPicker(d,draw));
-    sheetBody.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>pickField(b.dataset.pick,d,draw)));
-    on("#gOpen","click",async()=>{ if(g){ Object.assign(g,d,{title:($("#gTitle").value||"").trim(),notes:$("#gNotes").value}); await save(g); }
-      closeSheet(); state.tab="browse"; state.browseMode="groups"; state.path=buildPath(d.id); render(); });
-    on("#gAdd","click",async()=>{ if(g){ Object.assign(g,d); await save(g); openAddChild(g); } });
-    on("#gToTask","click",async()=>{ if(g){ g.kind="task"; await save(g); closeSheet(); openSheet(g.id); } });
-    on("#gDrop","click",async()=>{ if(g){ await setStatus(g,"dropped"); closeSheet(); render(); toast("Dropped"); } });
-    on("#gRestore","click",async()=>{ if(g){ await setStatus(g,"available"); closeSheet(); render(); toast("Restored"); } });
-    on("#gDelete","click",async()=>{ if(g&&confirmDelete(g)){ await purge(g.id); closeSheet(); render(); toast("Deleted"); } });
-    if(isNew) setTimeout(()=>$("#gTitle").focus(),350);
+      await saveSettings(); },"Default for every task inside this group."));
+    on("#gMove","click",()=>openPicker(d,G));
+    sheetBody.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>pickField(b.dataset.pick,d,G)));
+    sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
+      e.stopPropagation(); const k=b.dataset.clearx;
+      if(k==="gicon") d.icon=null;
+      if(k==="gcat") d.category=null;
+      if(k==="gdeadline"){ d.deadline=null; d.deadlineType=null; }
+      G(); draw(); }));
+    on("#gOpen","click",async()=>{ closeSheet(); state.tab="browse"; state.browseMode="groups"; state.path=buildPath(d.id); render(); });
+    on("#gAdd","click",()=>{ if(g) openAddChild(g); });
+    on("#gToTask","click",async()=>{ if(g){ g.kind="task"; await save(g); openSheet(g.id); } });
+    on("#gDrop","click",async()=>{ if(g){ await setStatus(g,"dropped"); closeSheet(); toast("Dropped"); } });
+    on("#gRestore","click",async()=>{ if(g){ await setStatus(g,"available"); closeSheet(); toast("Restored"); } });
+    on("#gDelete","click",async()=>{ if(g&&confirmDelete(g)){ await purge(g.id); closeSheet(); toast("Deleted"); } });
+    if(isNew) setTimeout(()=>{ const t=$("#gTitle"); if(t) t.focus(); },350);
   };
-  draw();
+  sheetRoot(draw);
 }
 
 /* ===========================================================================
-   CAPTURE — the + button. One sheet, everything reachable, nothing required
-   but a title. The three most-used sections stay expanded; the rest fold.
+   QUICK-ENTRY PARSER — plain English in the title becomes structure.
+   "Call dentist tomorrow at 3pm ~30m #Health @phone !" fills the fields.
+   Everything it finds shows as a dismissible chip; explicit edits win.
+   =========================================================================== */
+const NL_DOWS={sun:0,mon:1,tue:2,tues:2,wed:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+const NL_MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};
+function parseNL(text){
+  const src=String(text||"");
+  const found={}; const spans=[];
+  const claim=(key,s,e,data)=>{ if(found[key]) return false;
+    for(const sp of spans) if(s<sp.e&&e>sp.s) return false;
+    found[key]=data; spans.push({s,e,key}); return true; };
+  const rx=(re)=>{ re.lastIndex=0; return re.exec(src); };
+  let m;
+
+  if((m=rx(/(^|\s)#([A-Za-z][\w&-]{1,24})/i))){
+    const raw=m[2], hit=state.settings.categories.find(c=>c.name.toLowerCase()===raw.toLowerCase());
+    claim("cat",m.index,m.index+m[0].length,{name:hit?hit.name:raw[0].toUpperCase()+raw.slice(1),isNew:!hit});
+  }
+  if((m=rx(/(^|\s)@([A-Za-z][\w-]{1,24})/i))){
+    const raw="@"+m[2].toLowerCase(), hit=state.settings.contexts.find(c=>c.toLowerCase()===raw);
+    claim("ctx",m.index,m.index+m[0].length,{name:hit||raw,isNew:!hit});
+  }
+  if((m=rx(/(^|\s)!(critical|high|normal|low)\b/i)))
+    claim("imp",m.index,m.index+m[0].length,{v:m[2].toLowerCase()});
+  else if((m=rx(/(^|\s)(!{1,2})(?=\s|$)/)))
+    claim("imp",m.index,m.index+m[0].length,{v:m[2]==="!!"?"critical":"high"});
+
+  if((m=rx(/(^|\s)\bsomeday\b/i))) claim("someday",m.index,m.index+m[0].length,{});
+
+  /* recurrence before dates — "every friday" must not read as a deadline */
+  if((m=rx(/(^|\s)(every\s?day|daily)\b/i))) claim("rec",m.index,m.index+m[0].length,{r:{type:"days",every:1},l:"every day"});
+  else if((m=rx(/(^|\s)(weekdays)\b/i))) claim("rec",m.index,m.index+m[0].length,{r:{type:"weekdays",days:[1,2,3,4,5]},l:"weekdays"});
+  else if((m=rx(/(^|\s)(every\s?week|weekly)\b/i))) claim("rec",m.index,m.index+m[0].length,{r:{type:"days",every:7},l:"weekly"});
+  else if((m=rx(/(^|\s)(every\s?month|monthly)\b/i))) claim("rec",m.index,m.index+m[0].length,{r:{type:"months",every:1},l:"monthly"});
+  else if((m=rx(/(^|\s)every\s+(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)[a-z]*\b/i)))
+    claim("rec",m.index,m.index+m[0].length,{r:{type:"weekdays",days:[NL_DOWS[m[2].toLowerCase()]]},l:"every "+m[2]});
+
+  /* duration: a range, else a single figure */
+  if((m=rx(/(^|\s)~?(\d{1,3})\s*(?:-|–|to\s+)\s*(\d{1,3})\s*(m|min|mins|minutes|h|hr|hrs|hours)\b/i))){
+    const mult=/^h/i.test(m[4])?60:1;
+    claim("dur",m.index,m.index+m[0].length,{min:+m[2]*mult,max:+m[3]*mult});
+  } else if((m=rx(/(^|\s)~?(\d{1,3}(?:\.\d)?)\s*(m|min|mins|minutes|h|hr|hrs|hours)\b/i))){
+    const mult=/^h/i.test(m[3])?60:1;
+    claim("dur",m.index,m.index+m[0].length,{min:null,max:Math.round(+m[2]*mult)});
+  }
+
+  /* a time of day */
+  if((m=rx(/(^|\s)(?:at\s+)?(\d{1,2}):(\d{2})\s*(am|pm)?\b/i))||(m=rx(/(^|\s)(?:at\s+)(\d{1,2})\s*(am|pm)?\b/i))||(m=rx(/(^|\s)(\d{1,2})\s*(am|pm)\b/i))){
+    let h,mi,ap;
+    if(m.length===5){ h=+m[2]; mi=+m[3]; ap=(m[4]||"").toLowerCase(); }
+    else { h=+m[2]; mi=0; ap=(m[3]||"").toLowerCase(); }
+    if(h<=24&&mi<60){
+      if(ap==="pm"&&h<12) h+=12; if(ap==="am"&&h===12) h=0;
+      if(!ap&&h<8) h+=12;                       /* "at 5" almost always means 5 in the evening */
+      claim("time",m.index,m.index+m[0].length,{h,mi});
+    }
+  } else if((m=rx(/(^|\s)at\s+noon\b/i))||(m=rx(/(^|\s)noon\b/i))) claim("time",m.index,m.index+m[0].length,{h:12,mi:0});
+  else if((m=rx(/(^|\s)midnight\b/i))) claim("time",m.index,m.index+m[0].length,{h:23,mi:59});
+
+  /* a date */
+  const today=startOfDay(new Date());
+  const dateAt=(d)=>({d:startOfDay(d)});
+  if((m=rx(/(^|\s)(?:by\s+|due\s+|on\s+)?(today|tonight)\b/i))) claim("due",m.index,m.index+m[0].length,dateAt(today));
+  else if((m=rx(/(^|\s)(?:by\s+|due\s+|on\s+)?(tomorrow|tmrw|tmr)\b/i))) claim("due",m.index,m.index+m[0].length,dateAt(addDays(today,1)));
+  else if((m=rx(/(^|\s)(?:by\s+|due\s+|on\s+)?(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)\b/i))){
+    const dow=NL_DOWS[m[3].slice(0,m[3].length>4?3:m[3].length).toLowerCase()]??NL_DOWS[m[3].slice(0,3).toLowerCase()];
+    if(dow!=null){ let ahead=(dow-today.getDay()+7)%7;
+      if(m[2]) ahead+= (ahead===0?7:7); else if(ahead===0) ahead=0;
+      claim("due",m.index,m.index+m[0].length,dateAt(addDays(today,ahead))); }
+  }
+  else if((m=rx(/(^|\s)(?:by\s+)?next\s+week\b/i))){
+    const ahead=((1-today.getDay()+7)%7)||7;
+    claim("due",m.index,m.index+m[0].length,dateAt(addDays(today,ahead)));
+  }
+  else if((m=rx(/(^|\s)(?:this\s+)?weekend\b/i))){
+    let ahead=(6-today.getDay()+7)%7; claim("due",m.index,m.index+m[0].length,dateAt(addDays(today,ahead)));
+  }
+  else if((m=rx(/(^|\s)in\s+(\d{1,2})\s+(day|days|week|weeks)\b/i))){
+    const n=+m[2]*(/week/i.test(m[3])?7:1);
+    claim("due",m.index,m.index+m[0].length,dateAt(addDays(today,n)));
+  }
+  else if((m=rx(/(^|\s)(?:by\s+|due\s+|on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i))){
+    const mo=NL_MONTHS[m[2].toLowerCase()], day=+m[3];
+    if(day>=1&&day<=31){ let d=new Date(today.getFullYear(),mo,day);
+      if(startOfDay(d)<today) d=new Date(today.getFullYear()+1,mo,day);
+      claim("due",m.index,m.index+m[0].length,dateAt(d)); }
+  }
+  else if((m=rx(/(^|\s)(?:by\s+|due\s+|on\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/i))){
+    const mo=+m[2]-1, day=+m[3];
+    if(mo>=0&&mo<12&&day>=1&&day<=31){
+      let y=m[4]?(+m[4]<100?2000+ +m[4]:+m[4]):today.getFullYear();
+      let d=new Date(y,mo,day);
+      if(!m[4]&&startOfDay(d)<today) d=new Date(y+1,mo,day);
+      claim("due",m.index,m.index+m[0].length,dateAt(d)); }
+  }
+
+  /* assemble patch + chips */
+  const patch={}, chips=[];
+  if(found.due||found.time){
+    let base=found.due?new Date(found.due.d):startOfDay(new Date());
+    if(found.time){
+      base.setHours(found.time.h,found.time.mi,0,0);
+      if(!found.due&&base<new Date()) base=new Date(base.getTime()+DAY);
+      patch.deadlineHasTime=true;
+    } else base.setHours(17,0,0,0);
+    patch.deadline=base.toISOString(); patch.deadlineType="soft";
+    chips.push({key:found.due?"due":"time",label:"Due "+relDay(patch.deadline)+(found.time?" "+fmtTime(patch.deadline):""),
+      both:!!(found.due&&found.time)});
+  }
+  if(found.dur){ patch.durationMode="estimate"; patch.estMinMinutes=found.dur.min; patch.estMaxMinutes=found.dur.max;
+    chips.push({key:"dur",label:"~"+(found.dur.min?mins(found.dur.min)+"–":"")+mins(found.dur.max)}); }
+  if(found.cat){ patch.category=found.cat.name; patch._newCat=found.cat.isNew;
+    chips.push({key:"cat",label:"#"+found.cat.name+(found.cat.isNew?" (new)":"")}); }
+  if(found.ctx){ patch.context=found.ctx.name; patch._newCtx=found.ctx.isNew;
+    chips.push({key:"ctx",label:found.ctx.name}); }
+  if(found.imp){ patch.importance=found.imp.v; patch.importanceOverridden=true;
+    chips.push({key:"imp",label:IMP_LABEL[found.imp.v]+" priority"}); }
+  if(found.rec){ patch.recurrence=found.rec.r; chips.push({key:"rec",label:"Repeats "+found.rec.l}); }
+  if(found.someday){ patch.status="someday"; chips.push({key:"someday",label:"Someday"}); }
+
+  /* the cleaned title: matched shorthand removed */
+  const strip=(keys)=>{
+    const drop=spans.filter(sp=>keys.has(sp.key)).sort((a,b)=>b.s-a.s);
+    let t=src; for(const sp of drop) t=t.slice(0,sp.s)+" "+t.slice(sp.e);
+    t=t.replace(/\s{2,}/g," ").replace(/\s+([,.;:])/g,"$1").trim();
+    return t?t[0].toUpperCase()+t.slice(1):t;
+  };
+  const allKeys=new Set(spans.map(s=>s.key));
+  return {title:strip(allKeys),patch,chips,strip,found};
+}
+
+/* ===========================================================================
+   CAPTURE — the + button. Type naturally; the shorthand becomes chips.
+   A title alone is still enough. Everything else folds below.
    =========================================================================== */
 function captureDest(){
   if(state.tab==="browse"&&state.browseMode==="groups"&&state.path.length) return state.path[state.path.length-1];
@@ -2628,12 +2957,28 @@ function openCapture(pre){
   if(pre.deadlineDay){ d.deadline=new Date(pre.deadlineDay+"T17:00:00").toISOString(); d.deadlineType="soft"; }
   if(pre.fixedSlot){ d.durationMode="fixed"; d.fixedStart=new Date(pre.fixedSlot+":00").toISOString();
     d.fixedEnd=new Date(new Date(d.fixedStart).getTime()+60*MIN).toISOString(); }
-  state.capDraft=d; state.capSubs=[];
-  drawCapture();
-  scrim.classList.add("on"); sheet.classList.add("on");
+  state.capDraft=d; state.capSubs=[]; state.capIgnore=new Set(); state.capSet=new Set();
+  if(pre.deadlineDay) state.capSet.add("deadline");
+  sheetRoot(drawCapture);
   setTimeout(()=>{ const t=$("#cTitle"); if(t) t.focus(); },380);
 }
-const CAP_OPEN={when:true,effort:false,organize:false,deps:false,alerts:false,repeat:false,notes:false,steps:false};
+const CAP_OPEN={when:false,effort:false,organize:false,deps:false,alerts:false,repeat:false,notes:false,steps:false};
+function capChipsHTML(){
+  const d=state.capDraft;
+  const p=parseNL(d.title||"");
+  const chips=p.chips.filter(c=>!state.capIgnore.has(c.key));
+  if(!chips.length) return "";
+  return chips.map(c=>`<span class="chip"><b>${esc(c.label)}</b><span class="x" data-chipx="${esc(c.key)}">✕</span></span>`).join("");
+}
+function refreshChips(){
+  const el=$("#capChips"); if(!el) return;
+  el.innerHTML=capChipsHTML();
+  el.style.display=el.innerHTML?"flex":"none";
+  el.querySelectorAll("[data-chipx]").forEach(b=>b.addEventListener("click",()=>{
+    state.capIgnore.add(b.dataset.chipx);
+    if(b.dataset.chipx==="due"||b.dataset.chipx==="time"){ state.capIgnore.add("due"); state.capIgnore.add("time"); }
+    refreshChips(); }));
+}
 function drawCapture(){
   const d=state.capDraft; if(!d) return;
   const cat=catByName(d.category);
@@ -2642,27 +2987,28 @@ function drawCapture(){
     <div class="capbd">${body}</div></div>`;
 
   const whenBody=`
-    <div class="line"><label>Deadline</label><input type="date" id="cDeadline" value="${dateInput(d.deadline)}"></div>
-    ${d.deadline?`<button class="line" id="cDlType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
-    ${!d.deadline?`<button class="line" id="cTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${ICON_CHEV}</button>`:""}
-    <div class="line"><label>Start on or after</label><input type="date" id="cDefer" value="${dateInput(d.deferUntil)}"></div>
-    <div class="line"><label>Moot after</label><input type="date" id="cExpiry" value="${dateInput(d.expiry)}"></div>
-    <button class="line" id="cFixed"><label>Fixed block</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart)):"None"}</span>${ICON_CHEV}</button>
-    <div class="fieldnote inline">Soft deadlines are self-set and weigh less. A timeframe ("sometime in March") stays off the calendar until you pin a date. Moot after: past that date it stops mattering and drops itself.</div>`;
-  const whenSum=d.deadline?relDay(d.deadline):(d.timeframe?tfLabel(d.timeframe):(d.fixedStart?fmtDate(d.fixedStart):""));
+    <div class="line"><label>Deadline</label><input type="date" id="cDeadline" value="${dateInput(d.deadline)}">${CLRX("cdeadline",!!d.deadline)}</div>
+    ${d.deadline?`<div class="line"><label>Due time</label><input type="time" id="cDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">${CLRX("cdltime",!!d.deadlineHasTime)}</div>
+    <button class="line" id="cDlType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+    ${!d.deadline?`<button class="line" id="cTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("ctimeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
+    <div class="line"><label>Start on or after</label><input type="date" id="cDefer" value="${dateInput(d.deferUntil)}">${CLRX("cdefer",!!d.deferUntil)}</div>
+    <div class="line"><label>Moot after</label><input type="date" id="cExpiry" value="${dateInput(d.expiry)}">${CLRX("cexpiry",!!d.expiry)}</div>
+    <button class="line" id="cFixed"><label>Fixed block</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart)):"None"}</span>${CLRX("cfixed",!!d.fixedStart)}${ICON_CHEV}</button>
+    <div class="fieldnote inline">No due time means end of day. Soft deadlines weigh less. A timeframe ("sometime in March") stays off the calendar until you pin a date. ✕ clears anything.</div>`;
+  const whenSum=d.deadline?relDay(d.deadline)+(d.deadlineHasTime?" "+fmtTime(d.deadline):""):(d.timeframe?tfLabel(d.timeframe):(d.fixedStart?fmtDate(d.fixedStart):""));
 
   const effortBody=`
-    <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="cEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="cEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="val" style="flex:0 0 auto">min</span></div>
-    <button class="line" data-cpick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${ICON_CHEV}</button>
-    <button class="line" data-cpick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${ICON_CHEV}</button>
-    <button class="line" data-cpick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${ICON_CHEV}</button>
+    <div class="line"><label>Takes about</label><input type="number" inputmode="numeric" id="cEstMin" value="${d.estMinMinutes??""}" placeholder="min"> <span class="val" style="flex:0 0 auto">to</span> <input type="number" inputmode="numeric" id="cEstMax" value="${d.estMaxMinutes??""}" placeholder="max"> <span class="unit">min</span></div>
+    <button class="line" data-cpick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${CLRX("cenergy",!!d.energy)}${ICON_CHEV}</button>
+    <button class="line" data-cpick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${CLRX("cctx",!!d.context)}${ICON_CHEV}</button>
+    <button class="line" data-cpick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${CLRX("cdeliv",!!d.deliverable)}${ICON_CHEV}</button>
     <div class="fieldnote inline">A rough range is enough — capacity uses the high end, quick wins the low end.</div>`;
   const effortSum=d.estMaxMinutes?mins(d.estMaxMinutes):"";
 
   const orgBody=`
-    <button class="line" data-cpick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${ICON_CHEV}</button>
+    <button class="line" data-cpick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${CLRX("ccat",!!d.category)}${ICON_CHEV}</button>
     <button class="line" data-cpick="importance"><label>Importance</label><span class="val">${d.importanceOverridden?IMP_LABEL[d.importance]:"Inherit"}</span>${ICON_CHEV}</button>
-    <button class="line" id="cIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${ICON_CHEV}</button>
+    <button class="line" id="cIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${CLRX("cicon",!!d.icon)}${ICON_CHEV}</button>
     <button class="line" id="cFlagB"><label>Do today</label><span class="val"></span><span class="toggle${d.flagged?" on":""}"></span></button>`;
   const orgSum=[d.category,d.importanceOverridden?IMP_LABEL[d.importance]:null].filter(Boolean).join(" · ");
 
@@ -2681,17 +3027,17 @@ function drawCapture(){
   const alertsBody=`<button class="line" id="cNotify"><label>Alerts</label><span class="val${d.notify?" set":""}">${d.notify?(d.notify.enabled?"Custom":"Off"):"Inherit from group/category"}</span>${ICON_CHEV}</button>
     <div class="fieldnote inline">Banners in-app; real lock-screen alerts come from the calendar export in Settings › Notifications.</div>`;
 
-  const repeatBody=`<button class="line" data-cpick="recurrence"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${ICON_CHEV}</button>`;
+  const repeatBody=`<button class="line" data-cpick="recurrence"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("crec",!!d.recurrence)}${ICON_CHEV}</button>`;
   const notesBody=`<div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="cNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div>`;
-  const stepsBody=`<div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="cSteps" placeholder="One step per line — this task becomes a group holding them">${esc(state.capSubs.join("\n"))}</textarea></div>`;
+  const stepsBody=`<div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="cSteps" placeholder="One step per line — this task becomes a group holding them. The same shorthand works per line.">${esc(state.capSubs.join("\n"))}</textarea></div>`;
 
-  $("#sheetTitle").textContent="New task";
-  $("#sheetDone").textContent="Save";
-  sheetOnDone=async()=>{ await commitCapture(false); };
-  sheetOnCancel=null;
-  sheetBody.innerHTML=`
+  showSheet("New task",`
+    <div class="field" style="margin-bottom:4px">
+      <div class="line"><input class="big" id="cTitle" value="${esc(d.title)}" placeholder="Renew passport by friday ~1h #Admin" autocapitalize="sentences" enterkeyhint="done"></div>
+    </div>
+    <div class="chips" id="capChips" style="display:none"></div>
+    <div class="fieldnote" style="margin-top:6px">Just type — dates ("tomorrow", "sep 25 at 3pm"), effort ("~30m"), #category, @context and ! for priority become chips you can dismiss. Or set anything by hand below.</div>
     <div class="field" style="margin-bottom:12px">
-      <div class="line"><input class="big" id="cTitle" value="${esc(d.title)}" placeholder="What needs doing?" autocapitalize="sentences" enterkeyhint="done"></div>
       <button class="line" id="cGroup"><label>In group</label><span class="val${d.parentId!==UNSORTED?" set":""}">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
     </div>
     ${capsec("when","When",whenBody,whenSum)}
@@ -2701,11 +3047,12 @@ function drawCapture(){
     ${capsec("alerts","Alerts",alertsBody,alertsSum)}
     ${capsec("repeat","Repeat",repeatBody,d.recurrence?recurLabel(d.recurrence):"")}
     ${capsec("notes","Notes",notesBody,d.notes?"…":"")}
-    ${capsec("steps","Steps inside",stepsBody,state.capSubs.length?state.capSubs.length+"":"")}
-    <div class="field" style="margin-top:6px"><button class="line accent" id="cSaveMore">Save and add another</button></div>
-    <div class="fieldnote">A title alone is enough — everything else can wait.</div>`;
+    ${capsec("steps","Steps inside",stepsBody,state.capSubs.filter(s=>s.trim()).length?state.capSubs.filter(s=>s.trim()).length+"":"")}
+    <div class="field" style="margin-top:6px"><button class="line accent" id="cSaveMore">Add and start another</button></div>
+    <div class="fieldnote">A title alone is enough — everything else can wait.</div>`,
+    async()=>{ await commitCapture(false); },"Add");
   wireCapture();
-  sheetBody.scrollTop=0;
+  refreshChips();
 }
 function wireCapture(){
   const d=state.capDraft;
@@ -2713,56 +3060,87 @@ function wireCapture(){
   const keepText=()=>{ const t=$("#cTitle"); if(t) d.title=t.value;
     const nn=$("#cNotes"); if(nn) d.notes=nn.value;
     const ss=$("#cSteps"); if(ss) state.capSubs=ss.value.split("\n"); };
+  const S=k=>state.capSet.add(k);   /* explicit edits beat parsed values */
   sheetBody.querySelectorAll("[data-sechd]").forEach(b=>b.addEventListener("click",()=>{
     keepText(); CAP_OPEN[b.dataset.sechd]=!CAP_OPEN[b.dataset.sechd]; drawCapture(); }));
-  on("#cTitle","input",e=>{ d.title=e.target.value; });
+  let chipT=null;
+  on("#cTitle","input",e=>{ d.title=e.target.value;
+    clearTimeout(chipT); chipT=setTimeout(refreshChips,140); });
   on("#cTitle","keydown",async e=>{ if(e.key==="Enter"){ e.preventDefault(); await commitCapture(false); } });
   on("#cNotes","input",e=>{ d.notes=e.target.value; });
   on("#cSteps","input",e=>{ state.capSubs=e.target.value.split("\n"); });
-  on("#cGroup","click",()=>{ keepText(); openPicker(d,drawCapture); });
-  on("#cDeadline","change",e=>{ keepText(); d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null;
-    if(d.deadline&&!d.deadlineType) d.deadlineType="soft"; if(!d.deadline) d.deadlineType=null;
+  on("#cGroup","click",()=>{ keepText(); openPicker(d,null); });
+  on("#cDeadline","change",e=>{ keepText(); S("deadline");
+    const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
+    d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
+    if(d.deadline&&!d.deadlineType) d.deadlineType="soft";
+    if(!d.deadline){ d.deadlineType=null; d.deadlineHasTime=false; }
     if(d.deadline) d.timeframe=null; drawCapture(); });
+  on("#cDlTime","change",e=>{ keepText(); S("deadline");
+    if(!d.deadline) return;
+    if(e.target.value){ d.deadline=new Date(dateInput(d.deadline)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
+    else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
+    drawCapture(); });
   on("#cDlType","click",()=>{ keepText(); openOptions({title:"Deadline type",
     options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
-    current:d.deadlineType,back:drawCapture,onPick:v=>{ d.deadlineType=v; drawCapture(); }}); });
-  on("#cTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; drawCapture(); },drawCapture); });
+    current:d.deadlineType,onPick:v=>{ d.deadlineType=v; S("deadline"); }}); });
+  on("#cTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; S("deadline"); }); });
   on("#cDefer","change",e=>{ d.deferUntil=e.target.value?new Date(e.target.value+"T00:00:00").toISOString():null; });
   on("#cExpiry","change",e=>{ d.expiry=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; });
-  on("#cEstMin","input",e=>{ d.estMinMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value));
+  on("#cEstMin","input",e=>{ S("dur"); d.estMinMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value));
     if(d.estMaxMinutes!=null&&d.durationMode==="none") d.durationMode="estimate"; });
-  on("#cEstMax","input",e=>{ d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value));
+  on("#cEstMax","input",e=>{ S("dur"); d.estMaxMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value));
     if(d.estMaxMinutes!=null) d.durationMode="estimate"; });
   on("#cFixed","click",()=>{ keepText(); openCapFixed(d); });
-  on("#cIcon","click",()=>{ keepText(); openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; drawCapture(); },drawCapture); });
+  on("#cIcon","click",()=>{ keepText(); openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; }); });
   on("#cFlagB","click",()=>{ keepText(); d.flagged=!d.flagged; drawCapture(); });
-  on("#cNotify","click",()=>{ keepText(); openNotifyEditor(d.notify,v=>{ d.notify=v; drawCapture(); },drawCapture,
+  on("#cNotify","click",()=>{ keepText(); openNotifyEditor(d.notify,v=>{ d.notify=v; },
     "Overrides the group and category defaults for this task only."); });
   $$("#cDepMode button").forEach(b=>b.addEventListener("click",()=>{ keepText(); d.dependencyMode=b.dataset.dm; drawCapture(); }));
-  on("#cAddDep","click",()=>{ keepText(); openDepPicker(d,drawCapture); });
+  on("#cAddDep","click",()=>{ keepText(); openDepPicker(d,null); });
   sheetBody.querySelectorAll("[data-crmdep]").forEach(b=>b.addEventListener("click",()=>{
     keepText(); d.dependsOn=(d.dependsOn||[]).filter(x=>x!==b.dataset.crmdep); drawCapture(); }));
   sheetBody.querySelectorAll("[data-cpick]").forEach(b=>b.addEventListener("click",()=>{
-    keepText(); pickField(b.dataset.cpick,d,drawCapture); }));
+    keepText();
+    const k=b.dataset.cpick;
+    pickField(k,d,()=>{ if(k==="category") S("cat"); if(k==="context") S("ctx");
+      if(k==="importance") S("imp"); if(k==="recurrence") S("rec"); }); }));
+  sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation(); keepText(); const k=b.dataset.clearx;
+    if(k==="cdeadline"){ d.deadline=null; d.deadlineType=null; d.deadlineHasTime=false; S("deadline"); }
+    if(k==="cdltime"){ if(d.deadline) d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; S("deadline"); }
+    if(k==="ctimeframe"){ d.timeframe=null; S("deadline"); }
+    if(k==="cdefer") d.deferUntil=null;
+    if(k==="cexpiry") d.expiry=null;
+    if(k==="cfixed"){ d.fixedStart=null; d.fixedEnd=null; if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none"; }
+    if(k==="cenergy") d.energy=null;
+    if(k==="cctx"){ d.context=null; S("ctx"); }
+    if(k==="cdeliv") d.deliverable=null;
+    if(k==="ccat"){ d.category=null; S("cat"); }
+    if(k==="cicon") d.icon=null;
+    if(k==="crec"){ d.recurrence=null; S("rec"); }
+    drawCapture(); }));
   on("#cSaveMore","click",async()=>{ await commitCapture(true); });
 }
 function openCapFixed(d){
-  showSheet("Fixed block",
-    `<div class="field">
-      <div class="line"><label>Day</label><input type="date" id="xDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
-      <div class="line"><label>Start</label><input type="time" id="xStart" value="${timeInput(d.fixedStart)}"></div>
-      <div class="line"><label>End</label><input type="time" id="xEnd" value="${timeInput(d.fixedEnd)}"></div>
-     </div>
-     <div class="fieldnote">Sits at its time on the calendar and in Today, like an appointment.</div>
-     <div class="field"><button class="line accent" id="xClear">No fixed time</button></div>`,
-    ()=>{
-      const day=$("#xDay").value, s=$("#xStart").value, e=$("#xEnd").value;
-      if(day&&s){ d.fixedStart=new Date(day+"T"+s+":00").toISOString();
-        d.fixedEnd=e?new Date(day+"T"+e+":00").toISOString():null; d.durationMode="fixed"; }
-      drawCapture();
-    },"Apply");
-  $("#xClear").addEventListener("click",()=>{ d.fixedStart=null; d.fixedEnd=null;
-    if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none"; drawCapture(); });
+  sheetPush(()=>{
+    showSheet("Fixed block",
+      `<div class="field">
+        <div class="line"><label>Day</label><input type="date" id="xDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+        <div class="line"><label>Start</label><input type="time" id="xStart" value="${timeInput(d.fixedStart)}"></div>
+        <div class="line"><label>End</label><input type="time" id="xEnd" value="${timeInput(d.fixedEnd)}"></div>
+       </div>
+       <div class="fieldnote">Sits at its time on the calendar and in the plan, like an appointment. Applied when you go back.</div>
+       <div class="field"><button class="line accent" id="xClear">No fixed time</button></div>`,null);
+    SHEET.leave=()=>{
+      const day=$("#xDay"), s=$("#xStart"), e=$("#xEnd");
+      if(day&&s&&day.value&&s.value){ d.fixedStart=new Date(day.value+"T"+s.value+":00").toISOString();
+        d.fixedEnd=e&&e.value?new Date(day.value+"T"+e.value+":00").toISOString():null; d.durationMode="fixed"; }
+    };
+    $("#xClear").addEventListener("click",()=>{ d.fixedStart=null; d.fixedEnd=null;
+      if(d.durationMode==="fixed") d.durationMode=d.estMaxMinutes?"estimate":"none";
+      SHEET.leave=null; sheetPop(); });
+  });
 }
 async function commitCapture(again){
   const d=state.capDraft; if(!d) return;
@@ -2771,26 +3149,58 @@ async function commitCapture(again){
   const ss=$("#cSteps"); if(ss) state.capSubs=ss.value.split("\n");
   d.title=(d.title||"").trim();
   if(!d.title){ toast("Give it a title"); const t2=$("#cTitle"); if(t2) t2.focus(); return; }
+
+  /* fold in what the parser found — unless dismissed or set by hand */
+  const p=parseNL(d.title);
+  const ig=state.capIgnore, st=state.capSet;
+  const used=new Set();
+  const want=k=>!ig.has(k)&&p.found[k];
+  if((want("due")||want("time"))&&!st.has("deadline")&&!d.deadline&&!d.timeframe&&!d.fixedStart){
+    d.deadline=p.patch.deadline; d.deadlineType=p.patch.deadlineType;
+    d.deadlineHasTime=!!p.patch.deadlineHasTime;
+    if(p.found.due) used.add("due"); if(p.found.time) used.add("time"); }
+  if(want("dur")&&!st.has("dur")&&d.estMaxMinutes==null){
+    d.durationMode="estimate"; d.estMinMinutes=p.patch.estMinMinutes; d.estMaxMinutes=p.patch.estMaxMinutes; used.add("dur"); }
+  if(want("cat")&&!st.has("cat")&&!d.category){
+    if(p.patch._newCat&&!catByName(p.patch.category)){
+      state.settings.categories.push({name:p.patch.category,
+        icon:CAT_ICONS[state.settings.categories.length%CAT_ICONS.length],
+        color:PALETTE[state.settings.categories.length%PALETTE.length]});
+      await saveSettings(); }
+    d.category=p.patch.category; used.add("cat"); }
+  if(want("ctx")&&!st.has("ctx")&&!d.context){
+    if(p.patch._newCtx&&!state.settings.contexts.includes(p.patch.context)){
+      state.settings.contexts.push(p.patch.context); await saveSettings(); }
+    d.context=p.patch.context; used.add("ctx"); }
+  if(want("imp")&&!st.has("imp")&&!d.importanceOverridden){
+    d.importance=p.patch.importance; d.importanceOverridden=true; used.add("imp"); }
+  if(want("rec")&&!st.has("rec")&&!d.recurrence){ d.recurrence=p.patch.recurrence; used.add("rec"); }
+  if(want("someday")&&d.status==="available"){ d.status="someday"; used.add("someday"); }
+  if(used.size) d.title=p.strip(used)||d.title;
+
   const subs=state.capSubs.map(s=>s.trim()).filter(Boolean);
   if(subs.length) d.kind="group";
   d.order=nextOrder(d.parentId);
   const n=newNode(d); state.nodes.set(n.id,n); await putNode(n);
   let o=Date.now();
-  for(const s of subs) await create({title:s,parentId:n.id,order:o+=1000});
+  for(const s of subs){ const sp=parseNL(s);
+    await create(Object.assign({title:sp.title||s,parentId:n.id,order:o+=1000},
+      Object.fromEntries(Object.entries(sp.patch).filter(([k])=>!k.startsWith("_"))))); }
   toast("Added to "+pathLabel(n.parentId));
   if(again){
     const keep=n.parentId;
-    state.capDraft=newNode({parentId:keep}); state.capSubs=[];
+    state.capDraft=newNode({parentId:keep}); state.capSubs=[]; state.capIgnore=new Set(); state.capSet=new Set();
     drawCapture(); const t3=$("#cTitle"); if(t3) t3.focus();
   } else { closeSheet(); }
   render();
 }
 
 /* ===========================================================================
-   MORE MENU
+   MORE MENU — the root of the settings stack.
    =========================================================================== */
 $("#moreBtn").addEventListener("click",openMore);
-function openMore(){
+function openMore(){ sheetRoot(drawMore); }
+function drawMore(){
   showSheet("More",
     `<div class="field">
       <button class="line" data-more="filters"><label>Filters</label><span class="val">${state.activeFilter?esc(state.activeFilter.name):"Saved as Browse chips"}</span>${ICON_CHEV}</button>
@@ -2805,14 +3215,14 @@ function openMore(){
   sheetBody.querySelectorAll("[data-more]").forEach(b=>b.addEventListener("click",()=>moreAction(b.dataset.more)));
 }
 async function moreAction(a){
-  if(a==="filters") return openFilters();
+  if(a==="filters") return sheetPush(drawFilters);
   if(a==="newgroup") return openGroupSheet(null);
-  if(a==="settings") return openSettings();
+  if(a==="settings") return sheetPush(drawSettings);
   if(a==="update"){ await checkUpdate(); return; }
 }
 
-/* ---------- filters (kept from v1; saved filters appear as Browse chips) ---------- */
-function openFilters(){
+/* ---------- filters (saved filters appear as Browse chips) ---------- */
+function drawFilters(){
   const f=state.activeFilter||{};
   const row=(k,label,val)=>`<button class="line" data-f="${k}"><label>${label}</label><span class="val">${esc(val||"Any")}</span>${ICON_CHEV}</button>`;
   showSheet("Filters",
@@ -2831,7 +3241,7 @@ function openFilters(){
         <input class="big" id="fName" placeholder="Name this filter…"></div>
         <button class="line accent" id="fSave">Save filter</button></div>
      <div class="fieldnote">Saved filters appear as chips on the Browse tab.</div>`,
-    ()=>{ closeSheet(); state.tab="browse"; state.browseMode="all"; render(); },"Apply");
+    ()=>{ closeSheet(); state.tab="browse"; state.browseMode="all"; render(); },"View");
   sheetBody.querySelectorAll("[data-f]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.f;
     const opts={category:state.settings.categories.map(c=>c.name),deliverable:state.settings.deliverables,
@@ -2839,38 +3249,41 @@ function openFilters(){
       importance:[{v:"critical",l:"Critical"},{v:"high",l:"High"},{v:"normal",l:"Normal"},{v:"low",l:"Low"}],
       status:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on"},{v:"blocked",l:"Blocked"},
               {v:"deferred",l:"Deferred"},{v:"someday",l:"Someday"}]}[k];
-    openOptions({title:"Filter",options:opts,current:(state.activeFilter||{})[k],allowNone:true,back:openFilters,
-      onPick:v=>{ state.activeFilter=Object.assign({name:"Filter"},state.activeFilter||{},{[k]:v}); openFilters(); }});
+    openOptions({title:"Filter",options:opts,current:(state.activeFilter||{})[k],allowNone:true,
+      onPick:v=>{ state.activeFilter=Object.assign({name:"Filter"},state.activeFilter||{},{[k]:v}); }});
   }));
-  $("#fClear").addEventListener("click",()=>{ state.activeFilter=null; openFilters(); });
+  $("#fClear").addEventListener("click",()=>{ state.activeFilter=null; drawFilters(); });
   $("#fSave").addEventListener("click",async()=>{
     const nm=$("#fName").value.trim(); if(!nm||!state.activeFilter) return;
-    state.filters.push(Object.assign({},state.activeFilter,{name:nm})); await saveSettings(); openFilters(); toast("Filter saved"); });
+    state.filters.push(Object.assign({},state.activeFilter,{name:nm})); await saveSettings(); drawFilters(); toast("Filter saved"); });
   sheetBody.querySelectorAll("[data-delsaved]").forEach(b=>b.addEventListener("click",async e=>{
-    e.stopPropagation(); state.filters.splice(Number(b.dataset.delsaved),1); await saveSettings(); openFilters(); }));
+    e.stopPropagation(); state.filters.splice(Number(b.dataset.delsaved),1); await saveSettings(); drawFilters(); }));
   sheetBody.querySelectorAll("[data-saved]").forEach(b=>b.addEventListener("click",()=>{
     state.browseMode="filter:"+b.dataset.saved; closeSheet(); state.tab="browse"; render(); }));
 }
 
 /* ===========================================================================
-   SETTINGS
+   SETTINGS — every control saves the moment you change it.
    =========================================================================== */
-function openSettings(){
+let _setT=null;
+function setSave(){ clearTimeout(_setT); _setT=setTimeout(()=>saveSettings(),250); }
+function drawSettings(){
   const s=state.settings;
   showSheet("Settings",
-    `${secBig("Schedule")}
+    `<div class="fieldnote" style="margin:2px 20px 12px">Changes save as you make them.</div>
+     ${secBig("Schedule")}
      <div class="field">
-      <div class="line"><label>Hours per day</label><input type="number" inputmode="decimal" id="sHours" value="${s.availableHours}"></div>
-      <div class="line"><label>Day starts</label><input type="number" inputmode="numeric" id="sStart" value="${s.dayStart}"></div>
-      <div class="line"><label>Day ends</label><input type="number" inputmode="numeric" id="sEnd" value="${s.dayEnd}"></div>
+      <div class="line"><label>Hours per day</label><input type="number" inputmode="decimal" step="0.5" min="0" max="24" id="sHours" value="${s.availableHours}"><span class="unit">h</span></div>
+      <div class="line"><label>Day starts</label><input type="time" id="sStart" value="${s.dayStart}"></div>
+      <div class="line"><label>Day ends</label><input type="time" id="sEnd" value="${s.dayEnd}"></div>
       <button class="line" data-s="sleep"><label>Sleep schedule</label><span class="val">${esc(fmtHM(s.sleep.bed))}–${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
      </div>
-     <div class="fieldnote">Hours per day feeds the capacity check; a single date can be overridden from the Calendar tab. Sleep is subtracted automatically and dims the Day and Week views.</div>
+     <div class="fieldnote">Hours per day is how much task work realistically fits, and feeds the capacity check; a single date can be overridden from the Calendar tab. The plan lays work out between day start and day end. Sleep is subtracted automatically.</div>
      <div class="field">
-      <div class="line"><label>Deep focus until</label><input type="number" inputmode="numeric" id="sDeepEnd" value="${s.deepEnd}"></div>
-      <div class="line"><label>Shallow work from</label><input type="number" inputmode="numeric" id="sShallow" value="${s.shallowStart}"></div>
+      <div class="line"><label>Deep focus until</label><input type="time" id="sDeepEnd" value="${s.deepEnd}"></div>
+      <div class="line"><label>Shallow work from</label><input type="time" id="sShallow" value="${s.shallowStart}"></div>
      </div>
-     <div class="fieldnote">24-hour numbers. The day layout puts deep-focus work before the first and shallow work after the second.</div>
+     <div class="fieldnote">The plan puts deep-focus work before the first time and shallow work after the second.</div>
      ${secBig("Appearance")}
      <div class="field">
       <button class="line" data-s="appearance"><label>Theme and looks</label><span class="val">${esc((THEMES.find(t=>t.id===s.theme.id)||THEMES[0]).name)}</span>${ICON_CHEV}</button>
@@ -2894,27 +3307,22 @@ function openSettings(){
       <button class="line" data-s="export"><label>Export and import</label><span class="val"></span>${ICON_CHEV}</button>
       <button class="line danger" id="sWipe" style="justify-content:flex-start">Erase everything</button>
      </div>
-     <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`,
-    async()=>{
-      s.availableHours=clamp(Number($("#sHours").value)||6,0,24);
-      s.dayStart=clamp(Number($("#sStart").value)||8,0,23);
-      s.dayEnd=clamp(Number($("#sEnd").value)||20,1,24);
-      s.deepEnd=clamp(Number($("#sDeepEnd").value)||12,1,24);
-      s.shallowStart=clamp(Number($("#sShallow").value)||15,1,24);
-      await saveSettings(); closeSheet(); render(); toast("Saved");
-    },"Save");
-  const keepNums=()=>{ s.availableHours=clamp(Number($("#sHours").value)||6,0,24);
-    s.dayStart=clamp(Number($("#sStart").value)||8,0,23); s.dayEnd=clamp(Number($("#sEnd").value)||20,1,24);
-    s.deepEnd=clamp(Number($("#sDeepEnd").value)||12,1,24); s.shallowStart=clamp(Number($("#sShallow").value)||15,1,24); };
-  sheetBody.querySelectorAll("[data-set]").forEach(b=>b.addEventListener("click",()=>{ keepNums(); editList(b.dataset.set); }));
-  sheetBody.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",async()=>{
-    keepNums(); await saveSettings();
+     <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`,null);
+  $("#sHours").addEventListener("change",e=>{ s.availableHours=clamp(Number(e.target.value)||6,0,24); setSave(); });
+  $("#sStart").addEventListener("change",e=>{ s.dayStart=e.target.value||"08:00"; setSave(); });
+  $("#sEnd").addEventListener("change",e=>{ s.dayEnd=e.target.value||"20:00"; setSave(); });
+  $("#sDeepEnd").addEventListener("change",e=>{ s.deepEnd=e.target.value||"12:00"; setSave(); });
+  $("#sShallow").addEventListener("change",e=>{ s.shallowStart=e.target.value||"15:00"; setSave(); });
+  sheetBody.querySelectorAll("[data-set]").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.set;
+    sheetPush(k==="categories"?drawCategories:()=>drawList(k)); }));
+  sheetBody.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.s;
-    if(k==="sleep") openSleep();
-    if(k==="appearance") openAppearance();
-    if(k==="notif") openNotifCenter();
-    if(k==="backups") openBackups();
-    if(k==="export") openExport();
+    if(k==="sleep") sheetPush(drawSleep);
+    if(k==="appearance") sheetPush(drawAppearance);
+    if(k==="notif") sheetPush(drawNotifCenter);
+    if(k==="backups") sheetPush(drawBackups);
+    if(k==="export") sheetPush(drawExport);
   }));
   $("#sWipe").addEventListener("click",async()=>{
     if(!confirm("Erase every task, group and setting on this device? This cannot be undone.")) return;
@@ -2925,22 +3333,18 @@ function openSettings(){
     await saveSettings(); closeSheet(); state.path=[]; render(); toast("Erased");
   });
 }
-function editList(key){
-  if(key==="categories") return editCategories();
+function drawList(key){
   const arr=state.settings[key];
   showSheet(key[0].toUpperCase()+key.slice(1),
     `<div class="group">${arr.map((v,i)=>`<button class="pickrow" data-rm="${i}"><span>${esc(v)}</span><span class="tick" style="color:var(--red)">Remove</span></button>`).join("")}</div>
      <div class="field" style="margin-top:18px"><div class="line"><input class="big" id="lNew" placeholder="Add new…" autocapitalize="words"></div>
-       <button class="line accent" id="lAdd">Add</button></div>
-     <div class="field"><button class="line accent" id="lBack">Back to settings</button></div>`,null,"Close");
-  sheetOnDone=()=>openSettings();
+       <button class="line accent" id="lAdd">Add</button></div>`,null);
   sheetBody.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",async()=>{
-    arr.splice(Number(b.dataset.rm),1); await saveSettings(); editList(key); }));
+    arr.splice(Number(b.dataset.rm),1); await saveSettings(); drawList(key); }));
   $("#lAdd").addEventListener("click",async()=>{ const v=$("#lNew").value.trim();
-    if(v&&!arr.includes(v)){ arr.push(v); await saveSettings(); } editList(key); });
-  $("#lBack").addEventListener("click",openSettings);
+    if(v&&!arr.includes(v)){ arr.push(v); await saveSettings(); } drawList(key); });
 }
-function editCategories(){
+function drawCategories(){
   const arr=state.settings.categories;
   showSheet("Categories",
     `<div class="fieldnote" style="margin:0 20px 12px">Cross-cutting labels with an icon and a color. Tap one to change its look; per-category alert defaults live in the Notification center.</div>
@@ -2949,36 +3353,39 @@ function editCategories(){
         <span class="catdot" style="background:${esc(c.color||"#8E8E93")};margin-left:auto"></span>
         <span class="tick" data-rmcat="${i}" style="color:var(--red);font-weight:400;font-size:14px">Remove</span></button>`).join("")}</div>
      <div class="field" style="margin-top:18px"><div class="line"><input class="big" id="lNew" placeholder="Add new…" autocapitalize="words"></div>
-       <button class="line accent" id="lAdd">Add</button></div>
-     <div class="field"><button class="line accent" id="lBack">Back to settings</button></div>`,null,"Close");
-  sheetOnDone=()=>openSettings();
+       <button class="line accent" id="lAdd">Add</button></div>`,null);
   sheetBody.querySelectorAll("[data-rmcat]").forEach(b=>b.addEventListener("click",async e=>{
-    e.stopPropagation(); arr.splice(Number(b.dataset.rmcat),1); await saveSettings(); editCategories(); }));
-  sheetBody.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>editCategory(Number(b.dataset.edit))));
+    e.stopPropagation(); arr.splice(Number(b.dataset.rmcat),1); await saveSettings(); drawCategories(); }));
+  sheetBody.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>{
+    const i=Number(b.dataset.edit); sheetPush(()=>drawCategory(i)); }));
   $("#lAdd").addEventListener("click",async()=>{ const v=$("#lNew").value.trim();
     if(v&&!catByName(v)){ arr.push({name:v,icon:CAT_ICONS[arr.length%CAT_ICONS.length],color:PALETTE[arr.length%PALETTE.length]}); await saveSettings(); }
-    editCategories(); });
-  $("#lBack").addEventListener("click",openSettings);
+    drawCategories(); });
 }
-function editCategory(i){
-  const c=state.settings.categories[i]; if(!c) return editCategories();
+function drawCategory(i){
+  const c=state.settings.categories[i]; if(!c){ sheetPop(); return; }
   showSheet(c.name,
     `<div class="field"><div class="line"><label>Name</label><input class="big" id="ecName" style="text-align:right" value="${esc(c.name)}"></div>
       <button class="line" id="ecIcon"><label>Icon</label><span class="val">${esc(c.icon||"None")}</span>${ICON_CHEV}</button></div>
      <div class="colorrow" id="ecColors">${PALETTE.map(p=>`<button data-col="${p}" style="background:${p}"${c.color===p?' class="on"':""}></button>`).join("")}</div>
-     <div class="field"><button class="line accent" id="ecBack">Back to categories</button></div>`,
-    async()=>{ const nv=$("#ecName").value.trim(); if(nv&&nv!==c.name){
+     <div class="fieldnote">Renaming updates every task that carries this category. Saved as you go.</div>`,null);
+  let renT=null;
+  $("#ecName").addEventListener("input",e=>{
+    clearTimeout(renT);
+    renT=setTimeout(async()=>{
+      const nv=e.target.value.trim();
+      if(nv&&nv!==c.name&&!catByName(nv)){
         for(const n of state.nodes.values()) if(n.category===c.name){ n.category=nv; await putNode(n); }
-        c.name=nv; }
-      await saveSettings(); editCategories(); },"Save");
+        c.name=nv; await saveSettings();
+      }
+    },600); });
   $("#ecIcon").addEventListener("click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),c.icon,
-    async v=>{ c.icon=v; await saveSettings(); editCategory(i); },()=>editCategory(i)));
-  $$("#ecColors button").forEach(b=>b.addEventListener("click",async()=>{ c.color=b.dataset.col; await saveSettings(); editCategory(i); }));
-  $("#ecBack").addEventListener("click",editCategories);
+    async v=>{ c.icon=v; await saveSettings(); }));
+  $$("#ecColors button").forEach(b=>b.addEventListener("click",async()=>{ c.color=b.dataset.col; await saveSettings(); drawCategory(i); }));
 }
 
-/* ---------- sleep ---------- */
-function openSleep(){
+/* ---------- sleep — saves on every change ---------- */
+function drawSleep(){
   const s=state.settings.sleep;
   const dows=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   showSheet("Sleep",
@@ -2986,25 +3393,30 @@ function openSleep(){
       <div class="line"><label>Bedtime</label><input type="time" id="slBed" value="${s.bed}"></div>
       <div class="line"><label>Wake</label><input type="time" id="slWake" value="${s.wake}"></div>
      </div>
-     <div class="fieldnote">Planning never books over sleep: it caps daily capacity and shows as dimmed bands in the Day and Week views.</div>
+     <div class="fieldnote">Planning never books over sleep: it caps daily capacity and shows as dimmed bands in the Day and Week views. Saved as you change it.</div>
      ${sec("Per-day overrides","<span>optional</span>")}
      <div class="field">${dows.map((dn,i)=>{
         const o=s.perDay[i]||{};
-        return `<div class="line"><label style="flex:0 0 92px">${dn.slice(0,3)}</label>
-          <input type="time" data-slb="${i}" value="${o.bed||""}" placeholder="—" style="flex:1">
-          <input type="time" data-slw="${i}" value="${o.wake||""}" style="flex:1"></div>`;}).join("")}</div>
-     <div class="fieldnote">Blank uses the default above. Left box bedtime, right box wake.</div>
+        return `<div class="line"><label style="flex:0 0 64px">${dn.slice(0,3)}</label>
+          <input type="time" data-slb="${i}" value="${o.bed||""}" style="flex:1">
+          <input type="time" data-slw="${i}" value="${o.wake||""}" style="flex:1">${CLRX("sl"+i,!!(o.bed||o.wake))}</div>`;}).join("")}</div>
+     <div class="fieldnote">Blank uses the default above. Left box bedtime, right box wake; ✕ clears that day.</div>
      <div class="field"><button class="line" id="slIcs"><label>Include sleep in calendar export</label><span class="val"></span><span class="toggle${s.ics?" on":""}"></span></button></div>
-     <div class="fieldnote">Adds a daily repeating Sleep event to the .ics from Settings › Notifications, so Apple Calendar shows the same protected block.</div>`,
-    async()=>{
-      s.bed=$("#slBed").value||"23:00"; s.wake=$("#slWake").value||"07:00";
-      const per={};
-      for(let i=0;i<7;i++){ const b=$(`[data-slb="${i}"]`).value, w=$(`[data-slw="${i}"]`).value;
-        if(b||w) per[i]={bed:b||undefined,wake:w||undefined}; }
-      s.perDay=per;
-      await saveSettings(); openSettings(); toast("Sleep saved");
-    },"Save");
-  $("#slIcs").addEventListener("click",async()=>{ s.ics=!s.ics; await saveSettings(); openSleep(); });
+     <div class="fieldnote">Adds a daily repeating Sleep event to the .ics from Settings › Notifications, so Apple Calendar shows the same protected block.</div>`,null);
+  const per=()=>{ const out={};
+    for(let i=0;i<7;i++){ const b=$(`[data-slb="${i}"]`), w=$(`[data-slw="${i}"]`);
+      if((b&&b.value)||(w&&w.value)) out[i]={bed:(b&&b.value)||undefined,wake:(w&&w.value)||undefined}; }
+    s.perDay=out; };
+  $("#slBed").addEventListener("change",e=>{ s.bed=e.target.value||"23:00"; setSave(); });
+  $("#slWake").addEventListener("change",e=>{ s.wake=e.target.value||"07:00"; setSave(); });
+  for(let i=0;i<7;i++){
+    $(`[data-slb="${i}"]`).addEventListener("change",()=>{ per(); setSave(); });
+    $(`[data-slw="${i}"]`).addEventListener("change",()=>{ per(); setSave(); });
+  }
+  sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",async e=>{
+    e.stopPropagation(); const i=Number(b.dataset.clearx.slice(2));
+    delete state.settings.sleep.perDay[i]; await saveSettings(); drawSleep(); }));
+  $("#slIcs").addEventListener("click",async()=>{ s.ics=!s.ics; await saveSettings(); drawSleep(); });
 }
 
 /* ===========================================================================
@@ -3050,7 +3462,7 @@ async function applyBg(){
     document.body.classList.add("hasbg");
   } else { document.body.classList.remove("hasbg"); $("#bgimg").style.backgroundImage=""; }
 }
-function openAppearance(){
+function drawAppearance(){
   const t=state.settings.theme;
   showSheet("Appearance",
     `${sec("Theme")}
@@ -3076,21 +3488,18 @@ function openAppearance(){
      ${sec("App icon")}
      <div class="field"><button class="line accent" id="apIcon">Make a matching icon.svg…</button></div>
      <div class="fieldnote">Honest limit: iOS freezes the Home Screen icon at install. This generates an icon.svg in the current theme for you to save, replace in the repo, then remove and re-add the app to see it.</div>
-     <div class="field"><button class="line accent" id="apBack">Back to settings</button></div>`,
-    null,"Done");
-  sheetOnDone=()=>openSettings();
+`,null);
   sheetBody.querySelectorAll("[data-th]").forEach(b=>b.addEventListener("click",async()=>{
-    t.id=b.dataset.th; await saveSettings(); applyTheme(); render(); openAppearance(); }));
+    t.id=b.dataset.th; await saveSettings(); applyTheme(); render(); drawAppearance(); }));
   $$("#apMode button").forEach(b=>b.addEventListener("click",async()=>{
-    t.mode=b.dataset.m; await saveSettings(); applyTheme(); render(); openAppearance(); }));
-  $("#apHide").addEventListener("click",async()=>{ t.hideTaskIcons=!t.hideTaskIcons; await saveSettings(); render(); openAppearance(); });
+    t.mode=b.dataset.m; await saveSettings(); applyTheme(); render(); drawAppearance(); }));
+  $("#apHide").addEventListener("click",async()=>{ t.hideTaskIcons=!t.hideTaskIcons; await saveSettings(); render(); drawAppearance(); });
   $("#apPick").addEventListener("click",()=>$("#bgFile").click());
   const rm=$("#apRemove"); if(rm) rm.addEventListener("click",async()=>{
-    t.hasBg=false; await putMeta("bgImage",null); await saveSettings(); await applyBg(); render(); openAppearance(); });
+    t.hasBg=false; await putMeta("bgImage",null); await saveSettings(); await applyBg(); render(); drawAppearance(); });
   const dim=$("#apDim"); if(dim) dim.addEventListener("change",async()=>{
     t.bgDim=Number(dim.value)/100; await saveSettings(); applyTheme(); });
-  $("#apIcon").addEventListener("click",openIconMaker);
-  $("#apBack").addEventListener("click",openSettings);
+  $("#apIcon").addEventListener("click",()=>sheetPush(drawIconMaker));
 }
 $("#bgFile").addEventListener("change",async e=>{
   const f=e.target.files&&e.target.files[0]; if(!f) return;
@@ -3110,7 +3519,7 @@ $("#bgFile").addEventListener("change",async e=>{
     const data=cv.toDataURL("image/jpeg",0.8);
     await putMeta("bgImage",data);
     t.hasBg=true; await saveSettings();
-    applyTheme(); await applyBg(); render(); openAppearance(); toast("Background set");
+    applyTheme(); await applyBg(); render(); if(SHEET.current) SHEET.current(); toast("Background set");
     URL.revokeObjectURL(img.src);
   };
   img.src=URL.createObjectURL(f);
@@ -3126,7 +3535,7 @@ function iconSVG(bg,mark){
   </g>
 </svg>`;
 }
-function openIconMaker(){
+function drawIconMaker(){
   const t=state.settings.theme;
   const th=THEMES.find(x=>x.id===t.id)||THEMES[0];
   const variants=[
@@ -3139,20 +3548,18 @@ function openIconMaker(){
      <div class="themegrid">${variants.map((v,i)=>`<button class="themecard" data-v="${i}">
        <span class="sw"><span style="background:${v.bg}"></span><span style="background:${v.mark}"></span></span>
        <span class="nm">${esc(v.l)}</span></button>`).join("")}</div>
-     <div class="field"><button class="line accent" id="imBack">Back</button></div>`,null,"Close");
-  sheetOnDone=openAppearance;
+`,null);
   sheetBody.querySelectorAll("[data-v]").forEach(b=>b.addEventListener("click",async()=>{
     const v=variants[Number(b.dataset.v)];
     await shareOrDownload("icon.svg",iconSVG(v.bg,v.mark),"image/svg+xml");
     toast("icon.svg exported");
   }));
-  $("#imBack").addEventListener("click",openAppearance);
 }
 
 /* ===========================================================================
    NOTIFICATION CENTER
    =========================================================================== */
-function openNotifCenter(){
+function drawNotifCenter(){
   const nf=state.settings.notif;
   const alerts=scheduledAlerts(14);
   const byDayA=new Map();
@@ -3207,44 +3614,41 @@ function openNotifCenter(){
      ${sec("Scheduled","<span>next 14 days</span>")}
      ${listA||`<div class="empty" style="padding:24px"><p>Nothing scheduled. Give tasks deadlines or fixed times and turn alerts on for their category or group.</p></div>`}
      `:""}
-     <div class="field" style="margin-top:14px"><button class="line accent" id="nfBack">Back to settings</button></div>`,
-    null,"Done");
-  sheetOnDone=openSettings;
+`,null);
   const S=async()=>{ await saveSettings(); };
-  $("#nfMaster").addEventListener("click",async()=>{ nf.master=!nf.master; await S(); openNotifCenter(); });
-  const back=$("#nfBack"); back.addEventListener("click",openSettings);
+  $("#nfMaster").addEventListener("click",async()=>{ nf.master=!nf.master; await S(); drawNotifCenter(); });
   if(!nf.master) return;
   $("#nfIcs").addEventListener("click",async()=>{ await doExport("ics"); });
   $("#nfOffsets").addEventListener("click",()=>{
     openNotifyEditor({enabled:true,offsets:nf.offsets,atTime:nf.atTime},v=>{
       if(v&&v.offsets&&v.offsets.length) nf.offsets=v.offsets;
       if(v&&v.atTime) nf.atTime=v.atTime;
-      saveSettings().then(openNotifCenter);
-    },openNotifCenter,"These are the app-wide defaults."); });
+      saveSettings();
+    },"These are the app-wide defaults."); });
   $("#nfAt").addEventListener("change",async e=>{ nf.atTime=e.target.value||"09:00"; await S(); });
   sheetBody.querySelectorAll("[data-nft]").forEach(b=>b.addEventListener("click",async()=>{
-    nf.types[b.dataset.nft]=!nf.types[b.dataset.nft]; await S(); openNotifCenter(); }));
+    nf.types[b.dataset.nft]=!nf.types[b.dataset.nft]; await S(); drawNotifCenter(); }));
   const mo=$("#nfMorn"); if(mo) mo.addEventListener("change",async e=>{ nf.morningAt=e.target.value||"08:30"; await S(); });
-  $("#nfQuietSleep").addEventListener("click",async()=>{ nf.quiet.useSleep=!nf.quiet.useSleep; await S(); openNotifCenter(); });
+  $("#nfQuietSleep").addEventListener("click",async()=>{ nf.quiet.useSleep=!nf.quiet.useSleep; await S(); drawNotifCenter(); });
   const qf=$("#nfQF"); if(qf) qf.addEventListener("change",async e=>{ nf.quiet.from=e.target.value; await S(); });
   const qt=$("#nfQT"); if(qt) qt.addEventListener("change",async e=>{ nf.quiet.to=e.target.value; await S(); });
   sheetBody.querySelectorAll("[data-nfcat]").forEach(b=>b.addEventListener("click",()=>{
     const nm=b.dataset.nfcat;
     openNotifyEditor(nf.perCategory[nm],async v=>{
       if(v) nf.perCategory[nm]=v; else delete nf.perCategory[nm];
-      await S(); openNotifCenter(); },openNotifCenter,"Default for every task in "+nm+"."); }));
+      await S(); },"Default for every task in "+nm+"."); }));
   sheetBody.querySelectorAll("[data-nfgrp]").forEach(b=>b.addEventListener("click",()=>{
     const id=b.dataset.nfgrp;
     openNotifyEditor(nf.perGroup[id],async v=>{
       if(v) nf.perGroup[id]=v; else delete nf.perGroup[id];
-      await S(); openNotifCenter(); },openNotifCenter,"Default for every task inside this group."); }));
+      await S(); },"Default for every task inside this group."); }));
   sheetBody.querySelectorAll("[data-nopen]").forEach(b=>b.addEventListener("click",()=>openNode(b.dataset.nopen)));
 }
 
 /* ===========================================================================
    BACKUPS
    =========================================================================== */
-function openBackups(){
+function drawBackups(){
   const last=state.settings.lastExport;
   showSheet("Backups",
     `<div class="fieldnote" style="margin:0 20px 14px">Two layers. Snapshots are automatic copies kept inside the app — they undo mistakes (a bad edit, a bad import, an accidental erase), but they live on this phone, so they do not survive losing it. The export does: send it somewhere off the phone weekly.</div>
@@ -3258,18 +3662,15 @@ function openBackups(){
         <span>${esc(new Date(s.ts).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}
           <span class="path">${s.kind==="weekly"?"weekly":"daily"} · ${s.items} items</span></span>
         <button class="tick" data-restore="${s.id}">Restore</button></div>`).join("")||'<div class="pickrow"><span>First snapshot is taken automatically at next launch.</span></div>'}</div>
-     <div class="field" style="margin-top:16px"><button class="line accent" id="bkNow">Take a snapshot now</button>
-     <button class="line accent" id="bkBack">Back to settings</button></div>`,
-    null,"Done");
-  sheetOnDone=openSettings;
-  sheetBody.querySelectorAll("[data-bx]").forEach(b=>b.addEventListener("click",async()=>{ await doExport("json"); openBackups(); }));
+     <div class="field" style="margin-top:16px"><button class="line accent" id="bkNow">Take a snapshot now</button></div>`,
+    null);
+  sheetBody.querySelectorAll("[data-bx]").forEach(b=>b.addEventListener("click",async()=>{ await doExport("json"); drawBackups(); }));
   sheetBody.querySelectorAll("[data-restore]").forEach(b=>b.addEventListener("click",()=>restoreSnapshot(b.dataset.restore)));
   $("#bkNow").addEventListener("click",async()=>{
     await putSnap({id:"d-"+dayKey(new Date()),kind:"daily",day:dayKey(new Date()),ts:nowISO(),
       items:state.nodes.size-1,data:exportData()});
     state.snaps=(await allSnaps()).sort((a,b)=>b.ts.localeCompare(a.ts));
-    openBackups(); toast("Snapshot taken"); });
-  $("#bkBack").addEventListener("click",openSettings);
+    drawBackups(); toast("Snapshot taken"); });
 }
 
 /* ===========================================================================
@@ -3300,7 +3701,7 @@ function toMarkdown(rootId){
 }
 function toCSV(){
   const cols=["id","parentId","parentTitle","title","kind","status","effectiveStatus","importance",
-    "effectiveImportance","deadline","deadlineType","timeframe","deferUntil","expiry","durationMode","estMinMinutes",
+    "effectiveImportance","deadline","deadlineType","deadlineHasTime","timeframe","deferUntil","expiry","durationMode","estMinMinutes",
     "estMaxMinutes","fixedStart","fixedEnd","actualMinutes","category","deliverable","context","energy","flagged",
     "bumpCount","dependsOn","dependencyMode","waitingOn","followUpDate","notes","createdAt","touchedAt","completedAt"];
   const q=v=>{ const s=v==null?"":String(v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
@@ -3342,7 +3743,7 @@ function toICS(){
     } else if(n.deadline&&n.status!=="done"){
       /* timed event at the day-level alert time so VALARMs can hang off it */
       let base=new Date(n.deadline);
-      if(timeInput(n.deadline)==="17:00"||timeInput(n.deadline)==="00:00"){
+      if(!n.deadlineHasTime){
         const [h,m]=(cfg.atTime||nf.atTime||"09:00").split(":"); base=new Date(base); base.setHours(+h,+m,0,0); }
       out.push("BEGIN:VEVENT","UID:dl-"+n.id+"@tasks","DTSTAMP:"+z(new Date()),
         "DTSTART:"+z(base),"DTEND:"+z(new Date(base.getTime()+30*MIN)),
@@ -3386,7 +3787,7 @@ async function doExport(k){
   if(k==="ics")  await shareOrDownload("tasks-alerts-"+stamp+".ics",toICS(),"text/calendar");
   toast("Exported");
 }
-function openExport(){
+function drawExport(){
   const stamp=dayKey(new Date());
   const groups=Array.from(state.nodes.values()).filter(n=>n.kind==="group"&&n.id!==UNSORTED);
   showSheet("Export and import",
@@ -3403,16 +3804,13 @@ function openExport(){
      <div class="field"><button class="line accent" id="impBtn">Import a JSON backup</button></div>
      <div class="fieldnote">Import merges by id. Anything already here with the same id is overwritten. v1 backups import cleanly.</div>
      <div class="fieldnote" style="margin-top:22px">${state.nodes.size-1} items on device.</div>
-     <div class="field"><button class="line accent" id="exBack">Back to settings</button></div>`,
-    null,"Close");
-  sheetOnDone=()=>{ closeSheet(); render(); };
+`,null);
   sheetBody.querySelectorAll("[data-ex]").forEach(b=>b.addEventListener("click",async()=>{ await doExport(b.dataset.ex); }));
   sheetBody.querySelectorAll("[data-exg]").forEach(b=>b.addEventListener("click",async()=>{
     const g=byId(b.dataset.exg);
     await shareOrDownload((g.title||"group").replace(/[^\w\-]+/g,"-")+".md",toMarkdown(g.id),"text/markdown");
     toast("Exported"); }));
   $("#impBtn").addEventListener("click",()=>$("#impFile").click());
-  $("#exBack").addEventListener("click",openSettings);
 }
 $("#impFile").addEventListener("change",async e=>{
   const f=e.target.files&&e.target.files[0]; if(!f) return;
