@@ -425,7 +425,7 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 input[type="time"],input[type="date"]{min-height:30px}
 
 
-/* ===== v2.2–v2.4 replay ===== */
+/* ===== v2.2–v2.5 ===== */
 html{background:var(--bg)}
 .field .line input[type=date],.field .line input[type=time],
 .capsec .line input[type=date],.capsec .line input[type=time]{
@@ -493,20 +493,19 @@ body.hasbg .fieldnote.inline{margin:0 12px 10px}
 body.hasbg .largetitle,body.hasbg .subtitle{text-shadow:0 1px 8px var(--bg)}
 body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;padding:22px 16px;
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-/* ===== v2.5 ===== */
-/* tab bar: icons vertically centered, no dead strip underneath */
 .tabs{align-items:center;padding-top:0;padding-bottom:max(calc(env(safe-area-inset-bottom) - 22px),0px)}
 .tab{padding:8px 0;gap:2px;justify-content:center}
 .tab svg{width:24px;height:24px}
 .fab{bottom:calc(50px + env(safe-area-inset-bottom))}
-/* title/notes inputs start exactly where labels do */
 .field input.big,.capsec input.big{padding:0}
 .field textarea,.capsec textarea{padding:0}
-/* Browse rows share the Today-list look */
 .rowin.planrow{padding:5px 12px;gap:8px}
 .rowin.planrow .trail{margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:6px}
 .rowin.planrow .body{flex:1;min-width:0}
 .selbar button svg{vertical-align:-1px}
+/* v2.6: the chips row must not eat the gap under the In-group block when empty */
+#capChips{margin:-6px 16px 16px}
+#capChips[style*="display:none"]+.capsec, .field+.capsec{margin-top:0}
 </style>
 </head>
 <body>
@@ -1025,8 +1024,6 @@ function todayBands(){
   const shouldIds=new Set(should.map(n=>n.id));
   const quick=rest.filter(n=>!shouldIds.has(n.id)&&minMinutes(n)>0&&minMinutes(n)<=10).slice(0,8);
 
-  /* "lined up" = every actionable open task today + the remaining part of
-     fixed blocks. Not just the shortlist the plan happens to display. */
   const committed=[...fixed,...actionable].reduce((t,n)=>{
     if(n.background) return t;
     if(n.fixedStart&&n.fixedEnd){
@@ -1358,8 +1355,6 @@ function render(){
   $("#navExtra").innerHTML="";
   $("#subTitle").hidden=true;
   $("#crumbs").hidden=true;
-  /* the key holds only the ACTIVE tab's sub-state, so changing a Browse
-     filter can never invalidate Today's remembered scroll position */
   const viewKey=state.tab+"|"+(
     state.tab==="today"?state.todayView:
     state.tab==="calendar"?state.calMode:
@@ -1452,7 +1447,6 @@ function rowHTML(n,opts={}){
         <div class="body"><div class="title" style="font-size:15px">${esc(n.title||"Untitled")}</div>${sub}</div>
         <span class="trail">${prog?`<span class="count tnum">${prog.done}/${prog.total}</span>`:""}${ICON_CHEV}</span></div></div>`;
   }
-  /* tasks: the exact compact look of Today's list view */
   const col=nodeColor(n);
   const bits=taskBits(n,opts);
   if(n.notes&&!opts.hideNotes&&bits.length<3) bits.push(esc(n.notes.split("\n")[0]).slice(0,50));
@@ -1485,7 +1479,6 @@ function renderToday(){
   content.innerHTML=todayHTML(d);
   wireTodayList();
 }
-/* manual order for the List view only — never feeds back into the schedule */
 function todayListOrder(ids){
   const saved=(state.todayOrder&&state.todayOrder.day===dayKey(new Date()))?state.todayOrder.ids:[];
   return ids.slice().sort((a,b)=>{
@@ -2472,7 +2465,6 @@ const sheet=$("#sheet"), scrim=$("#scrim"), sheetBody=$("#sheetBody");
 const SHEET={stack:[],current:null,leave:null,action:null};
 
 function showSheet(title,html,onAction,actionLabel){
-  /* redrawing the same page (a toggle flipped, a ✓ moved) keeps your place */
   const sameView=sheet.classList.contains("on")&&$("#sheetTitle").textContent===title;
   const keep=sameView?sheetBody.scrollTop:0;
   $("#sheetTitle").textContent=title;
@@ -2482,7 +2474,7 @@ function showSheet(title,html,onAction,actionLabel){
   else done.hidden=true;
   sheetBody.innerHTML=html; sheetBody.scrollTop=keep;
   const lbl=$("#sheetBackLbl"), chev=$("#sheetBack svg");
-  chev.style.display="";                       /* always the ‹ — never the word "Close" */
+  chev.style.display="";
   lbl.textContent=SHEET.stack.length?(SHEET.stack[SHEET.stack.length-1].title||""):"";
 }
 function animBody(dir){ sheetBody.classList.remove("fwd","back"); void sheetBody.offsetWidth;
@@ -2515,8 +2507,6 @@ async function closeSheet(){
   render();
 }
 scrim.addEventListener("click",()=>{ closeSheet(); });
-/* edge-swipe back, everywhere — and the page visibly follows the finger,
-   then slides away, like a native app */
 (function(){
   let sx=0, sy=0, edge=false, target=null, active=false;
   const surface=()=>sheet.classList.contains("on")?sheetBody:content;
@@ -2575,14 +2565,12 @@ async function flushTaskSave(){
   const n=applyDraft(); if(n) await save(n);
 }
 const CLRX=(k,has)=>has?`<span class="clearx" data-clearx="${esc(k)}" role="button" aria-label="Clear">✕</span>`:"";
-/* duration picker: iOS renders <select> as a wheel. Min and max travel as a pair. */
 const DUR_OPTS=[5,10,15,20,25,30,40,45,60,75,90,120,150,180,240,300,360,480];
 function durSelect(id,val){
   const opts=DUR_OPTS.includes(val)||val==null?DUR_OPTS:DUR_OPTS.concat(val).sort((a,b)=>a-b);
   return `<select id="${id}" class="dursel"><option value=""${val==null?" selected":""}>–</option>${
     opts.map(o=>`<option value="${o}"${o===val?" selected":""}>${o<60?o+"m":(o%60? (o/60|0)+"h "+o%60+"m" : o/60+"h")}</option>`).join("")}</select>`;
 }
-/* keep every timing field mutually consistent before it can be saved */
 function normalizeTiming(d){
   if(d.estMinMinutes!=null&&d.estMaxMinutes==null) d.estMaxMinutes=d.estMinMinutes;
   if(d.estMaxMinutes!=null&&d.estMinMinutes==null) d.estMinMinutes=d.estMaxMinutes;
@@ -2596,8 +2584,6 @@ function normalizeTiming(d){
     d.expiry=new Date(new Date(d.deadline).getTime()+59*MIN).toISOString();
   d.durationMode=d.fixedStart?"fixed":(d.estMaxMinutes!=null?"estimate":"none");
 }
-/* one compact detail line used by Today's list, the plan, and every task row
-   in Browse — same look everywhere */
 function taskBits(n,opts={}){
   const bk=opts.block||null, bits=[], st=effStatus(n);
   if(bk&&bk.bg) bits.push("⟳ runs alongside");
@@ -2647,7 +2633,7 @@ function drawOptions(cfg){
     const v=b.dataset.v===""?null:b.dataset.v;
     await onPick(v);
     cfg.current=v;
-    drawOptions(cfg);                        /* stay here; just move the ✓ */
+    drawOptions(cfg);
   }));
   const add=$("#optAdd");
   if(add){ const go=async()=>{ const v=$("#optNew").value.trim(); if(!v) return;
@@ -2658,10 +2644,10 @@ function drawOptions(cfg){
     add.addEventListener("click",go);
     $("#optNew").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();go();} }); }
 }
-/* ---------- task sheet mount ---------- */
+/* ---------- task detail sheet ---------- */
 function openSheet(id,push){
   const n=byId(id); if(!n) return;
-  if(id===UNSORTED){                       /* Unsorted is a system bin: contents, never an editor */
+  if(id===UNSORTED){
     closeSheet(); state.tab="browse"; state.browseMode="groups"; state.path=[UNSORTED]; render(); return; }
   if(n.kind==="group") return openGroupSheet(id,push);
   state.editing=id; state.draft=JSON.parse(JSON.stringify(n));
@@ -2711,8 +2697,7 @@ function notifyValLabel(n,d){
   return eff.enabled?"On · from group/category":"Off · from defaults";
 }
 
-/* ONE task page for creating and editing. Only the title differs.
-   Top: Title · Notes · Do today · In group. Everything else in folded sections. */
+/* ONE task page for creating and editing. Only the title differs. */
 function drawSheet(){ drawTaskSheet(); }
 function taskCtx(){
   return state.capDraft?{d:state.capDraft,isNew:true,node:null}
@@ -2795,15 +2780,17 @@ function drawTaskSheet(){
     <button class="line danger" data-do="delete">Delete permanently</button>
     <div class="fieldnote inline">Dropping keeps the record in your Log. Deleting does not.</div>`;
 
+  /* the top block ends with In group; the gap below it matches the gap
+     between the folded sections (the .field default bottom margin) */
   let h=`
-    <div class="field" style="margin-bottom:4px">
+    <div class="field">
       <div class="line"><input class="big" id="tTitle" value="${esc(d.title)}" placeholder="Title" autocapitalize="sentences" enterkeyhint="done"></div>
       <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="tNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div>
       <button class="line" id="tFlag"><label>Do today</label><span class="val"></span><span class="toggle${d.flagged?" on":""}"></span></button>
       <button class="line" id="tGroup"><label>In group</label><span class="val${d.parentId&&d.parentId!==UNSORTED?" set":""}">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
     </div>
     ${isNew?`<div class="chips" id="capChips" style="display:none"></div>`
-           :`<div class="fieldnote" style="margin-top:2px">Changes save as you make them.</div>`}
+           :`<div class="fieldnote">Changes save as you make them.</div>`}
     ${capsec("when","When",whenBody,whenSum)}
     ${capsec("effort","Effort",effortBody,effortSum)}
     ${capsec("organize","Organize",orgBody,orgSum)}
@@ -2850,7 +2837,6 @@ function wireTaskSheet(){
   on("#tFlag","click",()=>{ d.flagged=!d.flagged; Q(); redraw(); });
   on("#tGroup","click",()=>{ keepText(); openPicker(d,Q); });
 
-  /* date/time inputs: silent on change (iOS wheels stay open), redraw on blur */
   on("#tDeadline","change",e=>{ S("deadline");
     const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
     d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
@@ -2993,7 +2979,7 @@ function drawTimeframe(cfg){
     const v=b.dataset.tf;
     cfg.cur=v?{type:v.split("|")[0],value:v.split("|")[1]}:null;
     cfg.cb(cfg.cur);
-    drawTimeframe(cfg);                      /* stay; the ✓ moves */
+    drawTimeframe(cfg);
   }));
 }
 
@@ -3544,7 +3530,6 @@ function refreshChips(){
     refreshChips(); }));
 }
 function drawCapture(){ drawTaskSheet(); }
-/* fixed-time sub-sheet, shared by create and edit; applied when you go back */
 function openFixedSheet(d,onChange){
   sheetPush(()=>drawFixedSheet(d,onChange));
 }
@@ -3579,8 +3564,6 @@ async function commitCapture(again){
   const ss=$("#tSteps"); if(ss) state.capSubs=ss.value.split("\n");
   d.title=(d.title||"").trim();
   if(!d.title){ toast("Give it a title"); const t2=$("#tTitle"); if(t2) t2.focus(); return; }
-
-  /* fold in what the parser found — unless dismissed or set by hand */
   const p=parseNL(d.title);
   const ig=state.capIgnore, st=state.capSet;
   const used=new Set();
@@ -3833,9 +3816,6 @@ function drawDeepWindow(i){
   $("#dwDel").addEventListener("click",async()=>{
     state.settings.deepWindows.splice(i,1); await saveSettings(); sheetPop(); });
 }
-/* ===========================================================================
-   LISTS MANAGER — a file manager for the whole system.
-   =========================================================================== */
 function drawListsManager(){
   const groups=[...state.nodes.values()].filter(n=>n.kind==="group"&&n.id!==UNSORTED&&n.status!=="dropped").length;
   const tasks=[...state.nodes.values()].filter(n=>n.kind==="task"&&n.id!==UNSORTED).length;
