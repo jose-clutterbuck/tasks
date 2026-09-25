@@ -129,7 +129,6 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .trail{flex:0 0 auto;display:flex;align-items:center;gap:7px;color:var(--label2);align-self:center}
 .chev{width:9px;height:15px;color:var(--label3);flex:0 0 auto}
 .count{font-size:15px;color:var(--label2)}
-.flagdot{width:8px;height:8px;border-radius:50%;background:var(--orange);flex:0 0 auto}
 .catdot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
 
 .actions{position:absolute;top:0;right:0;bottom:0;display:flex;z-index:0;opacity:0}
@@ -534,7 +533,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
 
   <nav class="tabs">
     <button class="tab" data-tab="today">
-      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13l3.8 2.6"/></svg><span>Today</span></button>
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13l3.8 2.6"/></svg><span>Plan</span></button>
     <button class="tab" data-tab="calendar">
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.4" y="5.4" width="19.2" height="17.2" rx="2.6"/><path d="M3.4 10.4h19.2M8.6 3.4v4M17.4 3.4v4"/></svg><span>Calendar</span></button>
     <button class="tab" data-tab="browse">
@@ -568,12 +567,12 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
 <script>
 "use strict";
 /* ===========================================================================
-   TASKS v2 — complete rebuild
+   TASKS v3, the full redesign
    Local-only. IndexedDB on this device. Nothing is ever sent anywhere.
    One node type: group, task and subtask are the same object.
    =========================================================================== */
 
-const DB_NAME="tasks-db", DB_VER=2, UNSORTED="__inbox__", SCHEMA=3;
+const DB_NAME="tasks-db", DB_VER=3, UNSORTED="__inbox__", SCHEMA=4;
 const MIN=60000, HOUR=3600000, DAY=86400000;
 
 const $=(s,r=document)=>r.querySelector(s);
@@ -630,7 +629,8 @@ function openDB(){ return new Promise((res,rej)=>{
       s.createIndex("parentId","parentId",{unique:false});
       s.createIndex("status","status",{unique:false}); }
     if(!d.objectStoreNames.contains("meta")) d.createObjectStore("meta",{keyPath:"key"});
-    if(!d.objectStoreNames.contains("snapshots")) d.createObjectStore("snapshots",{keyPath:"id"}); };
+    if(!d.objectStoreNames.contains("snapshots")) d.createObjectStore("snapshots",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("templates")) d.createObjectStore("templates",{keyPath:"id"}); };
   r.onsuccess=e=>res(e.target.result); r.onerror=()=>rej(r.error); }); }
 const tx=(s,m)=>db.transaction(s,m).objectStore(s);
 const putNode=n=>new Promise((res,rej)=>{const r=tx("nodes","readwrite").put(n);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});
@@ -642,6 +642,9 @@ const allMeta=()=>new Promise((res,rej)=>{const r=tx("meta","readonly").getAll()
 const putSnap=s=>new Promise((res,rej)=>{const r=tx("snapshots","readwrite").put(s);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});
 const delSnap=i=>new Promise((res,rej)=>{const r=tx("snapshots","readwrite").delete(i);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});
 const allSnaps=()=>new Promise((res,rej)=>{const r=tx("snapshots","readonly").getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});
+const putTpl=t=>new Promise((res,rej)=>{const r=tx("templates","readwrite").put(t);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});
+const delTpl=i=>new Promise((res,rej)=>{const r=tx("templates","readwrite").delete(i);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});
+const allTpls=()=>new Promise((res,rej)=>{const r=tx("templates","readonly").getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});
 
 /* ===========================================================================
    MODEL
@@ -652,8 +655,10 @@ function newNode(p={}){ return Object.assign({
   id:uid(), parentId:null, order:Date.now(), title:"", notes:"",
   kind:"task", childMode:"parallel",
   status:"available", waitingOn:null, followUpDate:null,
-  importance:"normal", importanceOverridden:false,
-  deadline:null, deadlineType:null, expiry:null, deferUntil:null,
+  stakes:"normal", stakesWeight:0, stakesOverridden:false,
+  actionable:true, timePinned:false, preset:null,
+  deadline:null, expiry:null, deferUntil:null,
+  availableFrom:null, aimWindow:null, todWindow:null,
   durationMode:"none", estMinMinutes:null, estMaxMinutes:null,
   fixedStart:null, fixedEnd:null, actualMinutes:null,
   category:null, deliverable:null, context:null, energy:null,
@@ -675,6 +680,7 @@ const DEFAULTS={
   deliverables:["Decision","Document","Research","Meeting","Message","Call","Errand","Purchase","Sketch","Habit"],
   contexts:["@anywhere","@phone","@computer","@errand","@home","@out"],
   unavailable:[], deepWindows:[],
+  plan:{leadDays:7,splitMin:90,focusCapMin:0,switchBufMin:10,guessMin:30},
   layers:{fixed:true,deadline:true,projected:true},
   sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false},
   theme:{id:"system",mode:"auto",hideTaskIcons:false,bgDim:.35,hasBg:false},
@@ -699,6 +705,7 @@ function mergeDefaults(s){
   for(const k of ["dayStart","dayEnd","deepEnd","shallowStart"])
     if(typeof out[k]==="number") out[k]=String(clamp(Math.round(out[k]),0,23)).padStart(2,"0")+":00";
   if(!Array.isArray(out.unavailable)) out.unavailable=[];
+  out.plan=Object.assign({},DEFAULTS.plan,(s&&s.plan)||{});
   if(!(s&&Array.isArray(s.deepWindows)))
     out.deepWindows=out.deepEnd?[{from:(out.sleep&&out.sleep.wake)||"07:00",to:out.deepEnd}]
                                :(Array.isArray(out.deepWindows)?out.deepWindows:[]);
@@ -713,7 +720,7 @@ const state={
   tab:"today", path:[], showDone:true, openSwipe:null,
   editing:null, draft:null, pressTimer:null,
   calMode:"month", calCursor:startOfDay(new Date()), calSel:startOfDay(new Date()),
-  todayView:"schedule", todayOrder:null,
+  todayView:"schedule", todayOrder:null, planRange:"today", templates:[],
   activeFilter:null, browseMode:"all", browseCat:null, browseCtx:null, search:"",
   logMode:"activity", logMonth:startOfDay(new Date()),
   capDraft:null, capSubs:[], snaps:[], lastBannerCheck:Date.now(), sheetStack:[]
@@ -733,10 +740,11 @@ function fullPath(id){ if(!id||id===UNSORTED) return pathLabel(id);
 function progressOf(id){ const k=descendants(id).filter(n=>n.status!=="dropped"&&n.kind==="task");
   if(!k.length)return null; return {done:k.filter(n=>n.status==="done").length,total:k.length}; }
 
-async function save(n){ n.touchedAt=nowISO(); state.nodes.set(n.id,n); await putNode(n); }
-async function create(p){ const n=newNode(p); state.nodes.set(n.id,n); await putNode(n); return n; }
+async function save(n){ n.touchedAt=nowISO(); state.nodes.set(n.id,n); await putNode(n); if(typeof bumpRev==="function") bumpRev(); }
+async function create(p){ const n=newNode(p); state.nodes.set(n.id,n); await putNode(n); if(typeof bumpRev==="function") bumpRev(); return n; }
 async function purge(id){ for(const d of descendants(id)){state.nodes.delete(d.id);await delNode(d.id);}
   state.nodes.delete(id); await delNode(id);
+  if(typeof bumpRev==="function") bumpRev();
   /* clean dangling dependency references */
   for(const n of state.nodes.values()){
     if(n.dependsOn&&n.dependsOn.length){
@@ -748,6 +756,40 @@ async function purge(id){ for(const d of descendants(id)){state.nodes.delete(d.i
 function nextOrder(parentId){ const s=childrenOf(parentId); return s.length?s[s.length-1].order+1000:Date.now(); }
 async function saveSettings(){ await putMeta("settings",state.settings); await putMeta("dayHours",state.dayHours);
   await putMeta("filters",state.filters); }
+
+/* ===========================================================================
+   ONE-TIME UPDATE TO THE NEW MODEL (schema 4)
+   importance and the hard/soft deadline type become one Stakes setting.
+   The stronger signal wins: protect beats normal beats flexible.
+   Runs once; a version number in storage keeps it from running twice.
+   =========================================================================== */
+const STAKES_RANK={flexible:0,normal:1,protect:2};
+async function migrateToStakes(){
+  const IMP2={critical:"protect",high:"protect",normal:"normal",low:"flexible"};
+  const report={protect:[],flexible:[]};
+  for(const n of state.nodes.values()){
+    if(n.id===UNSORTED) continue;
+    let st="normal", over=false;
+    if(n.importanceOverridden&&n.importance&&IMP2[n.importance]){ st=IMP2[n.importance]; over=true; }
+    if(n.deadlineType){
+      const st2=n.deadlineType==="hard"?"protect":"flexible";
+      if(!over||STAKES_RANK[st2]>STAKES_RANK[st]) st=over?st2:st2;
+      over=true;
+    }
+    n.stakes=st; n.stakesOverridden=over; n.stakesWeight=n.stakesWeight||0;
+    n.timePinned=!!n.fixedStart;
+    n.actionable=n.fixedStart?false:true;
+    n.background=!!n.background;
+    n.preset=n.preset||null;
+    if(n.deferUntil&&!n.availableFrom) n.availableFrom={mode:"absolute",at:n.deferUntil,leadDays:null};
+    n.availableFrom=n.availableFrom||null; n.aimWindow=n.aimWindow||null; n.todWindow=n.todWindow||null;
+    delete n.importance; delete n.importanceOverridden; delete n.deadlineType;
+    if(over&&st==="protect") report.protect.push(n.id);
+    if(over&&st==="flexible") report.flexible.push(n.id);
+    await putNode(n);
+  }
+  return report;
+}
 
 /* ===========================================================================
    SLEEP SCHEDULE
@@ -810,23 +852,38 @@ function nodeColor(n){
    COMPUTE LAYER — kept from v1, extended with dependencies + timeframes.
    Urgency is never stored. It is derived from the clock on every render.
    =========================================================================== */
-const IMPORTANCE={critical:10,high:6,normal:3,low:1};
-const IMP_LABEL={critical:"Critical",high:"High",normal:"Normal",low:"Low"};
+const STAKES_MULT={flexible:0.7,normal:1.0,protect:1.4};
+const STAKES_LABEL={flexible:"Flexible",normal:"Normal",protect:"Protect"};
 
-function effImportance(n){
+function effStakes(n){
   let c=n, guard=0;
   while(c && guard++<64){
-    if(c.importanceOverridden) return c.importance;
+    if(c.stakesOverridden) return c.stakes||"normal";
     if(!c.parentId) break;
     c=byId(c.parentId);
   }
   return "normal";
 }
-function importanceSource(n){
-  if(n.importanceOverridden) return null;
+function stakesSource(n){
+  if(n.stakesOverridden) return null;
   let c=n, guard=0;
-  while(c && c.parentId && guard++<64){ c=byId(c.parentId); if(!c)break; if(c.importanceOverridden) return c; }
+  while(c && c.parentId && guard++<64){ c=byId(c.parentId); if(!c)break; if(c.stakesOverridden) return c; }
   return null;
+}
+/* when a task opens up for work: an exact date, or N days before it is due */
+function availableFromDate(n){
+  const a=n.availableFrom; if(!a) return null;
+  if(a.mode==="beforeDue"){
+    if(!n.deadline) return null;
+    const lead=a.leadDays!=null?a.leadDays:state.settings.plan.leadDays;
+    return addDays(startOfDay(n.deadline),-lead);
+  }
+  return a.at?new Date(a.at):null;
+}
+function notYetOpen(n){ const d=availableFromDate(n); return !!(d&&d>new Date()); }
+function opensLabel(n){
+  const d=notYetOpen(n)?availableFromDate(n):(n.deferUntil&&new Date(n.deferUntil)>new Date()?new Date(n.deferUntil):null);
+  return d?relDay(d.toISOString()):null;
 }
 function remainingMinutes(n){
   let t=(n.status==="done"||n.status==="dropped")?0:(n.estMaxMinutes||0);
@@ -876,6 +933,7 @@ function ancestorBlocked(n){
   for(const a of ancestors(n.id)){
     if(a.status==="waiting"||a.status==="someday"||a.status==="dropped") return a;
     if(a.deferUntil && new Date(a.deferUntil)>new Date()) return a;
+    if(notYetOpen(a)) return a;
     if(isGated(a)||depBlocked(a)) return a;
   }
   return null;
@@ -885,6 +943,7 @@ function effStatus(n){
   if(n.status==="someday") return "someday";
   if(n.status==="waiting") return "waiting";
   if(n.deferUntil && new Date(n.deferUntil)>new Date()) return "deferred";
+  if(notYetOpen(n)) return "deferred";
   if(depBlocked(n)) return "blocked";
   if(isGated(n)) return "blocked";
   if(ancestorBlocked(n)) return "blocked";
@@ -894,48 +953,94 @@ function slackHours(n){
   if(!n.deadline) return null;
   return (new Date(n.deadline)-Date.now())/HOUR - remainingMinutes(n)/60;
 }
-function urgencyMult(n){
+function urgencyOf(n,st){
   const s=slackHours(n);
   if(s===null) return 1.0;
-  let m = s<0?5.0 : s<24?3.0 : s<72?2.0 : s<168?1.4 : 1.1;
-  if(n.deadlineType==="soft") m = m - (m-1)*0.3;
+  let m;
+  if(s<0){
+    const late=Math.max(0,(Date.now()-new Date(n.deadline))/DAY);
+    m=Math.min(8,5+0.5*late);           /* late work keeps climbing */
+  } else m = s<24?3.0 : s<72?2.0 : s<168?1.4 : 1.1;
+  if(st==="flexible") m=1+(m-1)*0.7;    /* a flexible one presses less */
   return m;
 }
 function staleness(n){
   const d=(Date.now()-new Date(n.touchedAt))/DAY;
   return clamp(d*0.05,0,1.0);
 }
-/* SCORE = importance × urgency-from-slack + staleness (kept from v1).
-   v2: an open soft dependency halves the score — it can be done now, but
-   doing its prerequisite first is usually the better use of the hour. */
+/* SCORE = Stakes x Urgency x Leverage + Avoidance.
+   The clock is the strongest factor. Stakes tilts within about 2x.
+   Leverage lifts work that other work waits on. Avoidance lifts work
+   that sits untouched or keeps getting pushed back.
+   Scores are cached per minute and recomputed when anything changes. */
+let _dataRev=0;
+function bumpRev(){ _dataRev++; }
+let _scoreCache=new Map(), _scoreKey="", _depCount={};
+function _rebuildDepCounts(){
+  _depCount={};
+  for(const n of state.nodes.values()){
+    if(!n.dependsOn||!n.dependsOn.length||n.dependencyMode==="none") continue;
+    if(n.status==="done"||n.status==="dropped") continue;
+    for(const id of n.dependsOn) _depCount[id]=(_depCount[id]||0)+1;
+  }
+}
+function isSeqNext(n){
+  if(!n.parentId) return false;
+  const p=byId(n.parentId);
+  return !!(p&&p.childMode==="sequential"&&!isGated(n));
+}
 function score(n){
-  let s=IMPORTANCE[effImportance(n)] * urgencyMult(n) + staleness(n);
-  if(softDeps(n).length) s*=0.5;
-  return s;
+  const key=_dataRev+":"+Math.floor(Date.now()/MIN);
+  if(key!==_scoreKey){ _scoreCache.clear(); _rebuildDepCounts(); _scoreKey=key; }
+  let v=_scoreCache.get(n.id);
+  if(v===undefined){ v=computeScore(n); _scoreCache.set(n.id,v); }
+  return v;
+}
+function computeScore(n){
+  const st=effStakes(n);
+  const U=urgencyOf(n,st);
+  const S=STAKES_MULT[st]*(1+(n.stakesWeight||0));
+  let L=1+0.4*Math.min(_depCount[n.id]||0,3)/3;
+  if(isSeqNext(n)) L+=0.3;
+  const A=staleness(n)+Math.min((n.bumpCount||0)*0.15,1);
+  let sc=S*U*L+A;
+  if(n.aimWindow&&(n.aimWindow.start||n.aimWindow.end)){
+    const now=Date.now();
+    const a=n.aimWindow.start?startOfDay(n.aimWindow.start).getTime():null;
+    const b=n.aimWindow.end?startOfDay(n.aimWindow.end).getTime()+DAY:null;
+    const sl=slackHours(n);
+    if(a&&now<a&&(sl===null||sl>72)) sc*=0.75;      /* not its time yet */
+    else if(b&&now>b) sc*=1.3;                      /* its window passed */
+    else sc*=1.15;                                  /* inside its window */
+  }
+  if(softDeps(n).length) sc*=0.5;
+  return sc;
 }
 function explain(n,rank){
   const bits=[];
-  if(rank) bits.push("Ranked #"+rank);
+  if(rank) bits.push("Number "+rank+" for today");
+  const opn=opensLabel(n);
+  if(opn) bits.push("opens "+opn);
   if(n.deadline){
     const s=slackHours(n);
-    const kind=n.deadlineType==="soft"?"soft deadline":"hard deadline";
     const d=(new Date(n.deadline)-Date.now())/HOUR;
-    bits.push(d<0 ? kind+" passed "+Math.abs(Math.round(d/24))+"d ago"
-                  : kind+" "+(d<24?"in "+Math.round(d)+"h":"in "+Math.round(d/24)+"d"));
-    if(remainingMinutes(n)>0) bits.push(mins(remainingMinutes(n))+" of work left, "+
-      (s<0?"already short on time":Math.round(s)+"h of slack"));
+    bits.push(d<0 ? "due "+Math.abs(Math.round(d/24))+" days ago"
+                  : "due "+(d<24?"in "+Math.round(d)+" hours":"in "+Math.round(d/24)+" days"));
+    if(remainingMinutes(n)>0) bits.push("about "+mins(remainingMinutes(n))+" of work left"+
+      (s<0?", time is short":", "+Math.round(s)+"h of room"));
   } else if(n.timeframe) bits.push("aimed at "+tfLabel(n.timeframe)+", no date yet");
-  else bits.push("no deadline");
-  const src=importanceSource(n);
-  bits.push(IMP_LABEL[effImportance(n)]+(src?" (from "+(src.title||"parent")+")":""));
+  else bits.push("no due date");
+  const st0=effStakes(n), src=stakesSource(n);
+  if(st0!=="normal"||src) bits.push("stakes "+STAKES_LABEL[st0].toLowerCase()+(src?" (from "+(src.title||"its group")+")":""));
   const st=effStatus(n);
-  bits.push(st==="available"?"unblocked":statusLabel(st).toLowerCase());
+  bits.push(st==="available"?"ready to do":statusLabel(st).toLowerCase());
   const sd=softDeps(n);
   if(sd.length) bits.push("ranked lower until after "+sd.map(d=>d.title||"Untitled").join(", "));
   const rq=n.dependencyMode==="required"?openDeps(n):[];
-  if(rq.length) bits.push("blocked by "+rq.map(d=>d.title||"Untitled").join(", "));
-  if(n.flagged) bits.push("flagged for today");
-  if(staleness(n)>0.3) bits.push("untouched "+Math.round((Date.now()-new Date(n.touchedAt))/DAY)+" days");
+  if(rq.length) bits.push("waiting on "+rq.map(d=>d.title||"Untitled").join(", "));
+  if(n.flagged) bits.push("marked Do today");
+  if((n.bumpCount||0)>=2) bits.push("pushed back "+n.bumpCount+" times");
+  if(staleness(n)>0.3) bits.push("untouched for "+Math.round((Date.now()-new Date(n.touchedAt))/DAY)+" days");
   return bits.join(" · ");
 }
 function statusLabel(s){ return {available:"Available",waiting:"Waiting on",deferred:"Deferred",
@@ -954,7 +1059,7 @@ async function sweepExpiry(){
   for(const x of state.nodes.values()){
     if(x.expiry && x.status!=="done" && x.status!=="dropped" && new Date(x.expiry)<new Date()){
       x.status="dropped";
-      x.notes=(x.notes?x.notes+"\n":"")+"Expired "+fmtDate(x.expiry)+" — dropped automatically.";
+      x.notes=(x.notes?x.notes+"\n":"")+"Expired "+fmtDate(x.expiry)+". Dropped automatically.";
       await save(x); n++;
     }
   }
@@ -998,31 +1103,92 @@ function timeframeItems(){ return Array.from(state.nodes.values())
 /* ===========================================================================
    CAPACITY, BANDS, PROJECTION — kept from v1, deps-aware, sleep-aware.
    =========================================================================== */
-function fixedOn(d){ return Array.from(state.nodes.values())
-  .filter(n=>n.fixedStart && sameDay(n.fixedStart,d) && n.status!=="dropped")
-  .sort((a,b)=>new Date(a.fixedStart)-new Date(b.fixedStart)); }
+/* does a repeating pinned item (a class, a standing block) land on day d? */
+function occursOn(n,d){
+  const r=n.recurrence; if(!r||r.mode==="afterDone") return false;
+  const s0=startOfDay(n.fixedStart), dd=startOfDay(d);
+  if(dd<=s0) return false;
+  const days=Math.round((dd-s0)/DAY);
+  if(r.type==="days") return days%(r.every||1)===0;
+  if(r.type==="weekdays") return (r.days||[1,2,3,4,5]).includes(dd.getDay());
+  if(r.type==="weeks"){
+    const wk=Math.floor((dd-addDays(s0,-s0.getDay()))/(7*DAY));
+    if((r.every||1)>1&&wk%(r.every||1)!==0) return false;
+    return (r.days&&r.days.length)?r.days.includes(dd.getDay()):days%7===0;
+  }
+  if(r.type==="months"){
+    const md=(dd.getFullYear()*12+dd.getMonth())-(s0.getFullYear()*12+s0.getMonth());
+    if(md<=0||md%(r.every||1)!==0) return false;
+    const want=r.dayOfMonth||s0.getDate();
+    const last=new Date(dd.getFullYear(),dd.getMonth()+1,0).getDate();
+    return dd.getDate()===Math.min(want,last);
+  }
+  if(r.type==="years"){
+    const yd=dd.getFullYear()-s0.getFullYear();
+    return yd>0&&yd%(r.every||1)===0&&dd.getMonth()===s0.getMonth()&&dd.getDate()===s0.getDate();
+  }
+  return false;
+}
+function fixedOn(d){
+  const out=[];
+  for(const n of state.nodes.values()){
+    if(!n.fixedStart||n.status==="dropped") continue;
+    if(sameDay(n.fixedStart,d)){ out.push(n); continue; }
+    if(occursOn(n,d)){
+      const st=new Date(n.fixedStart), en=n.fixedEnd?new Date(n.fixedEnd):null;
+      const vs=new Date(d); vs.setHours(st.getHours(),st.getMinutes(),0,0);
+      const ve=en?new Date(vs.getTime()+(en-st)):null;
+      out.push(Object.assign({},n,{fixedStart:vs.toISOString(),fixedEnd:ve?ve.toISOString():null,__virtual:true}));
+    }
+  }
+  return out.sort((a,b)=>new Date(a.fixedStart)-new Date(b.fixedStart));
+}
 
 function todayBands(){
+  const P=state.settings.plan;
   const all=Array.from(state.nodes.values()).filter(n=>n.kind==="task"&&n.id!==UNSORTED);
   const open=all.filter(n=>n.status!=="done"&&n.status!=="dropped");
   const now=new Date();
 
-  const fixed=open.filter(n=>n.fixedStart&&sameDay(n.fixedStart,now))
-    .sort((a,b)=>new Date(a.fixedStart)-new Date(b.fixedStart));
+  const fixed=fixedOn(now).filter(n=>n.status!=="done"&&n.status!=="dropped");
   const fixedIds=new Set(fixed.map(n=>n.id));
 
-  /* timeframe-only items never pollute Today */
-  const actionable=open.filter(n=>!fixedIds.has(n.id)&&effStatus(n)==="available"&&!(n.timeframe&&!n.deadline));
+  /* timeframe-only items and pinned items never rank in the day's bands */
+  const actionable=open.filter(n=>n.actionable!==false&&!n.fixedStart&&!fixedIds.has(n.id)
+    &&effStatus(n)==="available"&&!(n.timeframe&&!n.deadline));
   const waiting=open.filter(n=>n.status==="waiting"||effStatus(n)==="waiting");
   const blocked=open.filter(n=>effStatus(n)==="blocked"&&(n.dependencyMode==="required"&&openDeps(n).length));
 
   const isDue=n=>n.deadline && startOfDay(n.deadline)<=startOfDay(now);
-  const must=actionable.filter(n=>n.flagged||isDue(n)).sort((a,b)=>score(b)-score(a));
+  /* just opened with little room: it comes straight into Must */
+  const openedTight=n=>{
+    const a=availableFromDate(n); if(!a) return false;
+    const since=(now-a)/DAY;
+    return since>=0&&since<3&&n.deadline&&(new Date(n.deadline)-now)/DAY<7;
+  };
+  const must=actionable.filter(n=>n.flagged||isDue(n)||openedTight(n)).sort((a,b)=>score(b)-score(a));
   const mustIds=new Set(must.map(n=>n.id));
   const rest=actionable.filter(n=>!mustIds.has(n.id)).sort((a,b)=>score(b)-score(a));
-  const should=rest.slice(0,7);
+
+  /* Should fills to the time actually left in the day, not a fixed count */
+  let fixedAhead=0;
+  for(const f of fixed){
+    if(f.background||!f.fixedEnd) continue;
+    const e=new Date(f.fixedEnd);
+    if(e>now) fixedAhead+=(e-Math.max(new Date(f.fixedStart),now))/MIN;
+  }
+  let budget=Math.max(0,hoursLeftToday()*60-fixedAhead);
+  for(const n of must) budget-=(n.estMaxMinutes||P.guessMin);
+  const should=[], laterAll=[];
+  for(const n of rest){
+    const m=n.estMaxMinutes||P.guessMin;
+    if(budget>0){ should.push(n); budget-=m; }
+    else laterAll.push(n);
+  }
   const shouldIds=new Set(should.map(n=>n.id));
-  const quick=rest.filter(n=>!shouldIds.has(n.id)&&minMinutes(n)>0&&minMinutes(n)<=10).slice(0,8);
+  const quick=laterAll.filter(n=>minMinutes(n)>0&&minMinutes(n)<=10).slice(0,8);
+  const quickIds=new Set(quick.map(n=>n.id));
+  const later=laterAll.filter(n=>!quickIds.has(n.id)).slice(0,10);
 
   const committed=[...fixed,...actionable].reduce((t,n)=>{
     if(n.background) return t;
@@ -1032,37 +1198,62 @@ function todayBands(){
     return t+(n.estMaxMinutes||0); },0);
 
   const doneToday=all.filter(n=>n.completedAt&&sameDay(n.completedAt,now));
-  return {fixed,must,should,waiting,blocked,quick,committed,doneToday,actionable};
+  return {fixed,must,should,later,waiting,blocked,quick,committed,doneToday,actionable};
 }
 
 /* projected work: spread each deadlined task's remaining effort back from its
    deadline across the days it can actually be worked on (capacity-aware,
    sleep already subtracted by hoursFor) */
 function projection(){
-  const map={};
+  const map={}, used={};
+  const put=(k,n,minutes,over)=>{
+    const arr=(map[k]=map[k]||[]);
+    const hit=arr.find(p=>p.node.id===n.id);
+    if(hit){ hit.minutes+=minutes; if(over) hit.over=true; }
+    else arr.push(over?{node:n,minutes,over:true}:{node:n,minutes});
+    used[k]=(used[k]||0)+minutes;
+  };
   const nodes=Array.from(state.nodes.values())
-    .filter(n=>n.kind==="task"&&n.status!=="done"&&n.status!=="dropped"&&n.deadline&&!n.fixedStart&&(n.estMaxMinutes||0)>0)
+    .filter(n=>n.kind==="task"&&n.status!=="done"&&n.status!=="dropped"&&n.deadline&&!n.fixedStart
+      &&!n.background&&n.actionable!==false&&(n.estMaxMinutes||0)>0)
     .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
-  const used={};
+  const today=startOfDay(new Date());
   for(const n of nodes){
-    let left=n.estMaxMinutes||0;
+    const state_={left:n.estMaxMinutes||0};
     const end=startOfDay(n.deadline);
-    let earliest=startOfDay(new Date());
-    if(n.deferUntil && startOfDay(n.deferUntil)>earliest) earliest=startOfDay(n.deferUntil);
-    const days=[]; for(let d=new Date(end); d>=earliest; d=addDays(d,-1)) days.push(new Date(d));
-    if(!days.length) days.push(earliest);
-    for(const d of days){
-      if(left<=0) break;
-      const k=dayKey(d);
-      const cap=hoursFor(d)*60;
-      const free=Math.max(0,cap-(used[k]||0));
-      if(free<=0) continue;
-      const put=Math.min(free,left);
-      used[k]=(used[k]||0)+put; left-=put;
-      (map[k]=map[k]||[]).push({node:n,minutes:put});
+    let earliest=new Date(today);
+    const av=availableFromDate(n);
+    if(av&&startOfDay(av)>earliest) earliest=startOfDay(av);
+    if(n.deferUntil&&startOfDay(n.deferUntil)>earliest) earliest=startOfDay(n.deferUntil);
+    if(earliest>end) earliest=new Date(end);
+    /* the aim window narrows where the work is placed first */
+    let a0=new Date(earliest), a1=new Date(end);
+    if(n.aimWindow){
+      if(n.aimWindow.start){ const w=startOfDay(n.aimWindow.start); if(w>a0&&w<=end) a0=w; }
+      if(n.aimWindow.end){ const w=startOfDay(n.aimWindow.end); if(w<a1&&w>=a0) a1=w; }
     }
-    if(left>0){ const k=dayKey(days[days.length-1]||earliest);
-      used[k]=(used[k]||0)+left; (map[k]=map[k]||[]).push({node:n,minutes:left,over:true}); }
+    const spread=(from,to)=>{
+      const days=[]; for(let d=new Date(from); d<=to; d=addDays(d,1)) days.push(new Date(d));
+      if(!days.length) return;
+      const per=Math.max(15,Math.ceil(state_.left/days.length));
+      for(const d of days){                 /* an even pass: a little each day */
+        if(state_.left<=0) break;
+        const k=dayKey(d), free=Math.max(0,hoursFor(d)*60-(used[k]||0));
+        const amt=Math.min(per,free,state_.left);
+        if(amt<=0) continue;
+        put(k,n,amt); state_.left-=amt;
+      }
+      for(const d of days){                 /* then fill leftover capacity */
+        if(state_.left<=0) break;
+        const k=dayKey(d), free=Math.max(0,hoursFor(d)*60-(used[k]||0));
+        const amt=Math.min(free,state_.left);
+        if(amt<=0) continue;
+        put(k,n,amt); state_.left-=amt;
+      }
+    };
+    spread(a0,a1);
+    if(state_.left>0&&(+a0!==+earliest||+a1!==+end)) spread(earliest,end);
+    if(state_.left>0) put(dayKey(end),n,state_.left,true);
   }
   return map;
 }
@@ -1115,7 +1306,7 @@ function planFor(day,proj){
   if(isToday){
     const b=todayBands();
     items=[...b.must,...b.should].filter(n=>!n.fixedStart)
-      .map(n=>({node:n,minutes:n.estMaxMinutes||30,fuzzy:!n.estMaxMinutes}));
+      .map(n=>({node:n,minutes:n.estMaxMinutes||state.settings.plan.guessMin||30,fuzzy:!n.estMaxMinutes}));
   }else{
     const k=dayKey(day);
     const seen=new Set();
@@ -1124,7 +1315,7 @@ function planFor(day,proj){
     for(const n of state.nodes.values()){
       if(n.kind!=="task"||seen.has(n.id)||n.fixedStart) continue;
       if(n.status==="done"||n.status==="dropped") continue;
-      if(n.deadline&&sameDay(n.deadline,day)) items.push({node:n,minutes:n.estMaxMinutes||30,fuzzy:!n.estMaxMinutes});
+      if(n.deadline&&sameDay(n.deadline,day)&&n.actionable!==false) items.push({node:n,minutes:n.estMaxMinutes||state.settings.plan.guessMin||30,fuzzy:!n.estMaxMinutes});
     }
   }
   for(const it of items){
@@ -1140,28 +1331,61 @@ function planFor(day,proj){
     if(dx&&!dy) return -1; if(dy&&!dx) return 1;
     return score(y.node)-score(x.node);
   });
+  /* a long task becomes two or three sittings with breaks, not one wall */
+  const SPLIT=state.settings.plan.splitMin;
+  if(SPLIT>0){
+    const out=[];
+    for(const it of items){
+      if(!it.dueBy&&!it.fuzzy&&it.minutes>SPLIT*1.2){
+        const k=Math.min(3,Math.ceil(it.minutes/SPLIT));
+        const per=Math.ceil(it.minutes/k);
+        for(let i=0;i<k;i++){
+          const m=Math.min(per,it.minutes-per*i);
+          if(m>0) out.push(Object.assign({},it,{minutes:m,part:i+1,parts:k}));
+        }
+      } else out.push(it);
+    }
+    items=out;
+  }
 
   const overlaps=(a,b)=>busy.find(f=>a<f.end&&b>f.start);
   const hasWindows=(state.settings.deepWindows||[]).length>0;
+  const P=state.settings.plan;
   const placed=[], unplaced=[];
+  let prevCtx=null, focusRun=0;
   for(const it of items){
     let ok=false, guard=0, c2=new Date(cursor), triedDeep=false;
-    while(!ok&&guard++<64){
+    while(!ok&&guard++<96){
       if(c2>=end) break;
-      const cm=Math.round((c2-d0)/MIN)%1440;
+      const rm=(c2-d0)/MIN;
+      const cm=Math.round(rm)%1440;
+      const tw=it.node.todWindow;
+      if(tw&&tw.after){ const am=hmToMin(tw.after);
+        if(rm<am){ c2=new Date(d0.getTime()+am*MIN); continue; } }
       if(it.node.energy==="deep"&&!it.dueBy&&hasWindows&&!inDeepWindow(cm)&&!triedDeep){
         const nx=nextDeepStart(cm);
         if(nx!=null){ c2=new Date(d0.getTime()+nx*MIN); triedDeep=true; continue; }
         triedDeep=true;
       }
       const fin=new Date(c2.getTime()+it.minutes*MIN);
+      if(tw&&tw.before){ const bm=hmToMin(tw.before);
+        if((fin-d0)/MIN>bm){ it.reason="its time of day window passed"; break; } }
       const hit=overlaps(c2,fin);
       if(hit){ c2=new Date(hit.end.getTime()+10*MIN); continue; }
       if(fin>end) break;
       it.start=c2; it.end=fin;
       if(it.dueBy&&fin>it.dueBy) it.late=true;
       placed.push(it);
-      if(!(it.node.energy==="deep"&&triedDeep)) cursor=new Date(fin.getTime()+10*MIN);
+      if(!(it.node.energy==="deep"&&triedDeep)){
+        let gap=P.switchBufMin!=null?P.switchBufMin:10;
+        if(prevCtx&&it.node.context&&it.node.context===prevCtx) gap=Math.min(gap,2);
+        if(it.node.energy==="deep"){
+          focusRun+=it.minutes;
+          if(P.focusCapMin>0&&focusRun>=P.focusCapMin){ gap=Math.max(gap,15); focusRun=0; }
+        } else focusRun=0;
+        cursor=new Date(fin.getTime()+gap*MIN);
+        prevCtx=it.node.context||null;
+      }
       ok=true;
     }
     if(!ok) unplaced.push(it);
@@ -1246,7 +1470,7 @@ function scheduledAlerts(days=14){
     if(nf.types.followup&&n.status==="waiting"&&n.followUpDate){
       const ts=new Date(n.followUpDate).getTime();
       if(ts>now-HOUR&&ts<horizon) out.push({ts,type:"followup",icon:"👋",id:n.id,
-        title:"Follow up: "+(n.title||"Untitled"),sub:n.waitingOn?"Waiting on "+n.waitingOn:"Time to chase"});
+        title:"Follow up: "+(n.title||"Untitled"),sub:n.waitingOn?"Waiting on "+n.waitingOn:"Time to follow up"});
     }
   }
   if(nf.types.morning){
@@ -1265,7 +1489,7 @@ function scheduledAlerts(days=14){
   }
   if(nf.types.backup&&backupDue()){
     out.push({ts:now+5*MIN,type:"backup",icon:"💾",title:"Backup reminder",
-      sub:"Export a copy off this phone — Settings › Backups"});
+      sub:"Export a copy off this phone. Settings, then Backups"});
   }
   out.sort((a,b)=>a.ts-b.ts);
   return out;
@@ -1393,10 +1617,10 @@ const ICON_SEARCH='<svg viewBox="0 0 17 17" fill="none" stroke="currentColor" st
 function metaBits(n,opts={}){
   const out=[];
   const st=effStatus(n);
+  if(n.flagged&&n.status!=="done"&&n.status!=="dropped") out.push(`<span class="pill blue">Today</span>`);
   if(n.deadline && n.status!=="done" && n.status!=="dropped"){
     const over=new Date(n.deadline)<new Date();
-    const cls=over?"red":(n.deadlineType==="soft"?"gray":"orange");
-    out.push(`<span class="pill ${cls}">${esc(relDay(n.deadline))}${n.deadlineType==="soft"?" ·soft":""}</span>`);
+    out.push(`<span class="pill ${over?"red":"orange"}">${esc(relDay(n.deadline))}</span>`);
   }
   if(n.timeframe&&!n.deadline&&n.status!=="done"&&n.status!=="dropped")
     out.push(`<span class="pill blue">${esc(tfLabel(n.timeframe))}</span>`);
@@ -1408,9 +1632,10 @@ function metaBits(n,opts={}){
   }
   const sd=softDeps(n);
   if(sd.length&&st==="available") out.push(`<span class="pill gray">after ${esc(sd[0].title||"Untitled")}${sd.length>1?" +"+(sd.length-1):""}</span>`);
-  if(st==="deferred") out.push(`<span class="pill">Starts ${esc(relDay(n.deferUntil))}</span>`);
+  if(st==="deferred") out.push(`<span class="pill">Opens ${esc(opensLabel(n)||"later")}</span>`);
   if(st==="someday") out.push(`<span class="pill">Someday</span>`);
-  if(n.bumpCount>=4) out.push(`<span class="pill orange">Bumped ${n.bumpCount}×</span>`);
+  if(n.bumpCount>=4) out.push(`<span class="pill orange">Pushed back ${n.bumpCount} times</span>`);
+  if(effStakes(n)==="protect") out.push(`<span class="pill red">Protect</span>`);
   if(n.recurrence) out.push(`<span class="pill">Repeats</span>`);
   if(effNotify(n).enabled&&state.settings.notif.master) out.push(`<span class="pill gray">🔔</span>`);
   if(opts.showPath&&n.parentId&&n.parentId!==UNSORTED) out.push(esc(pathLabel(n.parentId)));
@@ -1421,6 +1646,14 @@ function metaBits(n,opts={}){
   return out;
 }
 
+function markHTML(n){
+  if(n.actionable===false){
+    const ic=n.preset==="Sleep"?"🌙":(n.background?"⟳":"📍");
+    return `<span class="mark"><span class="nodeicon">${ic}</span></span>`;
+  }
+  const st=effStatus(n);
+  return `<span class="mark" data-mark="${n.id}"><span class="circle${n.status==="done"?" on":""}${(st==="blocked"||st==="deferred")?" gated":""}"></span></span>`;
+}
 function rowHTML(n,opts={}){
   const done=n.status==="done", dropped=n.status==="dropped";
   const isGroup=n.kind==="group";
@@ -1450,7 +1683,7 @@ function rowHTML(n,opts={}){
   const col=nodeColor(n);
   const bits=taskBits(n,opts);
   if(n.notes&&!opts.hideNotes&&bits.length<3) bits.push(esc(n.notes.split("\n")[0]).slice(0,50));
-  const mark=`<span class="mark" data-mark="${n.id}"><span class="circle${done?" on":""}${(st==="blocked"||st==="deferred")?" gated":""}"></span></span>`;
+  const mark=markHTML(n);
   const icon=(n.icon&&!hideIcons)?esc(n.icon)+" ":"";
   return `<div class="row${done?" done":""}${dropped?" dropped":""}" data-row="${n.id}">
     <div class="actions">${acts}</div>
@@ -1458,7 +1691,7 @@ function rowHTML(n,opts={}){
       <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
       <div class="body"><div class="title" style="font-size:15px">${icon}${esc(n.title||"Untitled")}</div>
         ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
-      <span class="trail">${n.flagged&&!done?'<span class="flagdot"></span>':""}${ICON_CHEV}</span></div></div>`;
+      <span class="trail">${ICON_CHEV}</span></div></div>`;
 }
 const listHTML=(ns,o)=>`<div class="group">${ns.map(n=>rowHTML(n,o)).join("")}</div>`;
 const emptyHTML=(h,p,x)=>`<div class="empty"><h2>${esc(h)}</h2><p>${esc(p)}</p>${x||""}</div>`;
@@ -1469,15 +1702,129 @@ const secBig=(h,right)=>`<div class="sechead big"><span class="h">${esc(h)}</spa
    Recomputes on every visit, every foreground, every change. There is no
    button to make it current — the plan is always live. */
 function renderToday(){
-  const d=new Date();
-  setTitles("Today",d.toLocaleDateString(undefined,{weekday:"long"}),null);
+  const range=state.planRange||"today";
+  const d=range==="tomorrow"?addDays(new Date(),1):new Date();
+  setTitles("Plan",range==="week"?"This week":(range==="tomorrow"?"Tomorrow":"Today"),null);
   $("#subTitle").hidden=false;
-  $("#subTitle").textContent=d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
-  $("#navExtra").innerHTML=`<div class="seg mini" id="todaySeg">
+  $("#subTitle").textContent= range==="week"
+    ? "Today through "+addDays(new Date(),6).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})
+    : d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+  $("#navExtra").innerHTML=`<div class="seg mini" id="rangeSeg" style="margin-bottom:8px">
+      <button data-prange="today"${range==="today"?' class="on"':""}>Today</button>
+      <button data-prange="tomorrow"${range==="tomorrow"?' class="on"':""}>Tomorrow</button>
+      <button data-prange="week"${range==="week"?' class="on"':""}>Week</button></div>
+    <div class="seg mini" id="todaySeg">
       <button data-tview="schedule"${state.todayView!=="list"?' class="on"':""}>Schedule</button>
       <button data-tview="list"${state.todayView==="list"?' class="on"':""}>List</button></div>`;
-  content.innerHTML=todayHTML(d);
-  wireTodayList();
+  if(range==="today"){ content.innerHTML=todayHTML(d); wireTodayList(); }
+  else if(range==="tomorrow") content.innerHTML=otherDayHTML(d);
+  else content.innerHTML=weekPlanHTML();
+}
+
+/* one day's schedule as plan rows, used by Tomorrow and the Week */
+function dayPlanListHTML(day,proj){
+  const pl=planFor(day,proj);
+  if(!pl.blocks.length&&!pl.unplaced.length) return "";
+  let h=`<div class="plan">`;
+  for(const bk of pl.blocks){
+    if(bk.unavail){
+      h+=`<div class="planrow unavail">
+        <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+        <div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(bk.label)}</div>
+          <div class="why">unavailable</div></div></div>`;
+      continue;
+    }
+    const n=bk.node;
+    const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
+    const col=nodeColor(n);
+    const bits=taskBits(n,{block:bk});
+    h+=`<div class="planrow ${cls}" data-open="${n.id}">
+      <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+      <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+      <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`;
+  }
+  if(pl.unplaced.length) h+=`<div class="plannote">${pl.unplaced.length} more did not fit this day: ${
+    esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}</div>`;
+  h+=`</div>`;
+  return h;
+}
+
+/* Tomorrow, in both looks */
+function otherDayHTML(day){
+  const proj=projection();
+  const k=dayKey(day);
+  const load=loadOn(day,proj), cap=hoursFor(day)*60;
+  let html=`<div class="cap">
+    <div class="top"><span><b>${mins(Math.round(load))}</b> planned</span>
+      <span style="color:var(--label2)">${Math.round(cap/60*10)/10}h available</span></div>
+    <div class="bar"><div class="seg1" style="width:${clamp(load/Math.max(cap,1)*100,0,100)}%"></div></div></div>`;
+  const dls=Array.from(state.nodes.values())
+    .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped");
+  if(state.todayView==="list"){
+    const fx=fixedOn(day).filter(n=>n.status!=="done");
+    const pj=proj[k]||[];
+    if(dls.length) html+=sec("Due tomorrow")+listHTML(dls,{hideNotes:true,showPath:true});
+    if(fx.length) html+=sec("At a set time")+`<div class="plan">`+fx.map(n=>
+      `<div class="planrow" data-open="${n.id}">
+        <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b>${n.fixedEnd?mins((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):""}</div>
+        <div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`).join("")+`</div>`;
+    if(pj.length) html+=sec("Planned work","<span>the even spread toward each due date</span>")+`<div class="plan">`+pj.map(p=>
+      `<div class="planrow ghost" data-open="${p.node.id}">
+        <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div>
+        <div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}</div>
+          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`).join("")+`</div>`;
+    if(!dls.length&&!fx.length&&!pj.length) html+=emptyHTML("A clear day","Nothing due, nothing pinned, nothing planned for tomorrow yet.",null);
+  }else{
+    if(dls.length) html+=sec("Due tomorrow")+listHTML(dls,{hideNotes:true});
+    const body=dayPlanListHTML(day,proj);
+    html+= body?sec("The plan for tomorrow")+body
+      : emptyHTML("A clear day","Nothing lands on tomorrow yet.",null);
+  }
+  return html;
+}
+
+/* the coming week: days stacked on top of each other, scroll down through it */
+function weekPlanHTML(){
+  const proj=projection();
+  let html="";
+  for(let i=0;i<7;i++){
+    const day=addDays(new Date(),i);
+    const k=dayKey(day);
+    const load=loadOn(day,proj);
+    const lbl=i===0?"Today":i===1?"Tomorrow":day.toLocaleDateString(undefined,{weekday:"long"});
+    const right=day.toLocaleDateString(undefined,{month:"short",day:"numeric"})+(load?" · "+mins(Math.round(load)):"");
+    html+=secBig(lbl,`<span>${esc(right)}</span>`);
+    if(state.todayView==="list"){
+      const fx=fixedOn(day).filter(n=>n.status!=="done");
+      const dls=Array.from(state.nodes.values())
+        .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped");
+      const pj=proj[k]||[];
+      let rows="";
+      for(const n of fx) rows+=`<div class="planrow" data-open="${n.id}">
+        <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div><div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`;
+      for(const n of dls) rows+=`<div class="planrow" data-open="${n.id}">
+        <div class="pt tnum"><b>due</b>${n.deadlineHasTime?esc(fmtTime(n.deadline)):""}</div><div class="pbar" style="--pc:var(--red)"></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(n.title||"Untitled")}</div></div></div>`;
+      for(const p of pj) rows+=`<div class="planrow ghost" data-open="${p.node.id}">
+        <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div><div class="pbar"></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}</div>
+          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`;
+      html+= rows?`<div class="plan">${rows}</div>`
+        :`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
+    }else{
+      const body=dayPlanListHTML(day,proj);
+      html+= body||`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
+    }
+  }
+  html+=`<div class="fieldnote" style="margin-top:12px">Each day shows what is pinned, what is due, and where the planned work lands so every deadline is met. It is worked out live and changes as you finish things.</div>`;
+  return html;
 }
 function todayListOrder(ids){
   const saved=(state.todayOrder&&state.todayOrder.day===dayKey(new Date()))?state.todayOrder.ids:[];
@@ -1534,7 +1881,7 @@ function todayHTML(d){
       const n=bk.node, col=nodeColor(n);
       const bits=taskBits(n,{block:bk.fixed?bk:null});
       lh+=`<div class="planrow" data-open="${n.id}">
-        <span class="mark" data-mark="${n.id}"><span class="circle${n.status==="done"?" on":""}"></span></span>
+        ${markHTML(n)}
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
@@ -1542,15 +1889,15 @@ function todayHTML(d){
       </div>`;
     }
     lh+=`</div>
-    <div class="fieldnote">Your order, your call — reordering here never changes the computed Schedule.</div>`;
-    html+= taskBlocks.length?lh:emptyHTML("Nothing on deck","Tap + to capture something.",null);
+    <div class="fieldnote">Reorder these however you like. It never changes the computed Schedule view.</div>`;
+    html+= taskBlocks.length?lh:emptyHTML("Nothing planned yet","Tap + to add something.",null);
     if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
     if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
     html+=`<div style="height:8px"></div>`+capCard;
     return html;
   }
   if(pl.blocks.length){
-    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} – ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
+    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
     for(const bk of pl.blocks){
       if(bk.unavail){
         html+=`<div class="planrow unavail">
@@ -1565,28 +1912,29 @@ function todayHTML(d){
       const col=nodeColor(n);
       const bits=taskBits(n,{block:bk});
       html+=`<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
-        <span class="mark" data-mark="${n.id}"><span class="circle${n.status==="done"?" on":""}"></span></span>
+        ${markHTML(n)}
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
       </div>`;
     }
-    if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more didn’t fit before your day ends: ${
+    if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more did not fit before your day ends: ${
       esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}. Trim estimates, push deadlines, or let them go.</div>`;
     html+=`</div>`;
   } else if(b.waiting.length||b.blocked.length||b.doneToday.length){
-    html+=sec("The plan")+`<div class="plan"><div class="plannote">Nothing to place — everything open is waiting, blocked, or done.</div></div>`;
+    html+=sec("The plan")+`<div class="plan"><div class="plannote">Nothing to place. Everything open is waiting, blocked, or done.</div></div>`;
   }
 
   if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
   if(b.blocked.length) html+=sec("Blocked","<span>waiting on other tasks</span>")+listHTML(b.blocked,{showPath:true,hideNotes:true});
-  if(b.quick.length) html+=sec("Quick wins","<span>under 10m · not in the plan</span>")+listHTML(b.quick,{est:true});
+  if(b.quick.length) html+=sec("Quick wins","<span>10 minutes or less</span>")+listHTML(b.quick,{est:true});
+  if(b.later&&b.later.length) html+=sec("Later","<span>more than fits in today's hours</span>")+listHTML(b.later,{est:true,showPath:true});
   if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
   html+=`<div style="height:8px"></div>`+capCard;
 
   if(!pl.blocks.length&&!b.waiting.length&&!b.blocked.length&&!b.quick.length&&!b.doneToday.length)
-    html+=emptyHTML("Nothing on deck","Tap + to capture something, or open Browse and give a few things deadlines so they can rank.",
+    html+=emptyHTML("Nothing planned yet","Tap + to add something, or open Browse and give a few things due dates so they can rank.",
       `<div style="margin-top:14px"><button class="line accent" style="display:inline-flex;border-radius:10px;background:var(--elev);padding:0 18px" data-act="seed">Show me with an example</button></div>`);
   return html;
 }
@@ -1642,7 +1990,7 @@ function monthHTML(proj){
       ? `rgba(255,149,0,${0.10+0.22*clamp(ratio-1,0,1)})`
       : `rgba(var(--accent-rgb),${0.05+0.16*ratio})`;
     let marks="";
-    if(state.settings.layers.deadline) marks+=dls.slice(0,3).map(n=>`<span class="m ${n.deadlineType==="soft"?"soft":"dl"}"></span>`).join("");
+    if(state.settings.layers.deadline) marks+=dls.slice(0,3).map(()=>`<span class="m dl"></span>`).join("");
     if(state.settings.layers.fixed&&fx.length) marks+=`<span class="m fx"></span>`;
     cells+=`<button class="cal${out?" out":""}${sameDay(d,new Date())?" today":""}${sameDay(d,state.calSel)?" sel":""}"
       data-day="${k}" style="background:${tint}">
@@ -1702,7 +2050,7 @@ function monthOverviewHTML(proj){
     <div class="statrow"><span>Fixed blocks</span><span class="v tnum">${fx.length}</span></div>
     <div class="statrow"><span>Timeframe items</span><span class="v tnum">${tfs.length}</span></div>
     <div class="statrow"><span>Projected load</span><span class="v tnum">${mins(Math.round(load))} of ${Math.round(cap/60)}h</span></div></div>`;
-  if(tfs.length) html+=sec("Sometime this month — needs a date")+`<div class="group">${tfs.map(n=>
+  if(tfs.length) html+=sec("Sometime this month, needs a date")+`<div class="group">${tfs.map(n=>
     `<div class="row" data-row="${n.id}"><div class="rowin" data-open="${n.id}">
       <span class="mark">${n.icon?`<span class="nodeicon">${esc(n.icon)}</span>`:'<span class="circle"></span>'}</span>
       <div class="body"><div class="title">${esc(n.title||"Untitled")}</div>
@@ -1713,7 +2061,7 @@ function monthOverviewHTML(proj){
   if(fx.length) html+=sec("Fixed blocks this month")+`<div class="tl">`+fx.slice(0,10).map(n=>
     `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtDate(n.fixedStart))}</div>
       <div class="tlbar"></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}</div>
-      <div class="sub">${esc(fmtTime(n.fixedStart))}${n.fixedEnd?"–"+esc(fmtTime(n.fixedEnd)):""}</div></div></div>`).join("")+`</div>`;
+      <div class="sub">${esc(fmtTime(n.fixedStart))}${n.fixedEnd?" to "+esc(fmtTime(n.fixedEnd)):""}</div></div></div>`).join("")+`</div>`;
   return html;
 }
 
@@ -1758,7 +2106,7 @@ function weekColsHTML(proj){
       ${blocks}</div>`;
   }
   return calNav()+`<div class="wkcolwrap"><div class="wkcols">${cols}</div></div>
-    <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid blocks are fixed; dashed are the plan; gradient-edged are fuzzy — committed to the day, not to a length. Dimmed bands are sleep. Tap a header to open that day.</div>`;
+    <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid blocks are fixed. Dashed blocks are the plan. Gradient edged blocks are on the day but not pinned to a length. Dimmed bands are sleep. Tap a header to open that day.</div>`;
 }
 
 /* ---- day: true hour-by-hour visual layout ---- */
@@ -1787,14 +2135,14 @@ function dayViewHTML(d,proj){
     const top=(bk.start.getHours()*60+bk.start.getMinutes())/60*PPH;
     const h=Math.max(26,(bk.end-bk.start)/HOUR*PPH);
     if(bk.unavail){
-      inner+=`<div class="dayblock unav" style="top:${top}px;height:${h}px">${esc(bk.label||"Unavailable")} · ${esc(fmtTime(bk.start.toISOString()))}–${esc(fmtTime(bk.end.toISOString()))}</div>`;
+      inner+=`<div class="dayblock unav" style="top:${top}px;height:${h}px">${esc(bk.label||"Unavailable")} · ${esc(fmtTime(bk.start.toISOString()))} to ${esc(fmtTime(bk.end.toISOString()))}</div>`;
       continue; }
     const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
     const col=nodeColor(bk.node);
     const L=bk.lanes||1, li=bk.lane||0;
     const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
     const sub=bk.fixed
-      ? (bk.bg?"⟳ runs alongside · ":"")+esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?"–"+esc(fmtTime(bk.node.fixedEnd)):" · open end")
+      ? (bk.bg?"⟳ runs alongside · ":"")+esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?" to "+esc(fmtTime(bk.node.fixedEnd)):" · open end")
       : [bk.fuzzy?"~"+mins(bk.minutes)+", flexible":mins(bk.minutes),
          bk.late?"⚠︎ after due time":(bk.dueBy?"due by "+esc(fmtTime(bk.node.deadline)):(bk.node.deadline?"due "+esc(relDay(bk.node.deadline)):null)),
          bk.slice?"part of "+mins(bk.node.estMaxMinutes):null].filter(Boolean).join(" · ");
@@ -1823,7 +2171,7 @@ function dayViewHTML(d,proj){
        <span>${mins(Math.round(loadOn(d,proj)))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>
      <div class="daywrap"><div class="dayaxis" style="height:${height}px">${inner}</div></div>`
     +unpl
-    +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Dashed blocks are the plan, drawn to scale. Gradient-edged blocks are fuzzy — on the day, but not pinned to a length. A red line is a hard due time. Tap an empty slot to put a task there.</div>`;
+    +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Dashed blocks are the plan, drawn to scale. Gradient edged blocks are on the day but not pinned to a length. A red line marks a due time. Tap an empty slot to put a task there.</div>`;
 }
 
 /* ===========================================================================
@@ -1836,7 +2184,7 @@ function matchFilter(n,f){
   if(f.deliverable&&n.deliverable!==f.deliverable) return false;
   if(f.context&&n.context!==f.context) return false;
   if(f.energy&&n.energy!==f.energy) return false;
-  if(f.importance&&effImportance(n)!==f.importance) return false;
+  if(f.stakes&&effStakes(n)!==f.stakes) return false;
   if(f.status&&effStatus(n)!==f.status) return false;
   return true;
 }
@@ -1849,7 +2197,7 @@ function selbarHTML(){
   const modes=[["all","All"],["foryou","Attention"],["groups","Groups"],["cats","Categories"],
     ["contexts","Contexts"],["flagged","Flagged"],["someday","Someday"],["ranked","Ranked"],["completed","Completed"]];
   const f=state.activeFilter;
-  const fLbl=f?Object.entries(f).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k==="importance"?IMP_LABEL[v]:(k==="status"?statusLabel(v):v)).join(" · "):"";
+  const fLbl=f?Object.entries(f).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k==="stakes"?STAKES_LABEL[v]:(k==="status"?statusLabel(v):v)).join(" · "):"";
   let h=`<div class="selbar"><button data-bmode="custom"${state.browseMode==="custom"?' class="on"':""}
     style="display:inline-flex;align-items:center;gap:5px">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4h13M4 8h8M6.5 12h3"/></svg>${fLbl?esc(fLbl.slice(0,28)):"Filter"}</button>`;
@@ -1877,11 +2225,11 @@ function browseHomeHTML(){
   const arow=(ico,bg,label,n,act)=>`<button class="arow" ${act}>
     <span class="aico" style="background:${bg}">${ico}</span><span>${label}</span>
     <span class="n tnum">${n}${ICON_CHEV}</span></button>`;
-  if(uns.length) rows.push(arow("📥","rgba(var(--accent-rgb),.14)","Unsorted — needs a home",uns.length,`data-open="${UNSORTED}"`));
+  if(uns.length) rows.push(arow("📥","rgba(var(--accent-rgb),.14)","Unsorted, still needs a home",uns.length,`data-open="${UNSORTED}"`));
   if(overdue.length) rows.push(arow("⏰","rgba(255,59,48,.14)","Overdue and still doable",overdue.length,`data-bmode="attn:overdue"`));
-  if(fups.length) rows.push(arow("👋","rgba(255,149,0,.14)","Follow-ups due — chase these",fups.length,`data-bmode="attn:fups"`));
-  if(stalled.length) rows.push(arow("🧱","rgba(255,149,0,.14)","Stalled groups — nothing inside is doable",stalled.length,`data-bmode="attn:stalled"`));
-  if(bumped.length) rows.push(arow("↪️","rgba(255,149,0,.14)","Pushed back 4+ times — split or drop",bumped.length,`data-bmode="attn:bumped"`));
+  if(fups.length) rows.push(arow("👋","rgba(255,149,0,.14)","Follow ups that are due",fups.length,`data-bmode="attn:fups"`));
+  if(stalled.length) rows.push(arow("🧱","rgba(255,149,0,.14)","Stalled groups, nothing inside can move",stalled.length,`data-bmode="attn:stalled"`));
+  if(bumped.length) rows.push(arow("↪️","rgba(255,149,0,.14)","Pushed back 4 or more times",bumped.length,`data-bmode="attn:bumped"`));
   if(expiring.length) rows.push(arow("⌛","rgba(142,142,147,.16)","Goes moot within a week",expiring.length,`data-bmode="attn:expiring"`));
   let html="";
   if(rows.length) html+=sec("Needs attention")+`<div class="attn">${rows.join("")}</div>`;
@@ -1926,14 +2274,14 @@ function renderBrowse(){
   if(mode==="someday") items=items.filter(n=>n.status==="someday");
   if(mode==="custom"){
     if(!state.activeFilter){
-      html+=emptyHTML("No filter set","Combine category, deliverable, context, energy, importance and state into any view you want.",
+      html+=emptyHTML("No filter set","Combine category, deliverable, context, energy, stakes and state in Settings, then save it as a chip.",
         `<button data-act="editfilter">Build a filter</button>`);
       content.innerHTML=html; wireSearch(); return;
     }
     items=items.filter(n=>matchFilter(n,state.activeFilter));
     html+=`<div class="fieldnote" style="margin:0 20px 10px">Filtering by ${
-      Object.entries(state.activeFilter).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k+" = "+(k==="importance"?IMP_LABEL[v]:v)).join(", ")
-      } — <button data-act="editfilter" style="color:var(--accent)">change</button></div>`;
+      Object.entries(state.activeFilter).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k+" = "+(k==="stakes"?STAKES_LABEL[v]:v)).join(", ")
+      } · <button data-act="editfilter" style="color:var(--accent)">change</button></div>`;
   }
   if(mode.startsWith("filter:")){ const f=state.filters[+mode.slice(7)];
     items=items.filter(n=>matchFilter(n,f)); }
@@ -1949,7 +2297,7 @@ function renderBrowse(){
   if(mode==="ranked"){
     const rk=open.filter(n=>n.kind==="task").sort((a,b)=>score(b)-score(a));
     content.innerHTML=html+(rk.length?sec("Highest ranked right now",`<span>${rk.length}</span>`)+listHTML(rk,{est:true,showPath:true})
-      :emptyHTML("Nothing to rank","Open tasks are scored live from importance, urgency and staleness.",null));
+      :emptyHTML("Nothing to rank","Open tasks are ranked live from how close their deadlines are, their stakes, and how long they have sat.",null));
     wireSearch(); return;
   }
   if(mode==="all"){
@@ -2035,7 +2383,7 @@ function renderCategories(){
   html+=sec("Categories","<span>cross-cutting labels</span>")+`<div class="group">${rows}</div>
     <div class="field" style="margin-top:16px"><button class="line accent" data-act="newcat">New Category</button>
     <button class="line accent" data-act="managecats">Manage categories</button></div>
-    <div class="fieldnote" style="margin-top:10px">A category is a label across the whole tree — Health, School, Finance — independent of where a task lives.</div>`;
+    <div class="fieldnote" style="margin-top:10px">A category is a label that works across the whole tree, like Health, School, or Finance, no matter where a task lives.</div>`;
   content.innerHTML=html;
 }
 function renderContexts(prefix){
@@ -2173,11 +2521,11 @@ function monthlyReviewHTML(){
 
   const dCr=created.length-pCreated, dCo=completed.length-pCompleted;
   const delta=v=>v===0?"unchanged":(v>0?"up "+v:"down "+Math.abs(v));
-  let prose=`You finished <b>${completed.length}</b> task${completed.length===1?"":"s"} and created <b>${created.length}</b> — completions ${delta(dCo)} and captures ${delta(dCr)} from last month. `;
+  let prose=`You finished <b>${completed.length}</b> task${completed.length===1?"":"s"} and created <b>${created.length}</b>. Completions ${delta(dCo)} and captures ${delta(dCr)} from last month. `;
   if(rate!=null) prose+=`Of what you created this month, ${rate}% is already done. `;
   if(cycleDays!=null) prose+=`Median time from capture to done: <b>${cycleDays<1?"under a day":Math.round(cycleDays)+" days"}</b>. `;
   if(accRatio!=null) prose+=`Where you logged actual time, work ran <b>${Math.round(accRatio*100)}%</b> of estimate. `;
-  else prose+=`No actual times logged, so estimate accuracy cannot be measured yet — log "actually took" when you finish something. `;
+  else prose+=`No actual times logged yet, so estimate accuracy cannot be measured. Log "actually took" when you finish something. `;
   if(dropped.length) prose+=`Drop rate ${dropRate}% (${dropped.length} dropped). `;
   if(bI>=0&&busiest) prose+=`Busiest day: the ${bI+1}${["st","nd","rd"][((bI+1)%10)-1]&&(bI+1)%100<11||((bI+1)%100)>13?["st","nd","rd"][((bI+1)%10)-1]||"th":"th"} with ${busiest} done. `;
   if(streak>1) prose+=`Longest streak: ${streak} consecutive days with at least one completion.`;
@@ -2355,6 +2703,8 @@ document.addEventListener("click",async e=>{
   if(cs){ state.calMode=cs.dataset.cal; render(); return; }
   const tv=e.target.closest("[data-tview]");
   if(tv){ state.todayView=tv.dataset.tview; render(); return; }
+  const pr=e.target.closest("[data-prange]");
+  if(pr){ state.planRange=pr.dataset.prange; render(); return; }
   const ly=e.target.closest("[data-layer]");
   if(ly){ state.settings.layers[ly.dataset.layer]=!state.settings.layers[ly.dataset.layer]; saveSettings(); render(); return; }
   const no=e.target.closest("[data-newon]");
@@ -2451,7 +2801,7 @@ async function completeRecurring(n){
     n.fixedStart=ns.toISOString(); n.fixedEnd=dur?new Date(ns.getTime()+dur).toISOString():null; }
   n.status="available"; n.completedAt=null; n.bumpCount=0;
   await save(n);
-  toast("Done — next one set for "+relDay(n.deadline||next.toISOString()));
+  toast("Done. The next one is set for "+relDay(n.deadline||next.toISOString()));
 }
 
 /* ===========================================================================
@@ -2568,7 +2918,7 @@ const CLRX=(k,has)=>has?`<span class="clearx" data-clearx="${esc(k)}" role="butt
 const DUR_OPTS=[5,10,15,20,25,30,40,45,60,75,90,120,150,180,240,300,360,480];
 function durSelect(id,val){
   const opts=DUR_OPTS.includes(val)||val==null?DUR_OPTS:DUR_OPTS.concat(val).sort((a,b)=>a-b);
-  return `<select id="${id}" class="dursel"><option value=""${val==null?" selected":""}>–</option>${
+  return `<select id="${id}" class="dursel"><option value=""${val==null?" selected":""}>none</option>${
     opts.map(o=>`<option value="${o}"${o===val?" selected":""}>${o<60?o+"m":(o%60? (o/60|0)+"h "+o%60+"m" : o/60+"h")}</option>`).join("")}</select>`;
 }
 function normalizeTiming(d){
@@ -2582,13 +2932,31 @@ function normalizeTiming(d){
     d.deferUntil=startOfDay(d.deadline).toISOString();
   if(d.deadline&&d.expiry&&new Date(d.expiry)<new Date(d.deadline))
     d.expiry=new Date(new Date(d.deadline).getTime()+59*MIN).toISOString();
+  if(d.availableFrom){
+    const a=d.availableFrom;
+    if(a.mode==="absolute"&&!a.at) d.availableFrom=null;
+    else if(a.mode==="beforeDue"&&!d.deadline) d.availableFrom=null;
+    else if(a.mode==="absolute"&&d.deadline&&new Date(a.at)>new Date(d.deadline))
+      d.availableFrom={mode:"absolute",at:startOfDay(d.deadline).toISOString(),leadDays:null};
+  }
+  if(d.aimWindow){
+    const w=d.aimWindow;
+    if(w.start&&w.end&&new Date(w.start)>new Date(w.end)) d.aimWindow={start:w.end,end:w.start};
+    if(!w.start&&!w.end) d.aimWindow=null;
+  }
+  if(d.todWindow){
+    const t=d.todWindow;
+    if(t.after&&t.before&&hmToMin(t.after)>=hmToMin(t.before)) d.todWindow={after:t.after,before:null};
+    if(!t.after&&!t.before) d.todWindow=null;
+  }
+  d.timePinned=!!d.fixedStart;
   d.durationMode=d.fixedStart?"fixed":(d.estMaxMinutes!=null?"estimate":"none");
 }
 function taskBits(n,opts={}){
   const bk=opts.block||null, bits=[], st=effStatus(n);
   if(bk&&bk.bg) bits.push("⟳ runs alongside");
   else if(n.background&&n.fixedStart) bits.push("⟳ background");
-  else if(n.fixedStart) bits.push(fmtTime(n.fixedStart)+(n.fixedEnd?"–"+fmtTime(n.fixedEnd):""));
+  else if(n.fixedStart) bits.push(fmtTime(n.fixedStart)+(n.fixedEnd?" to "+fmtTime(n.fixedEnd):""));
   if(bk&&bk.late) bits.push("⚠︎ after its due time");
   else if(bk&&bk.dueBy) bits.push("due by "+fmtTime(n.deadline));
   else if(n.deadline&&n.status!=="done"&&n.status!=="dropped"){
@@ -2599,13 +2967,16 @@ function taskBits(n,opts={}){
   if(n.estMaxMinutes&&!(bk&&bk.fixed)) bits.push("~"+mins(n.estMaxMinutes));
   if(bk&&bk.slice) bits.push("part of "+mins(n.estMaxMinutes));
   if(bk&&bk.fuzzy) bits.push("~"+mins(bk.minutes)+" guess");
+  if(bk&&bk.part) bits.push("sitting "+bk.part+" of "+bk.parts);
   if(n.energy==="deep") bits.push("deep focus");
-  if(effImportance(n)==="critical"||effImportance(n)==="high") bits.push(IMP_LABEL[effImportance(n)].toLowerCase());
+  if(n.flagged&&st!=="done") bits.push(`<span style="color:var(--accent);font-weight:600">Today</span>`);
+  if(effStakes(n)==="protect") bits.push(`<span style="color:var(--red)">protect</span>`);
+  else if(effStakes(n)==="flexible") bits.push("flexible");
   if(st==="waiting") bits.push("waiting"+(n.waitingOn?" · "+esc(n.waitingOn):""));
   if(st==="blocked") bits.push("blocked");
-  if(st==="deferred") bits.push("starts "+esc(relDay(n.deferUntil)));
+  if(st==="deferred") bits.push("opens "+esc(opensLabel(n)||"later"));
   if(st==="someday") bits.push("someday");
-  if(n.bumpCount>=4) bits.push(`<span style="color:var(--orange)">bumped ${n.bumpCount}×</span>`);
+  if(n.bumpCount>=4) bits.push(`<span style="color:var(--orange)">pushed back ${n.bumpCount} times</span>`);
   if(n.recurrence) bits.push("repeats");
   if(n.context) bits.push(esc(n.context));
   if(n.deliverable) bits.push(esc(n.deliverable.toLowerCase()));
@@ -2628,7 +2999,7 @@ function drawOptions(cfg){
      ${allowNew?`<div class="field" style="margin-top:18px"><div class="line">
         <input class="big" id="optNew" placeholder="Add a new one…" autocapitalize="words"></div>
         <button class="line accent" id="optAdd">Add</button></div>`:""}
-     <div class="fieldnote" style="margin-top:14px">Tap to choose — the ✓ moves. Go back with ‹ when you're done.</div>`,null);
+     <div class="fieldnote" style="margin-top:14px">Tap to choose. The check mark moves. Go back with ‹ when you are done.</div>`,null);
   sheetBody.querySelectorAll("[data-v]").forEach(b=>b.addEventListener("click",async()=>{
     const v=b.dataset.v===""?null:b.dataset.v;
     await onPick(v);
@@ -2658,8 +3029,10 @@ function applyDraft(){
   const n=byId(state.editing), d=state.draft; if(!n||!d) return null;
   Object.assign(n,{title:(d.title||"").trim()||n.title,notes:d.notes,kind:d.kind,childMode:d.childMode,
     parentId:d.parentId,order:d.order,status:d.status,waitingOn:d.waitingOn,followUpDate:d.followUpDate,
-    importance:d.importance,importanceOverridden:d.importanceOverridden,
-    deadline:d.deadline,deadlineType:d.deadlineType,deadlineHasTime:!!d.deadlineHasTime,
+    stakes:d.stakes||"normal",stakesWeight:d.stakesWeight||0,stakesOverridden:!!d.stakesOverridden,
+    actionable:d.actionable!==false,timePinned:!!d.fixedStart,preset:d.preset||null,
+    availableFrom:d.availableFrom||null,aimWindow:d.aimWindow||null,todWindow:d.todWindow||null,
+    deadline:d.deadline,deadlineHasTime:!!d.deadlineHasTime,
     expiry:d.expiry,deferUntil:d.deferUntil,
     durationMode:(normalizeTiming(d),d.durationMode),
     estMinMinutes:d.estMinMinutes,estMaxMinutes:d.estMaxMinutes,
@@ -2711,36 +3084,56 @@ function drawTaskSheet(){
     <button class="caphd" data-sechd="${key}"><span class="arr">▶</span>${esc(title)}<span class="n">${esc(summary||"")}</span></button>
     <div class="capbd">${body}</div></div>`;
 
-  const whenBody=`
+  const isTodo=d.actionable!==false;
+  const kindLbl=!isTodo?(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"Time block":(d.preset==="block"?"Time block":"Event"))):"To do";
+  const P=state.settings.plan;
+  const af=d.availableFrom;
+  const afLbl=!af?"From now":(af.mode==="beforeDue"
+    ?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due")
+    :(af.at?fmtDate(af.at):"From now"));
+  const aw=d.aimWindow;
+  const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
+  const twv=d.todWindow;
+  const twLbl=twv&&(twv.after||twv.before)?[twv.after?"after "+fmtHM(twv.after):"",twv.before?"before "+fmtHM(twv.before):""].filter(Boolean).join(", "):"Any time";
+
+  const whenBody=isTodo?`
     <div class="line"><label>Due</label><input type="date" id="tDeadline" value="${dateInput(d.deadline)}">${
       d.deadline?`<input type="time" id="tDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">`:""}${CLRX("deadline",!!d.deadline)}</div>
-    ${d.deadline?`<button class="line" id="tDlType"><label>Deadline type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
-    <div class="line"><label>Takes about</label>${durSelect("tEstMin",d.estMinMinutes)}<span class="unit" style="margin:0 2px">to</span>${durSelect("tEstMax",d.estMaxMinutes)}${CLRX("est",d.estMaxMinutes!=null)}</div>
-    <button class="line" id="tFixed"><label>At a set time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?"–"+esc(fmtTime(d.fixedEnd)):"")+(d.background?" ⟳":""):"None"}</span>${CLRX("fixed",!!d.fixedStart)}${ICON_CHEV}</button>
+    <button class="line" id="tAvail"><label>Available from</label><span class="val${af?" set":""}">${esc(afLbl)}</span>${CLRX("avail",!!af)}${ICON_CHEV}</button>
+    <button class="line" id="tAim"><label>Aim to do it</label><span class="val${aw?" set":""}">${esc(awLbl)}</span>${CLRX("aim",!!aw)}${ICON_CHEV}</button>
+    <button class="line" id="tTod"><label>Time of day</label><span class="val${twv?" set":""}">${esc(twLbl)}</span>${CLRX("tod",!!twv)}${ICON_CHEV}</button>
+    <button class="line" id="tFixed"><label>At a set time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")+(d.background?" ⟳":""):"None"}</span>${CLRX("fixed",!!d.fixedStart)}${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
-    <div class="fieldnote inline"><b>Due</b> = must be finished by then; the time next to the date is optional (blank = end of day). <b>Takes about</b> keeps min and max together. <b>At a set time</b> pins it to the calendar, with a background option.</div>
-    <button class="line" id="tMoreWhen" style="color:var(--accent)">More timing options ${d._moreWhen?"▴":"▾"}</button>
+    <div class="fieldnote inline"><b>Due</b> means finished by then. The time next to the date is optional (blank means end of day). <b>Available from</b> keeps it out of the plan until it opens up, like an assignment that unlocks a week before it is due. <b>Aim to do it</b> is the stretch you want to work on it. Tap the small x to clear anything.</div>
+    <button class="line" id="tMoreWhen" style="color:var(--accent)">More timing choices ${d._moreWhen?"▴":"▾"}</button>
     ${d._moreWhen?`
     ${!d.deadline?`<button class="line" id="tTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
-    <div class="line"><label>Start on or after</label><input type="date" id="tDefer" value="${dateInput(d.deferUntil)}">${CLRX("defer",!!d.deferUntil)}</div>
-    <div class="line"><label>Moot after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
-    <div class="fieldnote inline">A timeframe is "sometime in a period" with no date yet. "Start on or after" hides it until then. "Moot after" drops it once it stops mattering.</div>`:""}`;
-  const whenSum=[d.deadline?relDay(d.deadline)+(d.deadlineHasTime?" "+fmtTime(d.deadline):""):(d.timeframe?tfLabel(d.timeframe):(d.fixedStart?fmtDate(d.fixedStart):"")),
-    d.estMaxMinutes?"~"+mins(d.estMaxMinutes):""].filter(Boolean).join(" · ");
+    <div class="line"><label>Stops mattering after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
+    <div class="fieldnote inline">A timeframe means sometime in a period, with no date yet. Past the stops mattering date, the task drops itself.</div>`:""}`
+  :`
+    <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):"Set the time"}</span>${ICON_CHEV}</button>
+    <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
+    <button class="line" id="tBg"><label>Runs alongside other things</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button>
+    <div class="fieldnote inline">An event or block sits at its time and the plan works around it. Repeats handles a class that meets on set days each week. Something that runs alongside, like laundry, never blocks other work.</div>`;
+  const whenSum=[d.fixedStart?fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart):(d.deadline?relDay(d.deadline)+(d.deadlineHasTime?" "+fmtTime(d.deadline):""):(d.timeframe?tfLabel(d.timeframe):"")),
+    d.recurrence?"repeats":""].filter(Boolean).join(" · ");
 
   const effortBody=`
+    <div class="line"><label>Takes about</label>${durSelect("tEstMin",d.estMinMinutes)}<span class="unit" style="margin:0 2px">to</span>${durSelect("tEstMax",d.estMaxMinutes)}${CLRX("est",d.estMaxMinutes!=null)}</div>
     <button class="line" data-pick="energy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${CLRX("energy",!!d.energy)}${ICON_CHEV}</button>
-    <button class="line" data-pick="context"><label>Context</label><span class="val">${esc(d.context||"None")}</span>${CLRX("context",!!d.context)}${ICON_CHEV}</button>
-    <button class="line" data-pick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${CLRX("deliverable",!!d.deliverable)}${ICON_CHEV}</button>
     ${!isNew&&n.status==="done"?`<div class="line"><label>Actually took</label><input type="number" inputmode="numeric" id="tActual" value="${d.actualMinutes??""}" placeholder="min"><span class="unit">min</span></div>`:""}
-    <div class="fieldnote inline">Deep-focus tasks get steered into your deep-focus windows.</div>`;
-  const effortSum=d.energy?(d.energy==="deep"?"deep":"shallow"):"";
+    <div class="fieldnote inline">A rough range is enough. Long work gets planned as two or three sittings. Deep focus work gets steered into your deep focus windows.</div>`;
+  const effortSum=[d.estMaxMinutes?"about "+mins(d.estMaxMinutes):"",d.energy?(d.energy==="deep"?"deep":"shallow"):""].filter(Boolean).join(" · ");
 
   const orgBody=`
     <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${CLRX("category",!!d.category)}${ICON_CHEV}</button>
-    <button class="line" data-pick="importance"><label>Importance</label><span class="val">${d.importanceOverridden?IMP_LABEL[d.importance]:"Inherit"}</span>${ICON_CHEV}</button>
-    <button class="line" id="tIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${CLRX("icon",!!d.icon)}${ICON_CHEV}</button>`;
-  const orgSum=[d.category,d.importanceOverridden?IMP_LABEL[d.importance]:null].filter(Boolean).join(" · ");
+    <button class="line" id="tGroup"><label>Group</label><span class="val${d.parentId&&d.parentId!==UNSORTED?" set":""}">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
+    ${isTodo?`<button class="line" data-pick="stakes"><label>Stakes</label><span class="val">${d.stakesOverridden?STAKES_LABEL[d.stakes||"normal"]:"Inherit"}</span>${ICON_CHEV}</button>`:""}
+    <button class="line" data-pick="context"><label>Where</label><span class="val">${esc(d.context||"Anywhere")}</span>${CLRX("context",!!d.context)}${ICON_CHEV}</button>
+    ${isTodo?`<button class="line" data-pick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${CLRX("deliverable",!!d.deliverable)}${ICON_CHEV}</button>`:""}
+    <button class="line" id="tIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${CLRX("icon",!!d.icon)}${ICON_CHEV}</button>
+    ${isTodo?`<div class="fieldnote inline">Stakes says what slipping would cost. Protect means real consequences, so it keeps full urgency. Flexible means it can slip when the day is full.</div>`:""}`;
+  const orgSum=[d.category,isTodo&&d.stakesOverridden?STAKES_LABEL[d.stakes||"normal"]:null].filter(Boolean).join(" · ");
 
   const deps=(d.dependsOn||[]).map(byId).filter(Boolean);
   const depSum=deps.length?(deps.length+" · "+(d.dependencyMode==="soft"?"soft":"required")):"";
@@ -2759,7 +3152,7 @@ function drawTaskSheet(){
   const alertsBody=`<button class="line" id="tNotify"><label>Alerts</label><span class="val${d.notify?" set":""}">${d.notify?(d.notify.enabled?"Custom":"Off"):"Inherit from group/category"}</span>${ICON_CHEV}</button>
     <div class="fieldnote inline">Banners in-app; real lock-screen alerts come from the calendar export in Settings › Notifications.</div>`;
 
-  const stepsBody=`<div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="tSteps" placeholder="One per line — each line becomes a subtask of this one. The same shorthand works per line.">${esc(state.capSubs.join("\n"))}</textarea></div>`;
+  const stepsBody=`<div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="tSteps" placeholder="One per line. Each line becomes a subtask of this one. The same shorthand works per line.">${esc(state.capSubs.join("\n"))}</textarea></div>`;
 
   const st=isNew?null:effStatus(n);
   const statusBody=isNew?"":`
@@ -2775,6 +3168,7 @@ function drawTaskSheet(){
     <button class="line accent" data-do="addchild">Add subtasks</button>
     <button class="line accent" data-do="split">Split into several</button>
     <button class="line accent" data-do="duplicate">Duplicate</button>
+    <button class="line accent" data-do="template">Save as a template</button>
     <button class="line accent" data-do="togroup">Convert to group</button>
     ${waitedBy.map(x=>`<button class="line" data-opennode="${x.id}"><label style="font-weight:400">${esc(x.title||"Untitled")}</label><span class="val">waits on this</span>${ICON_CHEV}</button>`).join("")}
     <button class="line danger" data-do="delete">Delete permanently</button>
@@ -2783,24 +3177,31 @@ function drawTaskSheet(){
   /* the top block ends with In group; the gap below it matches the gap
      between the folded sections (the .field default bottom margin) */
   let h=`
+    ${isNew?`<div class="selbar" id="tPresets" style="padding-top:2px">
+      ${[["todo","To do"],["event","Event"],["block","Time block"],["sleep","Sleep"],["bgp","Background"],["project","Project"],["template","Template"]].map(([k,l])=>
+        `<button data-preset="${k}"${(k==="todo"&&isTodo&&!d.background)||(k==="event"&&!isTodo&&d.preset==="event")||(k==="block"&&!isTodo&&d.preset!=="event"&&d.preset!=="Sleep")||(k==="sleep"&&d.preset==="Sleep")||(k==="bgp"&&isTodo&&d.background)?' class="on"':""}>${l}</button>`).join("")}
+    </div>`
+    :`<div class="seg" id="tType" style="margin-bottom:12px">
+      <button data-tt="todo"${isTodo?' class="on"':""}>To do</button>
+      <button data-tt="event"${!isTodo&&d.preset==="event"?' class="on"':""}>Event</button>
+      <button data-tt="block"${!isTodo&&d.preset!=="event"?' class="on"':""}>Time block</button></div>`}
     <div class="field">
-      <div class="line"><input class="big" id="tTitle" value="${esc(d.title)}" placeholder="Title" autocapitalize="sentences" enterkeyhint="done"></div>
+      <div class="line"><input class="big" id="tTitle" value="${esc(d.title)}" placeholder="${isTodo?"Title":"Name, like Class, Gym, or Commute"}" autocapitalize="sentences" enterkeyhint="done"></div>
       <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="tNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div>
-      <button class="line" id="tFlag"><label>Do today</label><span class="val"></span><span class="toggle${d.flagged?" on":""}"></span></button>
-      <button class="line" id="tGroup"><label>In group</label><span class="val${d.parentId&&d.parentId!==UNSORTED?" set":""}">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
+      ${isTodo?`<button class="line" id="tFlag"><label>Do today</label><span class="val"></span><span class="toggle${d.flagged?" on":""}"></span></button>`:""}
     </div>
     ${isNew?`<div class="chips" id="capChips" style="display:none"></div>`
            :`<div class="fieldnote">Changes save as you make them.</div>`}
     ${capsec("when","When",whenBody,whenSum)}
-    ${capsec("effort","Effort",effortBody,effortSum)}
-    ${capsec("organize","Organize",orgBody,orgSum)}
-    ${capsec("deps","Dependencies",depsBody,depSum)}
+    ${isTodo?capsec("effort","Effort",effortBody,effortSum):""}
+    ${capsec("organize","Shape",orgBody,orgSum)}
+    ${isTodo?capsec("deps","Dependencies",depsBody,depSum):""}
     ${capsec("alerts","Alerts",alertsBody,alertsSum)}
     ${isNew?capsec("steps","Subtasks",stepsBody,state.capSubs.filter(x=>x.trim()).length?state.capSubs.filter(x=>x.trim()).length+"":""):""}
     ${isNew?"":capsec("status","Status",statusBody,statusSum)}
     ${isNew?"":capsec("advanced","Advanced",advBody,"")}
     ${isNew?`<div class="field" style="margin-top:6px"><button class="line accent" id="tSaveMore">Add and start another</button></div>
-      <div class="fieldnote">A title alone is enough — everything else can wait. Shorthand in the title (dates, ~30m, #category, @context, !) becomes chips.</div>`
+      <div class="fieldnote">A title alone is enough. Everything else can wait. Shorthand in the title (dates, ~30m, #category, @context, !) becomes chips you can dismiss.</div>`
       :`<div class="field" style="margin-top:6px">
         ${n.status==="done"?`<button class="line accent" data-do="reopen">Mark not done</button>`:`<button class="line accent" data-do="done">Mark done</button>`}
         <button class="line accent" data-do="tomorrow">Push to tomorrow</button>
@@ -2825,6 +3226,10 @@ function wireTaskSheet(){
 
   sheetBody.querySelectorAll("[data-sechd]").forEach(b=>b.addEventListener("click",()=>{
     keepText(); CAP_OPEN[b.dataset.sechd]=!CAP_OPEN[b.dataset.sechd]; drawTaskSheet(); }));
+  sheetBody.querySelectorAll("#tType [data-tt]").forEach(b=>b.addEventListener("click",()=>{
+    keepText(); applyTaskType(d,b.dataset.tt); Q(); drawTaskSheet(); }));
+  sheetBody.querySelectorAll("#tPresets [data-preset]").forEach(b=>b.addEventListener("click",async()=>{
+    keepText(); await applyCapturePreset(d,b.dataset.preset); }));
 
   let chipT=null;
   on("#tTitle","input",e=>{ d.title=e.target.value; Q();
@@ -2840,8 +3245,7 @@ function wireTaskSheet(){
   on("#tDeadline","change",e=>{ S("deadline");
     const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
     d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
-    if(d.deadline&&!d.deadlineType) d.deadlineType=isNew?"soft":"hard";
-    if(!d.deadline){ d.deadlineType=null; d.deadlineHasTime=false; }
+    if(!d.deadline) d.deadlineHasTime=false;
     if(d.deadline) d.timeframe=null; normalizeTiming(d); Q(); });
   on("#tDeadline","blur",()=>setTimeout(redraw,80));
   on("#tDlTime","change",e=>{ S("deadline");
@@ -2850,9 +3254,10 @@ function wireTaskSheet(){
     else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
     normalizeTiming(d); Q(); });
   on("#tDlTime","blur",()=>setTimeout(redraw,80));
-  on("#tDlType","click",()=>{ keepText(); openOptions({title:"Deadline type",
-    options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
-    current:d.deadlineType,onPick:v=>{ d.deadlineType=v; S("deadline"); Q(); }}); });
+  on("#tAvail","click",()=>{ keepText(); openAvailSheet(d,()=>{ S("deadline"); Q(); }); });
+  on("#tAim","click",()=>{ keepText(); openAimSheet(d,()=>{ S("deadline"); Q(); }); });
+  on("#tTod","click",()=>{ keepText(); openTodSheet(d,()=>{ Q(); }); });
+  on("#tBg","click",()=>{ d.background=!d.background; Q(); redraw(); });
   on("#tEstMin","change",e=>{ S("dur");
     d.estMinMinutes=e.target.value===""?null:Number(e.target.value);
     if(e.target.value==="") d.estMaxMinutes=null;
@@ -2865,7 +3270,6 @@ function wireTaskSheet(){
   on("#tRepeat","click",()=>{ keepText(); openRepeatEditor(d,()=>{ S("rec"); Q(); }); });
   on("#tMoreWhen","click",()=>{ d._moreWhen=!d._moreWhen; redraw(); });
   on("#tTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; S("deadline"); Q(); }); });
-  on("#tDefer","change",e=>{ d.deferUntil=e.target.value?new Date(e.target.value+"T00:00:00").toISOString():null; normalizeTiming(d); Q(); });
   on("#tExpiry","change",e=>{ d.expiry=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; normalizeTiming(d); Q(); });
   on("#tActual","input",e=>{ d.actualMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
   on("#tIcon","click",()=>{ keepText(); openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; Q(); }); });
@@ -2882,7 +3286,7 @@ function wireTaskSheet(){
     keepText();
     const k=b.dataset.pick;
     pickField(k,d,()=>{ if(k==="category") S("cat"); if(k==="context") S("ctx");
-      if(k==="importance") S("imp"); Q(); }); }));
+      if(k==="stakes") S("imp"); Q(); }); }));
   sheetBody.querySelectorAll("[data-do]").forEach(b=>b.addEventListener("click",()=>detailAction(b.dataset.do)));
   on("#tWaitOn","input",e=>{ d.waitingOn=e.target.value; Q(); });
   on("#tFollow","change",e=>{ d.followUpDate=e.target.value?new Date(e.target.value+"T09:00:00").toISOString():null; Q(); });
@@ -2890,7 +3294,10 @@ function wireTaskSheet(){
   sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation(); keepText();
     const k=b.dataset.clearx;
-    if(k==="deadline"){ d.deadline=null; d.deadlineType=null; d.deadlineHasTime=false; S("deadline"); }
+    if(k==="deadline"){ d.deadline=null; d.deadlineHasTime=false; S("deadline"); }
+    if(k==="avail") d.availableFrom=null;
+    if(k==="aim") d.aimWindow=null;
+    if(k==="tod") d.todWindow=null;
     if(k==="dltime"){ if(d.deadline) d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; S("deadline"); }
     if(k==="est"){ d.estMinMinutes=null; d.estMaxMinutes=null; S("dur"); }
     if(k==="fixed"){ d.fixedStart=null; d.fixedEnd=null; d.background=false; d.durationMode=d.estMaxMinutes?"estimate":"none"; }
@@ -2905,6 +3312,241 @@ function wireTaskSheet(){
     if(k==="icon") d.icon=null;
     if(k==="recur"){ d.recurrence=null; S("rec"); }
     Q(); drawTaskSheet(); }));
+}
+
+function applyTaskType(d,t){
+  if(t==="todo"){ d.actionable=true; if(d.preset==="event"||d.preset==="block") d.preset=null; }
+  if(t==="event"){ d.actionable=false; d.background=false; d.preset="event"; d.deadline=null; d.deadlineHasTime=false; d.availableFrom=null; d.aimWindow=null; d.todWindow=null; }
+  if(t==="block"){ d.actionable=false; d.preset=d.preset&&d.preset!=="event"?d.preset:"block"; d.deadline=null; d.deadlineHasTime=false; d.availableFrom=null; d.aimWindow=null; d.todWindow=null; }
+  normalizeTiming(d);
+}
+async function applyCapturePreset(d,k){
+  if(k==="project"){ await closeSheet(); openGroupSheet(null); return; }
+  if(k==="template"){ openTemplatePicker(); return; }
+  if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
+  if(k==="event"){ applyTaskType(d,"event"); }
+  if(k==="block"){ applyTaskType(d,"block"); }
+  if(k==="sleep"){
+    applyTaskType(d,"block"); d.preset="Sleep"; if(!d.title) d.title="Sleep";
+    const sl=state.settings.sleep;
+    const t0=new Date(); const [bh,bm]=(sl.bed||"23:00").split(":");
+    t0.setHours(+bh,+bm,0,0);
+    const t1=new Date(t0); const [wh,wm]=(sl.wake||"07:00").split(":");
+    t1.setHours(+wh,+wm,0,0); if(t1<=t0) t1.setDate(t1.getDate()+1);
+    d.fixedStart=t0.toISOString(); d.fixedEnd=t1.toISOString();
+  }
+  if(k==="bgp"){ applyTaskType(d,"todo"); d.background=true;
+    if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
+      d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); } }
+  normalizeTiming(d);
+  drawTaskSheet();
+}
+/* Available from: an exact date, or days before the due date */
+function openAvailSheet(d,onChange){ sheetPush(()=>drawAvailSheet(d,onChange)); }
+function drawAvailSheet(d,onChange){
+  const P=state.settings.plan;
+  const af=d.availableFrom;
+  showSheet("Available from",
+    `<div class="fieldnote" style="margin:0 20px 12px">When this opens up for work. Until then it stays out of the plan and does not count against your day.</div>
+     <div class="group">
+       <button class="pickrow" data-am="none"><span>From now</span>${!af?'<span class="tick">✓</span>':""}</button>
+       ${d.deadline?`<button class="pickrow" data-am="beforeDue"><span>Some days before it is due</span>${af&&af.mode==="beforeDue"?'<span class="tick">✓</span>':""}</button>`:""}
+       <button class="pickrow" data-am="absolute"><span>On a date</span>${af&&af.mode==="absolute"?'<span class="tick">✓</span>':""}</button>
+     </div>
+     ${af&&af.mode==="beforeDue"?`<div class="field" style="margin-top:14px"><div class="line"><label>Days before due</label><input type="number" inputmode="numeric" min="0" max="365" id="afLead" value="${af.leadDays!=null?af.leadDays:P.leadDays}"></div></div>
+     <div class="fieldnote">Made for assignments an instructor opens later in the term. ${P.leadDays} days is the app default, set in Settings.</div>`:""}
+     ${af&&af.mode==="absolute"?`<div class="field" style="margin-top:14px"><div class="line"><label>Date</label><input type="date" id="afAt" value="${dateInput(af.at)}"></div></div>`:""}
+     ${!d.deadline?`<div class="fieldnote">The days before due choice appears once this has a due date.</div>`:""}`,null);
+  sheetBody.querySelectorAll("[data-am]").forEach(b=>b.addEventListener("click",()=>{
+    const m=b.dataset.am;
+    if(m==="none") d.availableFrom=null;
+    if(m==="beforeDue") d.availableFrom={mode:"beforeDue",at:null,leadDays:state.settings.plan.leadDays};
+    if(m==="absolute") d.availableFrom={mode:"absolute",at:startOfDay(addDays(new Date(),1)).toISOString(),leadDays:null};
+    if(onChange) onChange(); drawAvailSheet(d,onChange); }));
+  const lead=$("#afLead"); if(lead) lead.addEventListener("change",e=>{
+    d.availableFrom={mode:"beforeDue",at:null,leadDays:clamp(Number(e.target.value)||0,0,365)};
+    if(onChange) onChange(); });
+  const at=$("#afAt"); if(at) at.addEventListener("change",e=>{
+    d.availableFrom=e.target.value?{mode:"absolute",at:new Date(e.target.value+"T00:00:00").toISOString(),leadDays:null}:null;
+    if(onChange) onChange(); });
+}
+/* Aim window: the stretch you want to do it in */
+function openAimSheet(d,onChange){ sheetPush(()=>drawAimSheet(d,onChange)); }
+function drawAimSheet(d,onChange){
+  const w=d.aimWindow||{};
+  const today=startOfDay(new Date());
+  const wkStart=addDays(today,-today.getDay());
+  const preset=(a,b)=>({start:a.toISOString(),end:b.toISOString()});
+  const presets=[
+    {l:"No aim",v:null},
+    {l:"This week",v:preset(today,addDays(wkStart,6))},
+    {l:"Next week",v:preset(addDays(wkStart,7),addDays(wkStart,13))},
+    {l:"The week after next",v:preset(addDays(wkStart,14),addDays(wkStart,20))}
+  ];
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  showSheet("Aim to do it",
+    `<div class="fieldnote" style="margin:0 20px 12px">The stretch of days you want to work on this. It nudges the ranking and the spread of work. It is not a hard rule, so a real time crunch still wins.</div>
+     <div class="group">${presets.map((p,i)=>`<button class="pickrow" data-ap="${i}"><span>${p.l}</span>${same(d.aimWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
+     <div class="field" style="margin-top:14px">
+       <div class="line"><label>From</label><input type="date" id="awStart" value="${dateInput(w.start)}"></div>
+       <div class="line"><label>To</label><input type="date" id="awEnd" value="${dateInput(w.end)}"></div>
+     </div>
+     <div class="fieldnote">Or pick any range of dates by hand. Backwards dates get swapped for you.</div>`,null);
+  sheetBody.querySelectorAll("[data-ap]").forEach(b=>b.addEventListener("click",()=>{
+    d.aimWindow=presets[Number(b.dataset.ap)].v?JSON.parse(JSON.stringify(presets[Number(b.dataset.ap)].v)):null;
+    normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
+  const upd=()=>{ const a=$("#awStart").value, b2=$("#awEnd").value;
+    d.aimWindow=(a||b2)?{start:a?new Date(a+"T00:00:00").toISOString():null,end:b2?new Date(b2+"T00:00:00").toISOString():null}:null;
+    normalizeTiming(d); if(onChange) onChange(); };
+  $("#awStart").addEventListener("change",upd);
+  $("#awEnd").addEventListener("change",upd);
+}
+/* Time of day: after or before a clock time */
+function openTodSheet(d,onChange){ sheetPush(()=>drawTodSheet(d,onChange)); }
+function drawTodSheet(d,onChange){
+  const t=d.todWindow||{};
+  const presets=[
+    {l:"Any time",v:null},
+    {l:"Morning (before noon)",v:{after:null,before:"12:00"}},
+    {l:"Afternoon (after noon)",v:{after:"12:00",before:null}},
+    {l:"Evening (after 5pm)",v:{after:"17:00",before:null}}
+  ];
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  showSheet("Time of day",
+    `<div class="fieldnote" style="margin:0 20px 12px">The part of the day this should land in. The schedule will not place it earlier than the after time, and it will not run it past the before time.</div>
+     <div class="group">${presets.map((p,i)=>`<button class="pickrow" data-tp="${i}"><span>${p.l}</span>${same(d.todWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
+     <div class="field" style="margin-top:14px">
+       <div class="line"><label>After</label><input type="time" id="twAfter" value="${t.after||""}"></div>
+       <div class="line"><label>Before</label><input type="time" id="twBefore" value="${t.before||""}"></div>
+     </div>
+     <div class="fieldnote">You can set either one or both. An empty box means no limit on that side.</div>`,null);
+  sheetBody.querySelectorAll("[data-tp]").forEach(b=>b.addEventListener("click",()=>{
+    d.todWindow=presets[Number(b.dataset.tp)].v?Object.assign({},presets[Number(b.dataset.tp)].v):null;
+    normalizeTiming(d); if(onChange) onChange(); drawTodSheet(d,onChange); }));
+  const upd=()=>{ const a=$("#twAfter").value||null, b2=$("#twBefore").value||null;
+    d.todWindow=(a||b2)?{after:a,before:b2}:null;
+    normalizeTiming(d); if(onChange) onChange(); };
+  $("#twAfter").addEventListener("change",upd);
+  $("#twBefore").addEventListener("change",upd);
+}
+
+/* ===========================================================================
+   TEMPLATES
+   A template is a saved shape for a task: the fields it presets, plus dates
+   stored as offsets (due in N days, available N days before due) that get
+   worked out fresh each time you apply it. Fields marked ask are the ones
+   the apply screen asks you for.
+   =========================================================================== */
+function tplById(id){ return state.templates.find(t=>t.id===id)||null; }
+function applyTemplate(tpl){
+  const base=JSON.parse(JSON.stringify(tpl.data||{}));
+  delete base.id; delete base.createdAt; delete base.touchedAt; delete base.completedAt;
+  const d=newNode(base);
+  if(base.parentId===undefined) d.parentId=captureDest();
+  const rel=tpl.rel||{};
+  if(rel.dueDays!=null){ const t=addDays(new Date(),rel.dueDays); t.setHours(17,0,0,0);
+    d.deadline=t.toISOString(); }
+  if(rel.leadDays!=null) d.availableFrom={mode:"beforeDue",at:null,leadDays:rel.leadDays};
+  if(rel.aimStartDays!=null||rel.aimEndDays!=null) d.aimWindow={
+    start:rel.aimStartDays!=null?startOfDay(addDays(new Date(),rel.aimStartDays)).toISOString():null,
+    end:rel.aimEndDays!=null?startOfDay(addDays(new Date(),rel.aimEndDays)).toISOString():null};
+  if(rel.expiryDaysAfterDue!=null&&d.deadline)
+    d.expiry=new Date(new Date(d.deadline).getTime()+rel.expiryDaysAfterDue*DAY).toISOString();
+  const ask=tpl.ask||[];
+  if(ask.includes("title")) d.title=d.title||"";
+  if(ask.includes("due")&&rel.dueDays==null) d.deadline=null;
+  normalizeTiming(d);
+  state.capDraft=d; state.capSubs=[]; state.capIgnore=new Set();
+  state.capSet=new Set(["deadline","dur","cat","ctx","imp","rec"]);
+  CAP_OPEN.when=ask.includes("due"); CAP_OPEN.effort=ask.includes("effort"); CAP_OPEN.organize=ask.includes("shape");
+  state.editing=null; state.draft=null;
+  drawTaskSheet();
+  setTimeout(()=>{ const t=$("#tTitle"); if(t&&!t.value) t.focus(); },250);
+}
+async function saveAsTemplate(d){
+  const data=JSON.parse(JSON.stringify(d));
+  for(const k of ["id","createdAt","touchedAt","completedAt","status","bumpCount","order",
+    "deadline","deadlineHasTime","expiry","deferUntil","aimWindow","_moreWhen","waitingOn","followUpDate","actualMinutes","links","dependsOn"]) delete data[k];
+  const rel={};
+  if(d.deadline){ const dd=Math.round((startOfDay(d.deadline)-startOfDay(new Date()))/DAY);
+    if(dd>0) rel.dueDays=dd; }
+  if(d.availableFrom&&d.availableFrom.mode==="beforeDue")
+    rel.leadDays=d.availableFrom.leadDays!=null?d.availableFrom.leadDays:state.settings.plan.leadDays;
+  delete data.availableFrom;
+  const tpl={id:uid(),name:(d.title||"Template").trim()||"Template",icon:d.icon||null,
+    data,rel,ask:["title","due"],createdAt:nowISO()};
+  await putTpl(tpl); state.templates.push(tpl);
+  toast("Saved as a template");
+}
+function openTemplatePicker(){ sheetPush(drawTemplatePicker); }
+function drawTemplatePicker(){
+  showSheet("From a template",
+    `<div class="fieldnote" style="margin:0 20px 12px">A template fills a new task in for you. Dates stored as offsets, like due in 14 days or open one week before due, get worked out fresh from today.</div>
+     ${state.templates.length?`<div class="group">${state.templates.map(t=>
+       `<button class="pickrow" data-tapply="${t.id}"><span>${t.icon?esc(t.icon)+" ":""}${esc(t.name)}
+         <span class="path">${tplSummary(t)}</span></span>${ICON_CHEV}</button>`).join("")}</div>`
+      :`<div class="empty" style="padding:30px"><p>No templates yet. Open any task and use Save as a template, or build one in More, then Templates.</p></div>`}
+     <div class="field" style="margin-top:14px"><button class="line accent" id="tplManage">Manage templates</button></div>`,null);
+  sheetBody.querySelectorAll("[data-tapply]").forEach(b=>b.addEventListener("click",()=>{
+    const t=tplById(b.dataset.tapply); if(t) applyTemplate(t); }));
+  $("#tplManage").addEventListener("click",()=>sheetPush(drawTemplates));
+}
+function tplSummary(t){
+  const bits=[];
+  const rel=t.rel||{};
+  if(rel.dueDays!=null) bits.push("due "+rel.dueDays+" days after applying");
+  if(rel.leadDays!=null) bits.push("opens "+rel.leadDays+" days before due");
+  if(t.data&&t.data.estMaxMinutes) bits.push("about "+mins(t.data.estMaxMinutes));
+  if(t.data&&t.data.category) bits.push(t.data.category);
+  if(t.data&&t.data.stakesOverridden) bits.push(STAKES_LABEL[t.data.stakes||"normal"].toLowerCase()+" stakes");
+  return esc(bits.join(" · ")||"blank task shape");
+}
+function drawTemplates(){
+  showSheet("Templates",
+    `<div class="fieldnote" style="margin:0 20px 12px">Saved task shapes. Tap one to change it. New templates come from any task's Save as a template button.</div>
+     ${state.templates.length?`<div class="group">${state.templates.map(t=>
+       `<button class="pickrow" data-tedit="${t.id}"><span>${t.icon?esc(t.icon)+" ":""}${esc(t.name)}
+         <span class="path">${tplSummary(t)}</span></span>${ICON_CHEV}</button>`).join("")}</div>`
+      :`<div class="empty" style="padding:30px"><p>Nothing saved yet.</p></div>`}`,null);
+  sheetBody.querySelectorAll("[data-tedit]").forEach(b=>b.addEventListener("click",()=>{
+    const t=tplById(b.dataset.tedit); if(t) sheetPush(()=>drawTemplateEdit(t)); }));
+}
+function drawTemplateEdit(t){
+  const rel=t.rel||(t.rel={});
+  const ask=t.ask||(t.ask=[]);
+  const T=async()=>{ await putTpl(t); };
+  const askRow=(k,l)=>`<button class="line" data-task2="${k}"><label>${l}</label><span class="val"></span><span class="toggle${ask.includes(k)?" on":""}"></span></button>`;
+  showSheet("Template",
+    `<div class="field">
+      <div class="line"><input class="big" id="tpName" value="${esc(t.name)}" placeholder="Template name"></div>
+     </div>
+     ${sec("Dates, stored as offsets")}
+     <div class="field">
+      <div class="line"><label>Due</label><input type="number" inputmode="numeric" min="0" max="365" id="tpDue" value="${rel.dueDays!=null?rel.dueDays:""}" placeholder="none"><span class="unit">days after applying</span></div>
+      <div class="line"><label>Opens</label><input type="number" inputmode="numeric" min="0" max="365" id="tpLead" value="${rel.leadDays!=null?rel.leadDays:""}" placeholder="none"><span class="unit">days before due</span></div>
+     </div>
+     <div class="fieldnote">Blank means the template does not set that date. The real dates are worked out each time you apply it.</div>
+     ${sec("Asked on apply")}
+     <div class="field">
+      ${askRow("title","Ask for the title")}
+      ${askRow("due","Ask for the due date")}
+      ${askRow("effort","Ask for the effort")}
+      ${askRow("shape","Ask for category, group, and stakes")}
+     </div>
+     <div class="fieldnote">Asked sections open up when you apply the template. Everything else is filled in quietly.</div>
+     <div class="field" style="margin-top:14px"><button class="line danger" id="tpDelete">Delete template</button></div>`,null);
+  $("#tpName").addEventListener("input",e=>{ t.name=e.target.value; clearTimeout(drawTemplateEdit._t);
+    drawTemplateEdit._t=setTimeout(T,400); });
+  $("#tpDue").addEventListener("change",async e=>{ rel.dueDays=e.target.value===""?null:clamp(Number(e.target.value)||0,0,365); await T(); });
+  $("#tpLead").addEventListener("change",async e=>{ rel.leadDays=e.target.value===""?null:clamp(Number(e.target.value)||0,0,365); await T(); });
+  sheetBody.querySelectorAll("[data-task2]").forEach(b=>b.addEventListener("click",async()=>{
+    const k=b.dataset.task2;
+    t.ask=ask.includes(k)?ask.filter(x=>x!==k):ask.concat(k);
+    await putTpl(t); drawTemplateEdit(t); }));
+  $("#tpDelete").addEventListener("click",async()=>{
+    if(!confirm("Delete the template "+t.name+"?")) return;
+    await delTpl(t.id); state.templates=state.templates.filter(x=>x.id!==t.id);
+    sheetPop(); toast("Template deleted"); });
 }
 
 /* searchable multi-select dependency picker with full group paths */
@@ -2966,7 +3608,7 @@ function drawTimeframe(cfg){
   opts.push({v:"year|"+now.getFullYear(),l:String(now.getFullYear()),g:"Year"});
   opts.push({v:"year|"+(now.getFullYear()+1),l:String(now.getFullYear()+1),g:"Year"});
   const curV=cur?cur.type+"|"+cur.value:null;
-  let h=`<div class="fieldnote" style="margin:0 20px 12px">"Sometime in…" — a commitment to a period. It shows on the month banner and the weekly review, never on a day, until you give it a real date.</div>
+  let h=`<div class="fieldnote" style="margin:0 20px 12px">Sometime in a period, with no date yet. It shows on the month banner and the weekly review, never on a day, until you give it a real date.</div>
     <div class="group"><button class="pickrow" data-tf=""><span>None</span>${!cur?'<span class="tick">✓</span>':""}</button></div>`;
   let g="";
   for(const o of opts){
@@ -2993,16 +3635,13 @@ function drawNeedsDate(n){
   const def=s&&e?new Date((s.getTime()+e.getTime())/2):addDays(new Date(),14);
   showSheet("Pin a date",
     `<div class="fieldnote" style="margin:0 20px 14px">"${esc(n.title||"Untitled")}" is aimed at ${esc(tfLabel(n.timeframe))}. Give it a real deadline and it joins the calendar and the plan like everything else.</div>
-     <div class="field"><div class="line"><label>Deadline</label><input type="date" id="ndDate" value="${dayKey(def)}"></div></div>
-     <div class="seg" id="ndType"><button data-t="soft" class="on">Soft — self-set</button><button data-t="hard">Hard — real consequence</button></div>`,
+     <div class="field"><div class="line"><label>Due</label><input type="date" id="ndDate" value="${dayKey(def)}"></div></div>`,
     async()=>{
       const v=$("#ndDate").value; if(!v){ closeSheet(); return; }
       n.deadline=new Date(v+"T17:00:00").toISOString();
-      n.deadlineType=$("#ndType .on").dataset.t; n.timeframe=null;
-      await save(n); closeSheet(); toast("Dated — it now ranks like everything else");
+      n.timeframe=null;
+      await save(n); closeSheet(); toast("Dated. It now ranks like everything else");
     },"Set date");
-  $$("#ndType button").forEach(b=>b.addEventListener("click",()=>{
-    $$("#ndType button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); }));
 }
 
 /* notify override editor — applied automatically when you go back */
@@ -3067,7 +3706,7 @@ function drawRepeatEditor(d,cfg,onChange){
   const presets=[
     {v:null,l:"Never"},
     {v:{type:"days",every:1},l:"Every day"},
-    {v:{type:"weekdays",days:[1,2,3,4,5]},l:"Weekdays (Mon–Fri)"},
+    {v:{type:"weekdays",days:[1,2,3,4,5]},l:"Weekdays (Mon to Fri)"},
     {v:{type:"days",every:7},l:"Every week"},
     {v:{type:"months",every:1},l:"Every month"},
     {v:{mode:"afterDone",every:3},l:"3 days after I finish it"},
@@ -3097,7 +3736,7 @@ function drawRepeatEditor(d,cfg,onChange){
        <button data-u="years"${cfg.unit==="years"?' class="on"':""}>year${cfg.every>1?"s":""}</button></div>
      <div class="fieldnote">"On day 15, every 3 months." A short month clips to its last day. Yearly repeats on the same date each year.</div>`}
      <div class="field" style="margin-top:10px"><button class="line accent" id="rpApply">Use this custom pattern</button></div>
-     <div class="fieldnote">Presets apply instantly — the ✓ shows what's active. Go back with ‹ when done.</div>`,null);
+     <div class="fieldnote">Presets apply right away. The check mark shows what is active. Go back with ‹ when done.</div>`,null);
   sheetBody.querySelectorAll("[data-rp]").forEach(b=>b.addEventListener("click",()=>{
     set(presets[Number(b.dataset.rp)].v); drawRepeatEditor(d,cfg,onChange); }));
   $$("#rpMode button").forEach(b=>b.addEventListener("click",()=>{
@@ -3124,10 +3763,13 @@ function drawRepeatEditor(d,cfg,onChange){
 
 function pickField(which,d,onChange){
   const Q=onChange||(()=>{});
-  if(which==="importance") return openOptions({title:"Importance",
-    options:[{v:"critical",l:"Critical — something breaks"},{v:"high",l:"High"},{v:"normal",l:"Normal"},{v:"low",l:"Low"}],
-    current:d.importanceOverridden?d.importance:null,
-    onPick:v=>{ d.importance=v; d.importanceOverridden=true; Q(); }});
+  if(which==="stakes") return openOptions({title:"Stakes",
+    options:[{v:"protect",l:"Protect",note:"real consequences if it slips; keeps full urgency"},
+             {v:"normal",l:"Normal"},
+             {v:"flexible",l:"Flexible",note:"fine to slip when the day is full; presses less"}],
+    current:d.stakesOverridden?d.stakes:null,allowNone:true,
+    onPick:v=>{ if(v===null){ d.stakesOverridden=false; d.stakes="normal"; }
+      else { d.stakes=v; d.stakesOverridden=true; } Q(); }});
   if(which==="category") return openOptions({title:"Category",
     options:state.settings.categories.map(c=>({v:c.name,l:(c.icon?c.icon+"  ":"")+c.name})),
     current:d.category,allowNew:true,allowNone:true,
@@ -3148,7 +3790,7 @@ function pickField(which,d,onChange){
     onPick:v=>{ d.energy=v; Q(); }});
   if(which==="status") return openOptions({title:"State",
     options:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on someone"},
-             {v:"someday",l:"Someday — not committed"},{v:"done",l:"Done"},{v:"dropped",l:"Dropped"}],
+             {v:"someday",l:"Someday, not committed to"},{v:"done",l:"Done"},{v:"dropped",l:"Dropped"}],
     current:d.status,onPick:v=>{ d.status=v; if(v==="done"&&!d.completedAt) d.completedAt=nowISO();
       if(v!=="done") d.completedAt=null; Q(); }});
   if(which==="recurrence") return openOptions({title:"Repeats",
@@ -3184,14 +3826,15 @@ async function detailAction(a){
   if(a==="tomorrow"){
     const t=addDays(new Date(),1);
     if(n.deadline){ const old=new Date(n.deadline); t.setHours(old.getHours(),old.getMinutes(),0,0); n.deadline=t.toISOString(); }
-    else { t.setHours(17,0,0,0); n.deadline=t.toISOString(); n.deadlineType=n.deadlineType||"soft"; }
+    else { t.setHours(17,0,0,0); n.deadline=t.toISOString(); }
     n.bumpCount=(n.bumpCount||0)+1; n.flagged=false;
     await save(n); closeSheet();
-    toast(n.bumpCount>=4?"Pushed to tomorrow — that is "+n.bumpCount+" times now":"Pushed to tomorrow"); return; }
+    toast(n.bumpCount>=4?"Pushed to tomorrow. That is "+n.bumpCount+" times now":"Pushed to tomorrow"); return; }
   if(a==="duplicate"){
     await create(Object.assign({},n,{id:uid(),title:n.title+" (copy)",order:nextOrder(n.parentId),
       status:"available",completedAt:null,createdAt:nowISO(),touchedAt:nowISO(),bumpCount:0,dependsOn:[...(n.dependsOn||[])]}));
     closeSheet(); toast("Duplicated"); return; }
+  if(a==="template"){ await saveAsTemplate(n); return; }
   if(a==="togroup"){ n.kind="group"; await save(n); openGroupSheet(n.id); return; }
   if(a==="addchild"){ openAddChild(n); return; }
   if(a==="split"){ openSplit(n); return; }
@@ -3201,7 +3844,7 @@ async function detailAction(a){
 function openAddChild(n){ sheetPush(()=>drawAddChild(n)); }
 function drawAddChild(n){
   showSheet("Subtasks",
-    `<div class="fieldnote" style="margin:0 20px 14px">One per line — each becomes a subtask of ${esc(n.title)}. The same shorthand works here — "call agent tomorrow 20m".</div>
+    `<div class="fieldnote" style="margin:0 20px 14px">One per line. Each becomes a subtask of ${esc(n.title)}. The same shorthand works here, like "call agent tomorrow 20m".</div>
      <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px">
        <textarea id="bulk" style="min-height:200px" placeholder="Conduct neighborhood research&#10;Speak to leasing agents 30m&#10;Schedule a tour @phone"></textarea></div></div>`,
     async()=>{
@@ -3226,7 +3869,7 @@ function drawSplit(n){
       n.kind="group"; await save(n);
       let o=nextOrder(n.id);
       for(const l of lines){ const p=parseNL(l); await create(Object.assign({title:p.title||l,parentId:n.id,order:o+=1000,
-        importance:n.importance,category:n.category,context:n.context},p.patch)); }
+        stakes:n.stakes,stakesOverridden:n.stakesOverridden,category:n.category,context:n.context},p.patch)); }
       closeSheet(); toast("Split into "+lines.length);
     },"Split");
 }
@@ -3246,7 +3889,7 @@ function drawPicker(d,onChange){
        return `<button class="pickrow${bad?" disabled":""}" data-pick2="${r.id===null?"":r.id}" ${bad?"disabled":""}
          style="padding-left:${16+r.depth*18}px${catClash?";opacity:.4":""}">${r.id===null||r.id===UNSORTED?"":(r.icon?`<span class="nodeicon">${esc(r.icon)}</span>`:ICON_FOLDER(r.color))}
          <span>${esc(r.label)}${r.cat?` <span class="path" style="${cat&&cat.color?"color:"+esc(cat.color):""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(r.cat)}${catClash?" · different category":""}</span>`:""}</span>${r.id===d.parentId?'<span class="tick">✓</span>':""}</button>`;}).join("")}</div>
-     <div class="fieldnote" style="margin-top:18px">Tap to choose — the ✓ moves; ‹ Back when done. Groups nest as deep as you need; nothing can move into itself.${d.category?" Groups in a different category are greyed out — this item is "+esc(d.category)+".":""}</div>`,null);
+     <div class="fieldnote" style="margin-top:18px">Tap to choose. The check mark moves. Go back with ‹ when done. Groups nest as deep as you need, and nothing can move into itself.${d.category?" Groups in a different category are greyed out because this item is "+esc(d.category)+".":""}</div>`,null);
   sheetBody.querySelectorAll("[data-pick2]").forEach(b=>b.addEventListener("click",()=>{
     const v=b.dataset.pick2; d.parentId=v===""?null:v; d.order=nextOrder(d.parentId);
     if(onChange) onChange();
@@ -3281,7 +3924,7 @@ function openGroupSheet(id,push){
       <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="gNotes" placeholder="What this group is for (one line shows under its name)">${esc(d.notes||"")}</textarea></div>
     </div>
     ${isNew?"":`<div class="fieldnote" style="margin-top:-6px">Changes save as you make them.</div>`}
-    ${stalled?`<div class="fieldnote warn">Stalled — nothing inside can be acted on. Add a next step or unblock one.</div>`:""}
+    ${stalled?`<div class="fieldnote warn">Stalled. Nothing inside can be acted on. Add a next step or unblock one.</div>`:""}
     ${secBig("Looks")}
     <div class="field">
       <button class="line" id="gIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"Folder"}</span>${CLRX("gicon",!!d.icon)}${ICON_CHEV}</button>
@@ -3296,11 +3939,10 @@ function openGroupSheet(id,push){
       <button data-mode="sequential"${d.childMode==="sequential"?' class="on"':""}>In order</button></div>
     <div class="fieldnote">In order means only the first unfinished step counts as available; the rest wait their turn.</div>
     <div class="field">
-      <button class="line" data-pick="importance"><label>Importance</label><span class="val">${d.importanceOverridden?IMP_LABEL[d.importance]:"Not set"}</span>${ICON_CHEV}</button>
-      <div class="line"><label>Deadline</label><input type="date" id="gDeadline" value="${dateInput(d.deadline)}">${CLRX("gdeadline",!!d.deadline)}</div>
-      ${d.deadline?`<button class="line" id="gDeadlineType"><label>Type</label><span class="val">${d.deadlineType==="soft"?"Soft — self-set":"Hard — real consequence"}</span>${ICON_CHEV}</button>`:""}
+      <button class="line" data-pick="stakes"><label>Stakes</label><span class="val">${d.stakesOverridden?STAKES_LABEL[d.stakes||"normal"]:"Not set"}</span>${ICON_CHEV}</button>
+      <div class="line"><label>Due</label><input type="date" id="gDeadline" value="${dateInput(d.deadline)}">${CLRX("gdeadline",!!d.deadline)}</div>
     </div>
-    <div class="fieldnote">Importance set on a group flows down to everything inside unless a task overrides it. A group deadline pulls its unfinished contents up the ranking as it nears.</div>
+    <div class="fieldnote">Stakes set on a group flow down to everything inside unless a task sets its own. A group due date pulls its unfinished contents up the ranking as it gets close.</div>
     ${secBig("Notifications")}
     <div class="field"><button class="line" id="gNotify"><label>Default for tasks here</label>
       <span class="val${gn?" set":""}">${gn?(gn.enabled?"On":"Off"):"Inherit"}</span>${ICON_CHEV}</button></div>
@@ -3330,12 +3972,8 @@ function openGroupSheet(id,push){
     on("#gIcon","click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),d.icon,v=>{ d.icon=v; G(); }));
     $$("#gColors button").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; G(); draw(); }));
     $$("#gMode button").forEach(b=>b.addEventListener("click",()=>{ d.childMode=b.dataset.mode; G(); draw(); }));
-    on("#gDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null;
-      if(d.deadline&&!d.deadlineType) d.deadlineType="hard"; if(!d.deadline) d.deadlineType=null; G(); });
+    on("#gDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null; G(); });
     on("#gDeadline","blur",()=>setTimeout(draw,80));
-    on("#gDeadlineType","click",()=>openOptions({title:"Deadline type",
-      options:[{v:"hard",l:"Hard — real consequence"},{v:"soft",l:"Soft — self-set"}],
-      current:d.deadlineType,onPick:v=>{ d.deadlineType=v; G(); }}));
     on("#gNotify","click",()=>openNotifyEditor(state.settings.notif.perGroup[d.id],async v=>{
       if(v) state.settings.notif.perGroup[d.id]=v; else delete state.settings.notif.perGroup[d.id];
       await saveSettings(); },"Default for every task inside this group."));
@@ -3345,7 +3983,7 @@ function openGroupSheet(id,push){
       e.stopPropagation(); const k=b.dataset.clearx;
       if(k==="gicon") d.icon=null;
       if(k==="gcat") d.category=null;
-      if(k==="gdeadline"){ d.deadline=null; d.deadlineType=null; }
+      if(k==="gdeadline"){ d.deadline=null; }
       G(); draw(); }));
     on("#gOpen","click",async()=>{ closeSheet(); state.tab="browse"; state.browseMode="groups"; state.path=buildPath(d.id); render(); });
     on("#gAdd","click",()=>{ if(g) openAddChild(g); });
@@ -3465,18 +4103,19 @@ function parseNL(text){
       if(!found.due&&base<new Date()) base=new Date(base.getTime()+DAY);
       patch.deadlineHasTime=true;
     } else base.setHours(17,0,0,0);
-    patch.deadline=base.toISOString(); patch.deadlineType="soft";
+    patch.deadline=base.toISOString();
     chips.push({key:found.due?"due":"time",label:"Due "+relDay(patch.deadline)+(found.time?" "+fmtTime(patch.deadline):""),
       both:!!(found.due&&found.time)});
   }
   if(found.dur){ patch.durationMode="estimate"; patch.estMinMinutes=found.dur.min; patch.estMaxMinutes=found.dur.max;
-    chips.push({key:"dur",label:"~"+(found.dur.min?mins(found.dur.min)+"–":"")+mins(found.dur.max)}); }
+    chips.push({key:"dur",label:"~"+(found.dur.min?mins(found.dur.min)+" to ":"")+mins(found.dur.max)}); }
   if(found.cat){ patch.category=found.cat.name; patch._newCat=found.cat.isNew;
     chips.push({key:"cat",label:"#"+found.cat.name+(found.cat.isNew?" (new)":"")}); }
   if(found.ctx){ patch.context=found.ctx.name; patch._newCtx=found.ctx.isNew;
     chips.push({key:"ctx",label:found.ctx.name}); }
-  if(found.imp){ patch.importance=found.imp.v; patch.importanceOverridden=true;
-    chips.push({key:"imp",label:IMP_LABEL[found.imp.v]+" priority"}); }
+  if(found.imp){ const map={critical:"protect",high:"protect",normal:"normal",low:"flexible"};
+    patch.stakes=map[found.imp.v]||"normal"; patch.stakesOverridden=true;
+    chips.push({key:"imp",label:STAKES_LABEL[patch.stakes]+" stakes"}); }
   if(found.rec){ patch.recurrence=found.rec.r; chips.push({key:"rec",label:"Repeats "+found.rec.l}); }
   if(found.someday){ patch.status="someday"; chips.push({key:"someday",label:"Someday"}); }
 
@@ -3504,7 +4143,7 @@ $("#fab").addEventListener("click",()=>openCapture());
 function openCapture(pre){
   pre=pre||{};
   const d=newNode({parentId:captureDest()});
-  if(pre.deadlineDay){ d.deadline=new Date(pre.deadlineDay+"T17:00:00").toISOString(); d.deadlineType="soft"; }
+  if(pre.deadlineDay){ d.deadline=new Date(pre.deadlineDay+"T17:00:00").toISOString(); }
   if(pre.fixedSlot){ d.durationMode="fixed"; d.fixedStart=new Date(pre.fixedSlot+":00").toISOString();
     d.fixedEnd=new Date(new Date(d.fixedStart).getTime()+60*MIN).toISOString(); }
   state.capDraft=d; state.capSubs=[]; state.capIgnore=new Set(); state.capSet=new Set();
@@ -3542,7 +4181,7 @@ function drawFixedSheet(d,onChange){
      </div>
      <div class="fieldnote">Sits at its time on the calendar and in the plan, like an appointment. An end before the start is corrected automatically. Applied when you go back.</div>
      <div class="field"><button class="line" id="xBg"><label>Runs in the background</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button></div>
-     <div class="fieldnote">Laundry, the dishwasher, a download — it occupies the time slot but not you. It never blocks other work, other tasks can be planned right over it, and it doesn't count against your hours.</div>
+     <div class="fieldnote">Laundry, the dishwasher, a download. It takes up the time slot but not you. It never blocks other work, other tasks can be planned right over it, and it does not count against your hours.</div>
      <div class="field"><button class="line accent" id="xClear">No set time</button></div>`,null);
   SHEET.leave=()=>{
     const day=$("#xDay"), st=$("#xStart"), e=$("#xEnd");
@@ -3563,13 +4202,14 @@ async function commitCapture(again){
   const nn=$("#tNotes"); if(nn) d.notes=nn.value;
   const ss=$("#tSteps"); if(ss) state.capSubs=ss.value.split("\n");
   d.title=(d.title||"").trim();
-  if(!d.title){ toast("Give it a title"); const t2=$("#tTitle"); if(t2) t2.focus(); return; }
+  if(!d.title){ toast("Give it a name"); const t2=$("#tTitle"); if(t2) t2.focus(); return; }
+  if(d.actionable===false&&!d.fixedStart){ toast("Set its time first. Events and blocks live at a time"); CAP_OPEN.when=true; drawTaskSheet(); return; }
   const p=parseNL(d.title);
   const ig=state.capIgnore, st=state.capSet;
   const used=new Set();
   const want=k=>!ig.has(k)&&p.found[k];
   if((want("due")||want("time"))&&!st.has("deadline")&&!d.deadline&&!d.timeframe&&!d.fixedStart){
-    d.deadline=p.patch.deadline; d.deadlineType=p.patch.deadlineType;
+    d.deadline=p.patch.deadline;
     d.deadlineHasTime=!!p.patch.deadlineHasTime;
     if(p.found.due) used.add("due"); if(p.found.time) used.add("time"); }
   if(want("dur")&&!st.has("dur")&&d.estMaxMinutes==null){
@@ -3585,8 +4225,8 @@ async function commitCapture(again){
     if(p.patch._newCtx&&!state.settings.contexts.includes(p.patch.context)){
       state.settings.contexts.push(p.patch.context); await saveSettings(); }
     d.context=p.patch.context; used.add("ctx"); }
-  if(want("imp")&&!st.has("imp")&&!d.importanceOverridden){
-    d.importance=p.patch.importance; d.importanceOverridden=true; used.add("imp"); }
+  if(want("imp")&&!st.has("imp")&&!d.stakesOverridden){
+    d.stakes=p.patch.stakes; d.stakesOverridden=true; used.add("imp"); }
   if(want("rec")&&!st.has("rec")&&!d.recurrence){ d.recurrence=p.patch.recurrence; used.add("rec"); }
   if(want("someday")&&d.status==="available"){ d.status="someday"; used.add("someday"); }
   if(used.size) d.title=p.strip(used)||d.title;
@@ -3595,7 +4235,7 @@ async function commitCapture(again){
   if(subs.length) d.kind="group";
   if(d.parentId&&d.parentId!==UNSORTED){ const pg=byId(d.parentId);
     if(pg&&pg.category&&d.category&&pg.category!==d.category){
-      toast("That group is "+pg.category+" — pick a matching category or group"); return; } }
+      toast("That group is "+pg.category+". Pick a matching category or group"); return; } }
   d.order=nextOrder(d.parentId);
   delete d._moreWhen;
   normalizeTiming(d);
@@ -3622,8 +4262,9 @@ function drawMore(){
   showSheet("More",
     `<div class="field">
       <button class="line" data-more="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
+      <button class="line" data-more="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
      </div>
-     <div class="fieldnote">Create, rename, move and delete anything — a file manager for your whole system. Unsorted is the one fixture that can't be touched.</div>
+     <div class="fieldnote">Create, rename, move and delete anything, like a file manager for your whole system. Unsorted is the one fixture that cannot be touched.</div>
      <div class="field">
       <button class="line" data-more="settings"><label>Settings</label><span class="val"></span>${ICON_CHEV}</button>
      </div>
@@ -3633,6 +4274,7 @@ function drawMore(){
 }
 async function moreAction(a){
   if(a==="lists") return sheetPush(drawListsManager);
+  if(a==="templates") return sheetPush(drawTemplates);
   if(a==="settings") return sheetPush(drawSettings);
 }
 
@@ -3646,7 +4288,7 @@ function drawFilters(){
       ${row("deliverable","Deliverable",f.deliverable)}
       ${row("context","Context",f.context)}
       ${row("energy","Energy",f.energy)}
-      ${row("importance","Importance",f.importance&&IMP_LABEL[f.importance])}
+      ${row("stakes","Stakes",f.stakes&&STAKES_LABEL[f.stakes])}
       ${row("status","State",f.status&&statusLabel(f.status))}
      </div>
      <div class="field"><button class="line accent" id="fClear">Clear filter</button></div>
@@ -3663,7 +4305,7 @@ function drawFilters(){
     const k=b.dataset.f;
     const opts={category:state.settings.categories.map(c=>c.name),deliverable:state.settings.deliverables,
       context:state.settings.contexts,energy:[{v:"deep",l:"Deep focus"},{v:"shallow",l:"Shallow"}],
-      importance:[{v:"critical",l:"Critical"},{v:"high",l:"High"},{v:"normal",l:"Normal"},{v:"low",l:"Low"}],
+      stakes:[{v:"protect",l:"Protect"},{v:"normal",l:"Normal"},{v:"flexible",l:"Flexible"}],
       status:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on"},{v:"blocked",l:"Blocked"},
               {v:"deferred",l:"Deferred"},{v:"someday",l:"Someday"}]}[k];
     openOptions({title:"Filter",options:opts,current:(state.activeFilter||{})[k],allowNone:true,
@@ -3691,35 +4333,44 @@ function drawSettings(){
     `<div class="fieldnote" style="margin:2px 20px 12px">Changes save as you make them.</div>
      ${secBig("Schedule")}
      <div class="field">
-      <button class="line" data-s="sleep"><label>Sleep</label><span class="val">${esc(fmtHM(s.sleep.bed))} – ${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
+      <button class="line" data-s="sleep"><label>Sleep</label><span class="val">${esc(fmtHM(s.sleep.bed))} to ${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
       <div class="line"><label>Hours per day</label><span class="val">${Math.round(hoursFor(new Date())*10)/10}h today · computed</span></div>
      </div>
-     <div class="fieldnote">Your day is simply what's between waking up and going to bed. Capacity is computed from that — sleep and the unavailable blocks below are subtracted automatically. One specific date can still be overridden from its day on the Calendar tab.</div>
+     <div class="fieldnote">Your day is simply what sits between waking up and going to bed. Capacity is computed from that. Sleep and the unavailable blocks below are subtracted automatically. One specific date can still be overridden from its day on the Calendar tab.</div>
      ${sec("Unavailable time","<span>subtracted every day it applies</span>")}
      <div class="field">
       ${(s.unavailable||[]).map((u,i)=>`<button class="line" data-unav="${i}">
         <label style="font-weight:400">${esc(u.label||"Unavailable")}</label>
-        <span class="val">${(!u.days||!u.days.length)?"Daily":u.days.map(x=>["S","M","T","W","T","F","S"][x]).join(" ")} · ${esc(fmtHM(u.from))}–${esc(fmtHM(u.to))}</span>
+        <span class="val">${(!u.days||!u.days.length)?"Daily":u.days.map(x=>["S","M","T","W","T","F","S"][x]).join(" ")} · ${esc(fmtHM(u.from))} to ${esc(fmtHM(u.to))}</span>
         <span class="clearx" data-rmunav="${i}" role="button" aria-label="Remove">✕</span></button>`).join("")}
       <button class="line accent" id="unavAdd">Add a block of unavailable time</button>
      </div>
-     <div class="fieldnote">Commute, dinner, practice — time that isn't sleep but isn't for tasks either. The plan routes around these and they show dimmed on the Day and Week views.</div>
+     <div class="fieldnote">Commute, dinner, practice. Time that is not sleep but is not for tasks either. The plan routes around these and they show dimmed on the Day and Week views.</div>
      ${sec("Deep focus windows")}
      <div class="field">
       ${(s.deepWindows||[]).map((w,i)=>`<button class="line" data-deepw="${i}">
         <label style="font-weight:400">Window ${i+1}</label>
-        <span class="val">${esc(fmtHM(w.from))} – ${esc(fmtHM(w.to))}</span>
+        <span class="val">${esc(fmtHM(w.from))} to ${esc(fmtHM(w.to))}</span>
         <span class="clearx" data-rmdeepw="${i}" role="button" aria-label="Remove">✕</span></button>`).join("")}
       <button class="line accent" id="deepAdd">Add a window</button>
      </div>
-     <div class="fieldnote">When your brain does its best work — early morning, late night, both. Tasks marked Deep focus get steered into these windows. No windows means deep work can land anywhere.</div>
+     <div class="fieldnote">When your brain does its best work. Early morning, late night, or both. Tasks marked Deep focus get steered into these windows. No windows means deep work can land anywhere.</div>
+     ${sec("Planning")}
+     <div class="field">
+      <div class="line"><label>Assignments open</label><input type="number" inputmode="numeric" min="0" max="365" id="pLead" value="${s.plan.leadDays}"><span class="unit">days before due</span></div>
+      <div class="line"><label>Split work over</label><input type="number" inputmode="numeric" min="0" max="480" id="pSplit" value="${s.plan.splitMin}"><span class="unit">min into sittings</span></div>
+      <div class="line"><label>Focus break after</label><input type="number" inputmode="numeric" min="0" max="480" id="pCap" value="${s.plan.focusCapMin||""}" placeholder="no cap"><span class="unit">min of deep work</span></div>
+      <div class="line"><label>Gap between unlike tasks</label><input type="number" inputmode="numeric" min="0" max="60" id="pBuf" value="${s.plan.switchBufMin}"><span class="unit">min</span></div>
+      <div class="line"><label>No estimate counts as</label><input type="number" inputmode="numeric" min="5" max="240" id="pGuess" value="${s.plan.guessMin}"><span class="unit">min</span></div>
+     </div>
+     <div class="fieldnote">The planner's dials. Assignments open sets the usual head start before a due date. Long work is placed as two or three sittings. Leave the focus break blank for no cap, so deep work is never interrupted. The gap models the cost of switching between unlike tasks; it is skipped when two tasks share the same place.</div>
      ${secBig("Calendar")}
      <div class="field">
       <button class="line" data-lyr="fixed"><label>Show fixed blocks</label><span class="val"></span><span class="toggle${s.layers.fixed?" on":""}"></span></button>
       <button class="line" data-lyr="deadline"><label>Show deadlines</label><span class="val"></span><span class="toggle${s.layers.deadline?" on":""}"></span></button>
       <button class="line" data-lyr="projected"><label>Show planned work</label><span class="val"></span><span class="toggle${s.layers.projected?" on":""}"></span></button>
      </div>
-     <div class="fieldnote">What the Day and Week views draw. Planned work is the system's proposal — where effort lands for each deadline to be met. Computed live, never stored.</div>
+     <div class="fieldnote">What the Day and Week views draw. Planned work is where the app lands effort so each due date is met. Computed live, never stored.</div>
      ${secBig("Appearance")}
      <div class="field">
       <button class="line" data-s="appearance"><label>Theme and looks</label><span class="val">${esc((THEMES.find(t=>t.id===s.theme.id)||THEMES[0]).name)}</span>${ICON_CHEV}</button>
@@ -3736,13 +4387,17 @@ function drawSettings(){
      <div class="field">
       <button class="line" data-s="filters"><label>Filters</label><span class="val">${state.activeFilter?"1 active":(state.filters.length+" saved")}</span>${ICON_CHEV}</button>
      </div>
-     <div class="fieldnote">Build any combination of category, context, energy, importance and state. Saved filters appear as chips on Browse; the active one lives under the ⚲ chip.</div>
+     <div class="fieldnote">Build any combination of category, context, energy, stakes and state. Saved filters appear as chips on Browse; the active one lives under the ⚲ chip.</div>
      ${secBig("Data")}
      <div class="field">
       <button class="line" data-s="export"><label>Export and import</label><span class="val"></span>${ICON_CHEV}</button>
       <button class="line danger" id="sWipe" style="justify-content:flex-start">Erase everything</button>
      </div>
      <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`,null);
+  const pOn=(id,key,lo,hi)=>{ const el=$(id); if(el) el.addEventListener("change",e=>{
+    s.plan[key]=e.target.value===""?0:clamp(Number(e.target.value)||0,lo,hi); setSave(); }); };
+  pOn("#pLead","leadDays",0,365); pOn("#pSplit","splitMin",0,480);
+  pOn("#pCap","focusCapMin",0,480); pOn("#pBuf","switchBufMin",0,60); pOn("#pGuess","guessMin",5,240);
   $("#unavAdd").addEventListener("click",()=>{
     s.unavailable.push({label:"",from:"17:30",to:"18:30",days:[]});
     saveSettings(); sheetPush(()=>drawUnavail(s.unavailable.length-1)); });
@@ -3809,7 +4464,7 @@ function drawDeepWindow(i){
       <div class="line"><label>From</label><input type="time" id="dwFrom" value="${w.from}"></div>
       <div class="line"><label>To</label><input type="time" id="dwTo" value="${w.to}"></div>
      </div>
-     <div class="fieldnote">Deep-focus tasks are pulled toward this window — late-night deep work is perfectly valid. Crossing midnight works. Saved as you change it.</div>
+     <div class="fieldnote">Deep focus tasks are pulled toward this window. Late night deep work is fine, and crossing midnight works. Saved as you change it.</div>
      <div class="field" style="margin-top:14px"><button class="line danger" id="dwDel">Remove this window</button></div>`,null);
   $("#dwFrom").addEventListener("change",e=>{ w.from=e.target.value||w.from; setSave(); });
   $("#dwTo").addEventListener("change",e=>{ w.to=e.target.value||w.to; setSave(); });
@@ -4057,7 +4712,7 @@ function drawAppearance(){
      </div>
      ${t.hasBg?`<div class="field"><div class="line"><label>Darken</label>
        <input type="range" id="apDim" min="0" max="80" value="${Math.round((t.bgDim||0)*100)}" style="flex:1"></div></div>`:""}
-     <div class="fieldnote">The photo sits behind everything; cards go translucent with blur. Brightness is sampled and the scrim set automatically so text stays readable — adjust it above if you like.</div>
+     <div class="fieldnote">The photo sits behind everything and cards go see through with blur. Brightness is sampled and the dimming set automatically so text stays readable. Adjust it above if you like.</div>
      ${sec("App icon")}
      <div class="field"><button class="line accent" id="apIcon">Make a matching icon.svg…</button></div>
      <div class="fieldnote">Honest limit: iOS freezes the Home Screen icon at install. This generates an icon.svg in the current theme for you to save, replace in the repo, then remove and re-add the app to see it.</div>
@@ -4117,7 +4772,7 @@ function drawIconMaker(){
     {bg:"#F2F2F7",mark:th.accL,l:"Accent on light"}
   ];
   showSheet("App icon",
-    `<div class="fieldnote" style="margin:0 20px 14px">Pick a variant, save the file, replace icon.svg in the repo (same name), then remove the app from the Home Screen and add it again — iOS only reads the icon at install.</div>
+    `<div class="fieldnote" style="margin:0 20px 14px">Pick a look, save the file, replace icon.svg in the repo with the same name, then remove the app from the Home Screen and add it again. iOS only reads the icon at install.</div>
      <div class="themegrid">${variants.map((v,i)=>`<button class="themecard" data-v="${i}">
        <span class="sw"><span style="background:${v.bg}"></span><span style="background:${v.mark}"></span></span>
        <span class="nm">${esc(v.l)}</span></button>`).join("")}</div>
@@ -4157,7 +4812,7 @@ function drawNotifCenter(){
       <span class="val set">${v.enabled?"On":"Off"}</span>${ICON_CHEV}</button>`; }).join("");
   showSheet("Notifications",
     `<div class="field"><button class="line" id="nfMaster"><label>All alerts</label><span class="val"></span><span class="toggle${nf.master?" on":""}"></span></button></div>
-     <div class="fieldnote">Honest limit: without a server, iOS will not fire alerts for a web app on the lock screen. While the app is open you get banners; for real alerts, use the calendar export below — Apple Calendar then does the alerting.</div>
+     <div class="fieldnote">Honest limit: without a server, iOS will not fire alerts for a web app on the lock screen. While the app is open you get banners. For real alerts, use the calendar export below and Apple Calendar does the alerting.</div>
      ${nf.master?`
      <div class="field"><button class="line accent" id="nfIcs">Send alerts to Apple Calendar (.ics)</button></div>
      <div class="fieldnote">One file with every dated item and its alert times built in (plus sleep, if enabled). Open it, add to a "Tasks" calendar; re-export and re-import after big changes to refresh.</div>
@@ -4224,12 +4879,12 @@ function drawNotifCenter(){
 function drawBackups(){
   const last=state.settings.lastExport;
   showSheet("Backups",
-    `<div class="fieldnote" style="margin:0 20px 14px">Two layers. Snapshots are automatic copies kept inside the app — they undo mistakes (a bad edit, a bad import, an accidental erase), but they live on this phone, so they do not survive losing it. The export does: send it somewhere off the phone weekly.</div>
+    `<div class="fieldnote" style="margin:0 20px 14px">Two layers. Snapshots are automatic copies kept inside the app. They undo mistakes like a bad edit or an accidental erase, but they live on this phone, so they do not survive losing it. The export does. Send a copy somewhere off the phone weekly.</div>
      <div class="field">
       <button class="line accent" data-bx="json">Export a backup now (JSON)</button>
      </div>
      <div class="fieldnote">${last?"Last export "+new Date(last).toLocaleDateString()+"."
-       :"Never exported."} ${backupDue()?'<span style="color:var(--orange)">Overdue — the weekly reminder is nagging for a reason.</span>':""}</div>
+       :"Never exported."} ${backupDue()?'<span style="color:var(--orange)">Overdue. A copy off this phone keeps your data safe.</span>':""}</div>
      ${sec("Snapshots","<span>7 daily · 4 weekly</span>")}
      <div class="group">${state.snaps.map(s=>`<div class="pickrow">
         <span>${esc(new Date(s.ts).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}
@@ -4273,8 +4928,10 @@ function toMarkdown(rootId){
   return lines.join("\n");
 }
 function toCSV(){
-  const cols=["id","parentId","parentTitle","title","kind","status","effectiveStatus","importance",
-    "effectiveImportance","deadline","deadlineType","deadlineHasTime","timeframe","deferUntil","expiry","durationMode","estMinMinutes",
+  const cols=["id","parentId","parentTitle","title","kind","status","effectiveStatus","stakes",
+    "effectiveStakes","stakesWeight","actionable","timePinned","background","preset",
+    "availableFrom","aimWindow","todWindow",
+    "deadline","deadlineHasTime","timeframe","deferUntil","expiry","durationMode","estMinMinutes",
     "estMaxMinutes","fixedStart","fixedEnd","actualMinutes","category","deliverable","context","energy","flagged",
     "bumpCount","dependsOn","dependencyMode","waitingOn","followUpDate","notes","createdAt","touchedAt","completedAt"];
   const q=v=>{ const s=v==null?"":String(v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
@@ -4284,7 +4941,10 @@ function toCSV(){
     rows.push(cols.map(c=>{
       if(c==="parentTitle") return q(pathLabel(n.parentId));
       if(c==="effectiveStatus") return q(effStatus(n));
-      if(c==="effectiveImportance") return q(effImportance(n));
+      if(c==="effectiveStakes") return q(effStakes(n));
+      if(c==="availableFrom") return q(n.availableFrom?(n.availableFrom.mode==="beforeDue"?(n.availableFrom.leadDays!=null?n.availableFrom.leadDays:state.settings.plan.leadDays)+" days before due":dateInput(n.availableFrom.at)):"");
+      if(c==="aimWindow") return q(n.aimWindow?[dateInput(n.aimWindow.start),dateInput(n.aimWindow.end)].filter(Boolean).join(" to "):"");
+      if(c==="todWindow") return q(n.todWindow?[n.todWindow.after?"after "+n.todWindow.after:"",n.todWindow.before?"before "+n.todWindow.before:""].filter(Boolean).join(" "):"");
       if(c==="timeframe") return q(n.timeframe?tfLabel(n.timeframe):"");
       if(c==="dependsOn") return q((n.dependsOn||[]).map(x=>byId(x)?byId(x).title:x).join("; "));
       return q(n[c]);
@@ -4320,7 +4980,7 @@ function toICS(){
         const [h,m]=(cfg.atTime||nf.atTime||"09:00").split(":"); base=new Date(base); base.setHours(+h,+m,0,0); }
       out.push("BEGIN:VEVENT","UID:dl-"+n.id+"@tasks","DTSTAMP:"+z(new Date()),
         "DTSTART:"+z(base),"DTEND:"+z(new Date(base.getTime()+30*MIN)),
-        "SUMMARY:Due — "+esc2(n.title));
+        "SUMMARY:Due: "+esc2(n.title));
       out.push(...alarms(cfg));
       out.push("END:VEVENT");
     }
@@ -4370,7 +5030,7 @@ function drawExport(){
       <button class="line accent" data-ex="csv">Spreadsheet (CSV)</button>
       <button class="line accent" data-ex="ics">Calendar with alerts (ICS)</button>
      </div>
-     <div class="fieldnote">JSON round-trips perfectly — it is how you move everything to another device, and it counts as your weekly off-phone backup. ICS imports into Apple Calendar with alert times built in.</div>
+     <div class="fieldnote">JSON restores perfectly. It is how you move everything to another device, and it counts as your weekly backup off this phone. ICS imports into Apple Calendar with alert times built in.</div>
      ${groups.length?sec("One group only")+`<div class="group">${groups.map(g=>
         `<button class="pickrow" data-exg="${g.id}"><span>${esc(g.title)}</span><span class="tick">MD</span></button>`).join("")}</div>`:""}
      <div class="sechead"><span class="h">Restore</span></div>
@@ -4391,7 +5051,20 @@ $("#impFile").addEventListener("change",async e=>{
     const data=JSON.parse(await f.text());
     if(!data||!Array.isArray(data.nodes)) throw new Error("bad file");
     if(!confirm("Import "+data.nodes.length+" items? Existing items with the same id will be overwritten.")) return;
-    for(const n of data.nodes){ const merged=newNode(n); state.nodes.set(merged.id,merged); await putNode(merged); }
+    const IMP2={critical:"protect",high:"protect",normal:"normal",low:"flexible"};
+    for(const n of data.nodes){
+      const merged=newNode(n);
+      if(!n.stakes&&(n.importance||n.deadlineType)){
+        let st="normal", over=false;
+        if(n.importanceOverridden&&IMP2[n.importance]){ st=IMP2[n.importance]; over=true; }
+        if(n.deadlineType){ st=over&&STAKES_RANK[st]>=STAKES_RANK[n.deadlineType==="hard"?"protect":"flexible"]?st:(n.deadlineType==="hard"?"protect":"flexible"); over=true; }
+        merged.stakes=st; merged.stakesOverridden=over;
+      }
+      if(merged.timePinned==null) merged.timePinned=!!merged.fixedStart;
+      delete merged.importance; delete merged.importanceOverridden; delete merged.deadlineType;
+      state.nodes.set(merged.id,merged); await putNode(merged);
+    }
+    bumpRev();
     if(data.settings) state.settings=mergeDefaults(data.settings);
     if(data.dayHours) state.dayHours=Object.assign({},state.dayHours,data.dayHours);
     if(data.filters) state.filters=data.filters;
@@ -4417,6 +5090,17 @@ async function checkUpdate(){
   toast("No update found");
 }
 
+/* one-time note after the stakes update, so you can check the mapping */
+function drawStakesReport(r){
+  const row=id=>{ const n=byId(id); return n?`<button class="pickrow" data-open2="${id}"><span>${esc(n.title||"Untitled")}</span>${ICON_CHEV}</button>`:""; };
+  showSheet("Stakes update",
+    `<div class="fieldnote" style="margin:0 20px 12px">Importance and the hard or soft deadline setting are now one thing: Stakes. Your tasks were mapped over automatically. Here is everything that did not land on Normal, so you can adjust any that look off. Tap one to open it.</div>
+     ${r.protect.length?sec("Set to Protect","<span>was critical, high, or a hard deadline</span>")+`<div class="group">${r.protect.map(row).join("")}</div>`:""}
+     ${r.flexible.length?sec("Set to Flexible","<span>was low, or a soft deadline</span>")+`<div class="group">${r.flexible.map(row).join("")}</div>`:""}
+     <div class="fieldnote" style="margin-top:14px">Everything else is Normal. You will not see this note again.</div>`,null);
+  sheetBody.querySelectorAll("[data-open2]").forEach(b=>b.addEventListener("click",()=>openSheet(b.dataset.open2)));
+}
+
 /* ---------- toast ---------- */
 let toastT=null;
 function toast(msg){ if(!msg) return; const el=$("#toast");
@@ -4426,8 +5110,8 @@ function toast(msg){ if(!msg) return; const el=$("#toast");
 /* ---------- example ---------- */
 async function seed(){
   const g=await create({title:"Secure new home by Oct 18",kind:"group",childMode:"sequential",
-    importance:"critical",importanceOverridden:true,category:"Home",icon:"🏠",color:"#34C759",
-    deadline:new Date(new Date().getFullYear(),9,18,17,0).toISOString(),deadlineType:"hard",
+    stakes:"protect",stakesOverridden:true,category:"Home",icon:"🏠",color:"#34C759",
+    deadline:new Date(new Date().getFullYear(),9,18,17,0).toISOString(),
     notes:"Example group. Delete it once you have your own."});
   const steps=[
     {title:"Conduct neighborhood research",deliverable:"Research",estMinMinutes:45,estMaxMinutes:120,durationMode:"estimate",energy:"deep",context:"@computer"},
@@ -4460,7 +5144,13 @@ async function seed(){
   }
   await ensureInbox();
   const u=byId(UNSORTED); if(u.title!=="Unsorted"){ u.title="Unsorted"; await putNode(u); }
+  const prevSchema=await getMeta("schemaVersion");
+  if((prevSchema||0)<4){
+    const rep=await migrateToStakes();
+    if(rep.protect.length||rep.flexible.length) state._stakesReport=rep;
+  }
   await putMeta("schemaVersion",SCHEMA);
+  try{ state.templates=await allTpls(); }catch(e){ state.templates=[]; }
 
   applyTheme(); await applyBg();
 
@@ -4468,6 +5158,8 @@ async function seed(){
   try{ await takeSnapshots(); }catch(e){}
   render();
   if(expired) toast(expired+" expired task"+(expired===1?"":"s")+" dropped");
+  if(state._stakesReport){ const r=state._stakesReport; state._stakesReport=null;
+    setTimeout(()=>sheetRoot(()=>drawStakesReport(r)),400); }
 
   if("serviceWorker" in navigator){
     try{ await navigator.serviceWorker.register("sw.js"); }catch(e){}
