@@ -63,24 +63,24 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
   background:var(--navbg);backdrop-filter:saturate(180%) blur(20px);
   -webkit-backdrop-filter:saturate(180%) blur(20px);transition:box-shadow .2s}
 .nav.scrolled{box-shadow:0 .33px 0 var(--sep)}
-.navbar{height:44px;display:flex;align-items:center;padding:0 8px;gap:2px;position:relative}
+.navbar{height:30px;display:flex;align-items:center;padding:0 8px;gap:2px;position:relative}
 .navbar .spacer{flex:1}
 .navtitle{font-size:17px;font-weight:600;letter-spacing:-.02em;position:absolute;left:50%;
   transform:translateX(-50%);opacity:0;transition:opacity .2s;pointer-events:none;
   max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
 .nav.scrolled .navtitle{opacity:1}
-.navbtn{color:var(--accent);font-size:17px;padding:6px 8px;min-height:44px;
+.navbtn{color:var(--accent);font-size:17px;padding:4px 8px;min-height:30px;
   display:flex;align-items:center;gap:3px}
 .navbtn.icon{padding:6px;min-width:40px;justify-content:center}
 .navbtn.back{margin-left:-2px}
-.largetitle{font-size:34px;font-weight:700;letter-spacing:.37px;line-height:1.2;padding:0 20px 6px;margin:0}
-.subtitle{padding:0 20px 10px;font-size:15px;color:var(--label2)}
+.largetitle{font-size:34px;font-weight:700;letter-spacing:.37px;line-height:1.2;padding:0 20px 4px;margin:0}
+.subtitle{padding:0 20px 8px;font-size:15px;color:var(--label2)}
 .crumbs{padding:0 20px 10px;font-size:13px;color:var(--label2);white-space:nowrap;overflow-x:auto}
 .crumbs::-webkit-scrollbar{display:none}
 .crumbs button{color:var(--accent);font-size:13px}
 
 #scroll{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-#content{padding:6px 0 96px;max-width:760px;margin:0 auto;width:100%}
+#content{padding:2px 0 96px;max-width:760px;margin:0 auto;width:100%}
 @media(min-width:760px){#content{padding-bottom:56px}}
 
 /* section headers — v2: clearly delineated */
@@ -212,6 +212,9 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .wkcols{display:flex;min-width:600px;position:relative}
 .wkcol{flex:1 1 0;min-width:84px;border-left:.33px solid var(--sep);position:relative}
 .wkcol:first-child{border-left:0}
+.wkgutter{flex:0 0 36px;position:relative;background:var(--elev);position:sticky;left:0;z-index:5;
+  border-right:.33px solid var(--sep)}
+.wkhr{position:absolute;right:4px;transform:translateY(-6px);font-size:9px;color:var(--label3)}
 .wkcol .wkhd{position:sticky;top:0;font-size:11px;text-align:center;padding:6px 0 4px;
   background:var(--elev);z-index:4;border-bottom:.33px solid var(--sep)}
 .wkcol .wkhd b{display:block;font-size:15px}
@@ -278,7 +281,8 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .fieldnote.inline{margin:0;padding:0 16px 10px}
 .seg{display:flex;background:var(--fill2);border-radius:9px;padding:2px;margin:0 16px 16px}
 .seg button{flex:1;padding:7px 2px;font-size:14px;font-weight:500;border-radius:7px;color:var(--label);text-align:center}
-.seg button.on{background:var(--elev);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button.on{background:var(--segon,var(--elev));box-shadow:0 1px 3px rgba(0,0,0,.12)}
+:root[data-dark="1"] .seg button.on{background:rgba(118,118,128,.4);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .seg.mini{margin:0 16px 10px}
 .toggle{width:51px;height:31px;border-radius:16px;background:var(--fill);position:relative;
   flex:0 0 auto;transition:background .2s}
@@ -407,6 +411,17 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .dayblock.plan2,.wkblk.plan2{background:rgba(var(--accent-rgb),.10);border-left:3px dashed var(--accent)}
 .dlTick{position:absolute;left:52px;right:6px;height:0;border-top:2px solid var(--red);opacity:.75}
 .dlTick::after{content:attr(data-l);position:absolute;right:0;top:-15px;font-size:10px;color:var(--red);font-weight:600}
+/* new-task wizard */
+.wizfoot{position:sticky;bottom:0;z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:.33px solid var(--sep);margin-top:20px}
+.wizbtn{padding:11px 16px;border-radius:11px;background:var(--fill);font-size:16px;font-weight:600;
+  color:var(--label);text-align:center;min-width:76px}
+.wizbtn.strong{background:var(--accent);color:#fff;flex:1}
+.wizbtn[disabled]{opacity:.35}
+.wizprog{font-size:13px;color:var(--label2);flex:1;text-align:center}
+.wizq{font-size:22px;font-weight:700;letter-spacing:-.02em;padding:4px 20px 2px}
+.wizsub{font-size:14px;color:var(--label2);padding:0 20px 14px;line-height:1.4}
+.wizrow .path{display:block;margin-top:2px}
 /* capture parse chips */
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px 2px}
 .chip{display:inline-flex;align-items:center;gap:5px;background:rgba(var(--accent-rgb),.13);color:var(--accent);
@@ -518,9 +533,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
       <div class="spacer"></div>
       <div class="navtitle" id="navTitle"></div>
       <div class="spacer"></div>
-      <button class="navbtn icon" id="moreBtn" aria-label="More">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9.2"/><circle cx="8" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1.15" fill="currentColor" stroke="none"/></svg>
-      </button>
+
     </div>
     <h1 class="largetitle" id="largeTitle">Today</h1>
     <button class="navbtn" id="manageBtn" data-act="listsmanager" hidden style="position:absolute;right:10px;bottom:4px;font-size:15px;min-height:34px;padding:4px 10px">Manage</button>
@@ -538,8 +551,8 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.4" y="5.4" width="19.2" height="17.2" rx="2.6"/><path d="M3.4 10.4h19.2M8.6 3.4v4M17.4 3.4v4"/></svg><span>Calendar</span></button>
     <button class="tab" data-tab="browse">
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.2 8.2a2 2 0 0 1 2-2h4.1l2.3 2.6h9.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2z"/></svg><span>Browse</span></button>
-    <button class="tab" data-tab="log" id="logTab">
-      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.6a7.4 7.4 0 1 0 7.3 6.2"/><path d="M13 8.4V13l3 2.2"/><path d="M20.8 4.4v4.2h-4.2"/></svg><span>Log</span></button>
+    <button class="tab" id="moreTab" aria-label="More">
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="13" r="3.1"/><path d="M13 3.6v3M13 19.4v3M3.6 13h3M19.4 13h3M6.4 6.4l2.1 2.1M17.5 17.5l2.1 2.1M19.6 6.4l-2.1 2.1M8.5 17.5l-2.1 2.1"/></svg><span>More</span></button>
   </nav>
 </div>
 
@@ -572,7 +585,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
    One node type: group, task and subtask are the same object.
    =========================================================================== */
 
-const DB_NAME="tasks-db", DB_VER=3, UNSORTED="__inbox__", SCHEMA=4;
+const DB_NAME="tasks-db", DB_VER=3, UNSORTED="__inbox__", SCHEMA=5;
 const MIN=60000, HOUR=3600000, DAY=86400000;
 
 const $=(s,r=document)=>r.querySelector(s);
@@ -586,7 +599,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 /* ---- dates ---- */
 const startOfDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
-const addDays=(d,n)=>new Date(startOfDay(d).getTime()+n*DAY);
+const addDays=(d,n)=>{const x=startOfDay(d); x.setDate(x.getDate()+n); return x;};
 const sameDay=(a,b)=>startOfDay(a).getTime()===startOfDay(b).getTime();
 const dayKey=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");};
 function fmtDate(iso,opt){ if(!iso)return""; const d=new Date(iso);
@@ -680,7 +693,7 @@ const DEFAULTS={
   deliverables:["Decision","Document","Research","Meeting","Message","Call","Errand","Purchase","Sketch","Habit"],
   contexts:["@anywhere","@phone","@computer","@errand","@home","@out"],
   unavailable:[], deepWindows:[],
-  plan:{leadDays:7,splitMin:90,focusCapMin:0,switchBufMin:10,guessMin:30},
+  plan:{leadDays:7,splitMin:0,focusCapMin:0,switchBufMin:10,guessMin:30},
   layers:{fixed:true,deadline:true,projected:true},
   sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false},
   theme:{id:"system",mode:"auto",hideTaskIcons:false,bgDim:.35,hasBg:false},
@@ -1106,6 +1119,7 @@ function timeframeItems(){ return Array.from(state.nodes.values())
 /* does a repeating pinned item (a class, a standing block) land on day d? */
 function occursOn(n,d){
   const r=n.recurrence; if(!r||r.mode==="afterDone") return false;
+  if(r.until&&startOfDay(d)>startOfDay(r.until)) return false;
   const s0=startOfDay(n.fixedStart), dd=startOfDay(d);
   if(dd<=s0) return false;
   const days=Math.round((dd-s0)/DAY);
@@ -1119,6 +1133,8 @@ function occursOn(n,d){
   if(r.type==="months"){
     const md=(dd.getFullYear()*12+dd.getMonth())-(s0.getFullYear()*12+s0.getMonth());
     if(md<=0||md%(r.every||1)!==0) return false;
+    if(r.nth!=null&&r.nthDow!=null)
+      return sameDay(dd,nthWeekdayOf(dd.getFullYear(),dd.getMonth(),r.nth,r.nthDow));
     const want=r.dayOfMonth||s0.getDate();
     const last=new Date(dd.getFullYear(),dd.getMonth()+1,0).getDate();
     return dd.getDate()===Math.min(want,last);
@@ -1205,55 +1221,61 @@ function todayBands(){
    deadline across the days it can actually be worked on (capacity-aware,
    sleep already subtracted by hoursFor) */
 function projection(){
-  const map={}, used={};
-  const put=(k,n,minutes,over)=>{
-    const arr=(map[k]=map[k]||[]);
-    const hit=arr.find(p=>p.node.id===n.id);
-    if(hit){ hit.minutes+=minutes; if(over) hit.over=true; }
-    else arr.push(over?{node:n,minutes,over:true}:{node:n,minutes});
-    used[k]=(used[k]||0)+minutes;
+  /* Each task is placed WHOLE on one day, so it shows once at its full
+     length. The day chosen is the earliest one between when the task opens
+     and when it is due that still has room, preferring the aim window.
+     Room accounts for pinned blocks and for work already placed. */
+  const map={}, used={}, fixedMemo={};
+  const fixedMin=k=>{
+    if(fixedMemo[k]!=null) return fixedMemo[k];
+    let m2=0;
+    for(const f of fixedOn(new Date(k+"T12:00:00"))){
+      if(f.background||!f.fixedEnd||f.status==="done") continue;
+      m2+=(new Date(f.fixedEnd)-new Date(f.fixedStart))/MIN;
+    }
+    return fixedMemo[k]=m2;
+  };
+  const todayK=dayKey(new Date());
+  const freeOn=d=>{
+    const k=dayKey(d);
+    const cap=(k===todayK?Math.min(hoursFor(d),hoursLeftToday()):hoursFor(d))*60;
+    return Math.max(0,cap-fixedMin(k)-(used[k]||0));
   };
   const nodes=Array.from(state.nodes.values())
     .filter(n=>n.kind==="task"&&n.status!=="done"&&n.status!=="dropped"&&n.deadline&&!n.fixedStart
       &&!n.background&&n.actionable!==false&&(n.estMaxMinutes||0)>0)
-    .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+    .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline)||score(b)-score(a));
   const today=startOfDay(new Date());
   for(const n of nodes){
-    const state_={left:n.estMaxMinutes||0};
+    const need=n.estMaxMinutes||0;
     const end=startOfDay(n.deadline);
     let earliest=new Date(today);
     const av=availableFromDate(n);
     if(av&&startOfDay(av)>earliest) earliest=startOfDay(av);
     if(n.deferUntil&&startOfDay(n.deferUntil)>earliest) earliest=startOfDay(n.deferUntil);
     if(earliest>end) earliest=new Date(end);
-    /* the aim window narrows where the work is placed first */
     let a0=new Date(earliest), a1=new Date(end);
     if(n.aimWindow){
       if(n.aimWindow.start){ const w=startOfDay(n.aimWindow.start); if(w>a0&&w<=end) a0=w; }
       if(n.aimWindow.end){ const w=startOfDay(n.aimWindow.end); if(w<a1&&w>=a0) a1=w; }
     }
-    const spread=(from,to)=>{
-      const days=[]; for(let d=new Date(from); d<=to; d=addDays(d,1)) days.push(new Date(d));
-      if(!days.length) return;
-      const per=Math.max(15,Math.ceil(state_.left/days.length));
-      for(const d of days){                 /* an even pass: a little each day */
-        if(state_.left<=0) break;
-        const k=dayKey(d), free=Math.max(0,hoursFor(d)*60-(used[k]||0));
-        const amt=Math.min(per,free,state_.left);
-        if(amt<=0) continue;
-        put(k,n,amt); state_.left-=amt;
-      }
-      for(const d of days){                 /* then fill leftover capacity */
-        if(state_.left<=0) break;
-        const k=dayKey(d), free=Math.max(0,hoursFor(d)*60-(used[k]||0));
-        const amt=Math.min(free,state_.left);
-        if(amt<=0) continue;
-        put(k,n,amt); state_.left-=amt;
-      }
+    const firstFit=(from,to)=>{
+      for(let d=new Date(from); d<=to; d=addDays(d,1)) if(freeOn(d)>=need) return new Date(d);
+      return null;
     };
-    spread(a0,a1);
-    if(state_.left>0&&(+a0!==+earliest||+a1!==+end)) spread(earliest,end);
-    if(state_.left>0) put(dayKey(end),n,state_.left,true);
+    let day=firstFit(a0,a1);
+    if(!day&&(+a0!==+earliest||+a1!==+end)) day=firstFit(earliest,end);
+    let over=false;
+    if(!day){
+      /* nothing has full room: take the roomiest day in the window */
+      let best=null,bestFree=-1;
+      for(let d=new Date(earliest); d<=end; d=addDays(d,1)){
+        const f=freeOn(d); if(f>bestFree){ bestFree=f; best=new Date(d); } }
+      day=best||new Date(end); over=bestFree<need;
+    }
+    const k=dayKey(day);
+    used[k]=(used[k]||0)+need;
+    (map[k]=map[k]||[]).push(over?{node:n,minutes:need,over:true}:{node:n,minutes:need});
   }
   return map;
 }
@@ -1310,10 +1332,13 @@ function planFor(day,proj){
   }else{
     const k=dayKey(day);
     const seen=new Set();
+    const projAll=new Set();
+    if(proj) for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
     for(const p of ((proj&&proj[k])||[])){ seen.add(p.node.id);
       items.push({node:p.node,minutes:p.minutes,over:p.over,fuzzy:false,slice:p.minutes<(p.node.estMaxMinutes||0)}); }
     for(const n of state.nodes.values()){
       if(n.kind!=="task"||seen.has(n.id)||n.fixedStart) continue;
+      if(projAll.has(n.id)) continue;      /* already planned whole on another day */
       if(n.status==="done"||n.status==="dropped") continue;
       if(n.deadline&&sameDay(n.deadline,day)&&n.actionable!==false) items.push({node:n,minutes:n.estMaxMinutes||state.settings.plan.guessMin||30,fuzzy:!n.estMaxMinutes});
     }
@@ -1599,7 +1624,7 @@ function render(){
   { const sb=content.querySelector(".selbar"); if(sb) sb.scrollLeft=SELBAR_X; }
   $("#manageBtn").hidden=!(state.tab==="browse"&&!state.browseCat&&!state.browseCtx&&!state.path.length);
   $$(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===state.tab));
-  const lb=$("#logTab").querySelector(".badge"); if(lb) lb.remove();
+  const lb=$("#moreTab").querySelector(".badge"); if(lb) lb.remove();
 }
 function setTitles(large,compact,backTo){
   $("#largeTitle").textContent=large;
@@ -1756,12 +1781,15 @@ function otherDayHTML(day){
   const proj=projection();
   const k=dayKey(day);
   const load=loadOn(day,proj), cap=hoursFor(day)*60;
-  let html=`<div class="cap">
+  const capCard=`<div class="cap">
     <div class="top"><span><b>${mins(Math.round(load))}</b> planned</span>
       <span style="color:var(--label2)">${Math.round(cap/60*10)/10}h available</span></div>
     <div class="bar"><div class="seg1" style="width:${clamp(load/Math.max(cap,1)*100,0,100)}%"></div></div></div>`;
+  let html="";
+  const projAll=new Set();
+  for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
   const dls=Array.from(state.nodes.values())
-    .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped");
+    .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped"&&!projAll.has(n.id));
   if(state.todayView==="list"){
     const fx=fixedOn(day).filter(n=>n.status!=="done");
     const pj=proj[k]||[];
@@ -1785,12 +1813,15 @@ function otherDayHTML(day){
     html+= body?sec("The plan for tomorrow")+body
       : emptyHTML("A clear day","Nothing lands on tomorrow yet.",null);
   }
+  html+=`<div style="height:8px"></div>`+capCard;
   return html;
 }
 
 /* the coming week: days stacked on top of each other, scroll down through it */
 function weekPlanHTML(){
   const proj=projection();
+  const projAll=new Set();
+  for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
   let html="";
   for(let i=0;i<7;i++){
     const day=addDays(new Date(),i);
@@ -1802,7 +1833,7 @@ function weekPlanHTML(){
     if(state.todayView==="list"){
       const fx=fixedOn(day).filter(n=>n.status!=="done");
       const dls=Array.from(state.nodes.values())
-        .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped");
+        .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped"&&!projAll.has(n.id));
       const pj=proj[k]||[];
       let rows="";
       for(const n of fx) rows+=`<div class="planrow" data-open="${n.id}">
@@ -1975,11 +2006,11 @@ function calNav(){
 function monthHTML(proj){
   const cur=state.calCursor;
   const first=new Date(cur.getFullYear(),cur.getMonth(),1);
-  const start=addDays(first,-((first.getDay()+7)%7));
+  const lead=(first.getDay()+7)%7;
   const dows=["S","M","T","W","T","F","S"];
   let cells="";
   for(let i=0;i<42;i++){
-    const d=addDays(start,i);
+    const d=new Date(cur.getFullYear(),cur.getMonth(),1-lead+i,12,0,0);
     const out=d.getMonth()!==cur.getMonth();
     const k=dayKey(d);
     const dls=Array.from(state.nodes.values()).filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
@@ -2105,7 +2136,11 @@ function weekColsHTML(proj){
       <div class="wkhd${sameDay(d,new Date())?" today":""}">${d.toLocaleDateString(undefined,{weekday:"short"})}<b class="tnum">${d.getDate()}</b></div>
       ${blocks}</div>`;
   }
-  return calNav()+`<div class="wkcolwrap"><div class="wkcols">${cols}</div></div>
+  let gutter=`<div class="wkgutter" style="height:${height}px">`;
+  for(let h2=0;h2<24;h2++){ const t2=new Date(); t2.setHours(h2,0,0,0);
+    gutter+=`<div class="wkhr tnum" style="top:${30+h2*PPH}px">${t2.toLocaleTimeString(undefined,{hour:"numeric"})}</div>`; }
+  gutter+=`</div>`;
+  return calNav()+`<div class="wkcolwrap"><div class="wkcols">${gutter}${cols}</div></div>
     <div class="fieldnote" style="margin-top:10px">Every task, placed. Solid blocks are fixed. Dashed blocks are the plan. Gradient edged blocks are on the day but not pinned to a length. Dimmed bands are sleep. Tap a header to open that day.</div>`;
 }
 
@@ -2569,9 +2604,10 @@ function svgHBars(entries){
 /* ===========================================================================
    INTERACTION
    =========================================================================== */
-$$(".tab").forEach(t=>t.addEventListener("click",()=>{
+$$(".tab[data-tab]").forEach(t=>t.addEventListener("click",()=>{
   if(state.tab===t.dataset.tab&&t.dataset.tab==="browse"){ state.browseCat=null; state.browseCtx=null; state.path=[]; state.search=""; }
   state.tab=t.dataset.tab; render(); }));
+$("#moreTab").addEventListener("click",openMore);
 $("#backBtn").addEventListener("click",()=>{
   if(state.tab==="browse"){
     if(state.browseMode.startsWith("attn:")){ state.browseMode="foryou"; state.search=""; }
@@ -2631,7 +2667,7 @@ content.addEventListener("touchcancel",endSwipe,{passive:true});
 
 document.addEventListener("click",async e=>{
   if(e.target.closest("#sheet")||e.target.closest(".tabs")||e.target.closest("#fab")||
-     e.target.closest("#moreBtn")||e.target.closest("#backBtn")) return;
+     e.target.closest("#moreTab")||e.target.closest("#backBtn")) return;
   const act=e.target.closest("[data-act]");
   if(act){
     const a=act.dataset.act, n=act.dataset.id?byId(act.dataset.id):null;
@@ -2655,7 +2691,7 @@ document.addEventListener("click",async e=>{
         color:PALETTE[state.settings.categories.length%PALETTE.length]});
         await saveSettings(); toast("Category added"); } }
     if(a==="newctx"){
-      let v=(prompt("New context (e.g. @library)")||"").trim();
+      let v=(prompt("New context, like library or car. The @ is added for you")||"").trim();
       if(v){ if(!v.startsWith("@")) v="@"+v;
         v=v.toLowerCase().replace(/\s+/g,"-");
         if(!state.settings.contexts.includes(v)){ state.settings.contexts.push(v);
@@ -2751,8 +2787,21 @@ async function toggleDone(n){
   if(n.status==="done"){ n.status="available"; n.completedAt=null; await save(n); toast("Reopened"); }
   else { await setStatus(n,"done"); toast("Completed"); }
 }
+function nthWeekdayOf(y,m,nth,dow){
+  if(nth===-1){ const last=new Date(y,m+1,0); const off=(last.getDay()-dow+7)%7;
+    return new Date(y,m,last.getDate()-off); }
+  const first=new Date(y,m,1); const off=(dow-first.getDay()+7)%7;
+  const day=1+off+(nth-1)*7;
+  const dim=new Date(y,m+1,0).getDate();
+  return new Date(y,m,Math.min(day,dim));
+}
 function nextOccurrence(n,from){
   const r=n.recurrence; if(!r) return null;
+  if(r.type==="months"&&r.nth!=null&&r.nthDow!=null){
+    const src=new Date(n.deadline||n.fixedStart||startOfDay(from));
+    const d=new Date(src.getFullYear(),src.getMonth()+(r.every||1),1);
+    return startOfDay(nthWeekdayOf(d.getFullYear(),d.getMonth(),r.nth,r.nthDow));
+  }
   const base=startOfDay(from);
   if(r.mode==="afterDone"||!n.deadline) return addDays(base,r.every||1);
   if(r.type==="days") return addDays(startOfDay(n.deadline),r.every||1);
@@ -2789,10 +2838,18 @@ function nextOccurrence(n,from){
   return addDays(base,r.every||1);
 }
 async function completeRecurring(n){
+  const r=n.recurrence;
+  let next=nextOccurrence(n,new Date());
+  let final=false;
+  if(r&&r.until&&next&&startOfDay(next)>startOfDay(r.until)) final=true;
+  if(r&&r.count){ r.left=(r.left!=null?r.left:r.count)-1; if(r.left<=0) final=true; }
+  if(final||!next){
+    n.recurrence=null; n.status="done"; n.completedAt=nowISO();
+    await save(n); toast("Done. That was its last repeat"); return;
+  }
   const archive=newNode(Object.assign({},n,{id:uid(),recurrence:null,status:"done",
     completedAt:nowISO(),createdAt:n.createdAt}));
   state.nodes.set(archive.id,archive); await putNode(archive);
-  const next=nextOccurrence(n,new Date());
   if(n.deadline&&next){ const t=new Date(n.deadline); const d=new Date(next);
     d.setHours(t.getHours(),t.getMinutes(),0,0); n.deadline=d.toISOString(); }
   else if(next) n.deadline=next.toISOString();
@@ -2852,7 +2909,7 @@ async function closeSheet(){
   if(SHEET.leave){ const f=SHEET.leave; SHEET.leave=null; try{f();}catch(e){} }
   await flushTaskSave();
   sheet.classList.remove("on"); scrim.classList.remove("on");
-  state.editing=null; state.draft=null; state.capDraft=null;
+  state.editing=null; state.draft=null; state.capDraft=null; state.capWiz=null;
   SHEET.stack=[]; SHEET.current=null; SHEET.action=null;
   render();
 }
@@ -2997,7 +3054,8 @@ function drawOptions(cfg){
     `<div class="group">${rows.map(r=>`<button class="pickrow" data-v="${r.v===null?"":esc(r.v)}">
         <span>${esc(r.l)}${r.note?`<span class="path">${esc(r.note)}</span>`:""}</span>${r.v===cfg.current?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
      ${allowNew?`<div class="field" style="margin-top:18px"><div class="line">
-        <input class="big" id="optNew" placeholder="Add a new one…" autocapitalize="words"></div>
+        ${cfg.prefix?`<span style="color:var(--label2);flex:0 0 auto">${esc(cfg.prefix)}</span>`:""}
+        <input class="big" id="optNew" placeholder="Add a new one…" autocapitalize="${cfg.prefix?"none":"words"}" style="${cfg.prefix?"margin-left:-6px":""}"></div>
         <button class="line accent" id="optAdd">Add</button></div>`:""}
      <div class="fieldnote" style="margin-top:14px">Tap to choose. The check mark moves. Go back with ‹ when you are done.</div>`,null);
   sheetBody.querySelectorAll("[data-v]").forEach(b=>b.addEventListener("click",async()=>{
@@ -3007,7 +3065,8 @@ function drawOptions(cfg){
     drawOptions(cfg);
   }));
   const add=$("#optAdd");
-  if(add){ const go=async()=>{ const v=$("#optNew").value.trim(); if(!v) return;
+  if(add){ const go=async()=>{ let v=$("#optNew").value.trim(); if(!v) return;
+      if(cfg.prefix){ v=v.replace(/^[@\s]+/,""); if(!v) return; v=cfg.prefix+v; }
       await onPick(v,true);
       cfg.current=v;
       if(!cfg.options.some(o=>(typeof o==="string"?o:o.v)===v)) cfg.options=cfg.options.concat(v);
@@ -3049,18 +3108,31 @@ function todayRank(id){
   const i=list.findIndex(x=>x.id===id);
   return i>=0?i+1:null;
 }
+function recurEndsLabel(r){
+  if(!r) return "";
+  if(r.until) return " until "+fmtDate(r.until);
+  if(r.count) return " · "+(r.left!=null?r.left:r.count)+" times";
+  return "";
+}
 function recurLabel(r){
   if(!r) return "Never";
   if(r.mode==="afterDone") return "Every "+(r.every||1)+"d after done";
-  if(r.type==="days") return r.every===1?"Every day":"Every "+r.every+" days";
+  if(r.type==="days") return (r.every===1?"Every day":"Every "+r.every+" days")+recurEndsLabel(r);
   if(r.type==="weekdays"){ const dn=["Su","Mo","Tu","We","Th","Fr","Sa"];
     const ds=(r.days||[1,2,3,4,5]);
     return ds.length===5&&!ds.includes(0)&&!ds.includes(6)?"Weekdays":ds.map(x=>dn[x]).join(" "); }
   if(r.type==="weeks"){ const dn=["Su","Mo","Tu","We","Th","Fr","Sa"];
     const ds=(r.days||[]).map(x=>dn[x]).join(" ");
-    return (r.every>1?"Every "+r.every+" wks":"Weekly")+(ds?" · "+ds:""); }
-  if(r.type==="months") return (r.every>1?"Every "+r.every+" months":"Monthly")+(r.dayOfMonth?" · day "+r.dayOfMonth:"");
-  if(r.type==="years") return r.every>1?"Every "+r.every+" years":"Yearly";
+    return (r.every>1?"Every "+r.every+" wks":"Weekly")+(ds?" · "+ds:"")+recurEndsLabel(r); }
+  if(r.type==="months"){
+    if(r.nth!=null&&r.nthDow!=null){
+      const dn=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const ord=r.nth===-1?"last":["1st","2nd","3rd","4th"][r.nth-1]||r.nth+"th";
+      return (r.every>1?"Every "+r.every+" months":"Monthly")+" · "+ord+" "+dn[r.nthDow]+recurEndsLabel(r);
+    }
+    return (r.every>1?"Every "+r.every+" months":"Monthly")+(r.dayOfMonth?" · day "+r.dayOfMonth:"")+recurEndsLabel(r);
+  }
+  if(r.type==="years") return (r.every>1?"Every "+r.every+" years":"Yearly")+recurEndsLabel(r);
   return "Custom";
 }
 function notifyValLabel(n,d){
@@ -3107,9 +3179,9 @@ function drawTaskSheet(){
     <div class="fieldnote inline"><b>Due</b> means finished by then. The time next to the date is optional (blank means end of day). <b>Available from</b> keeps it out of the plan until it opens up, like an assignment that unlocks a week before it is due. <b>Aim to do it</b> is the stretch you want to work on it. Tap the small x to clear anything.</div>
     <button class="line" id="tMoreWhen" style="color:var(--accent)">More timing choices ${d._moreWhen?"▴":"▾"}</button>
     ${d._moreWhen?`
-    ${!d.deadline?`<button class="line" id="tTimeframe"><label>Timeframe</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
+    ${d.timeframe?`<button class="line" id="tTimeframe"><label>Aimed period</label><span class="val set">${esc(tfLabel(d.timeframe))}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
     <div class="line"><label>Stops mattering after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
-    <div class="fieldnote inline">A timeframe means sometime in a period, with no date yet. Past the stops mattering date, the task drops itself.</div>`:""}`
+    <div class="fieldnote inline">Past the stops mattering date, the task drops itself.${d.timeframe?" Aimed period is the older sometime in a month setting. Aim to do it above replaces it, so clearing this moves you to the new way.":""}</div>`:""}`
   :`
     <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):"Set the time"}</span>${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
@@ -3339,7 +3411,7 @@ async function applyCapturePreset(d,k){
     if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
       d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); } }
   normalizeTiming(d);
-  drawTaskSheet();
+  if(state.capWiz) drawWizard(); else drawTaskSheet();
 }
 /* Available from: an exact date, or days before the due date */
 function openAvailSheet(d,onChange){ sheetPush(()=>drawAvailSheet(d,onChange)); }
@@ -3379,22 +3451,42 @@ function drawAimSheet(d,onChange){
   const preset=(a,b)=>({start:a.toISOString(),end:b.toISOString()});
   const presets=[
     {l:"No aim",v:null},
+    {l:"Tomorrow",v:preset(addDays(today,1),addDays(today,1))},
     {l:"This week",v:preset(today,addDays(wkStart,6))},
     {l:"Next week",v:preset(addDays(wkStart,7),addDays(wkStart,13))},
     {l:"The week after next",v:preset(addDays(wkStart,14),addDays(wkStart,20))}
   ];
+  const months=[];
+  for(let i=0;i<3;i++){
+    const m0=new Date(today.getFullYear(),today.getMonth()+i,1);
+    const m1=new Date(today.getFullYear(),today.getMonth()+i+1,0);
+    months.push({l:i===0?"Sometime this month":m0.toLocaleDateString(undefined,{month:"long"}),
+      v:preset(i===0?today:startOfDay(m0),startOfDay(m1))});
+  }
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
   showSheet("Aim to do it",
-    `<div class="fieldnote" style="margin:0 20px 12px">The stretch of days you want to work on this. It nudges the ranking and the spread of work. It is not a hard rule, so a real time crunch still wins.</div>
+    `<div class="fieldnote" style="margin:0 20px 12px">The day or stretch of days you want to work on this. It pulls the task into that stretch in the ranking and the planned work. It is not a hard rule, so a real time crunch still wins.</div>
      <div class="group">${presets.map((p,i)=>`<button class="pickrow" data-ap="${i}"><span>${p.l}</span>${same(d.aimWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
-     <div class="field" style="margin-top:14px">
+     ${sec("A single day")}
+     <div class="field"><div class="line"><label>On</label><input type="date" id="awDay" value="${w.start&&w.end&&w.start===w.end?dateInput(w.start):""}"></div></div>
+     ${sec("A month")}
+     <div class="group">${months.map((p,i)=>`<button class="pickrow" data-am2="${i}"><span>${p.l}</span>${same(d.aimWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
+     ${sec("Any range")}
+     <div class="field">
        <div class="line"><label>From</label><input type="date" id="awStart" value="${dateInput(w.start)}"></div>
        <div class="line"><label>To</label><input type="date" id="awEnd" value="${dateInput(w.end)}"></div>
      </div>
-     <div class="fieldnote">Or pick any range of dates by hand. Backwards dates get swapped for you.</div>`,null);
+     <div class="fieldnote">Backwards dates get swapped for you.</div>`,null);
   sheetBody.querySelectorAll("[data-ap]").forEach(b=>b.addEventListener("click",()=>{
     d.aimWindow=presets[Number(b.dataset.ap)].v?JSON.parse(JSON.stringify(presets[Number(b.dataset.ap)].v)):null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
+  sheetBody.querySelectorAll("[data-am2]").forEach(b=>b.addEventListener("click",()=>{
+    d.aimWindow=JSON.parse(JSON.stringify(months[Number(b.dataset.am2)].v));
+    normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
+  const day=$("#awDay"); if(day) day.addEventListener("change",e=>{
+    const v=e.target.value;
+    d.aimWindow=v?{start:new Date(v+"T00:00:00").toISOString(),end:new Date(v+"T00:00:00").toISOString()}:null;
+    normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); });
   const upd=()=>{ const a=$("#awStart").value, b2=$("#awEnd").value;
     d.aimWindow=(a||b2)?{start:a?new Date(a+"T00:00:00").toISOString():null,end:b2?new Date(b2+"T00:00:00").toISOString():null}:null;
     normalizeTiming(d); if(onChange) onChange(); };
@@ -3458,10 +3550,10 @@ function applyTemplate(tpl){
   normalizeTiming(d);
   state.capDraft=d; state.capSubs=[]; state.capIgnore=new Set();
   state.capSet=new Set(["deadline","dur","cat","ctx","imp","rec"]);
-  CAP_OPEN.when=ask.includes("due"); CAP_OPEN.effort=ask.includes("effort"); CAP_OPEN.organize=ask.includes("shape");
   state.editing=null; state.draft=null;
-  drawTaskSheet();
-  setTimeout(()=>{ const t=$("#tTitle"); if(t&&!t.value) t.focus(); },250);
+  state.capWiz={i:1};
+  sheetRoot(drawWizard);
+  setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
 }
 async function saveAsTemplate(d){
   const data=JSON.parse(JSON.stringify(d));
@@ -3690,19 +3782,33 @@ function drawIconPicker(cfg){
   $("#icCustom").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); sheetPop(); } });
 }
 function openRepeatEditor(d,onChange){
-  const r=d.recurrence;
+  const r=d.recurrence||{};
   const cfg={
-    mode:(r&&r.type==="months")?"month":"week",
-    days:(r&&r.days)?r.days.slice():[],
-    dayOfMonth:(r&&r.dayOfMonth)||(d.deadline?new Date(d.deadline).getDate():new Date().getDate()),
-    every:(r&&r.every)||1,
-    unit:(r&&r.type==="years")?"years":((r&&r.type==="months")?"months":"weeks")
+    mode:(r.type==="months"||r.type==="years")?"month":((r.type==="days"&&(r.every||1)>1)||r.mode==="afterDone"||r.type==="years"?"more":"week"),
+    days:(r.days||[]).slice(),
+    every:r.every||1,
+    monthMode:(r.nth!=null)?"nth":"dom",
+    dayOfMonth:r.dayOfMonth||(d.deadline?new Date(d.deadline).getDate():(d.fixedStart?new Date(d.fixedStart).getDate():new Date().getDate())),
+    nth:r.nth!=null?r.nth:1,
+    nthDow:r.nthDow!=null?r.nthDow:(d.fixedStart?new Date(d.fixedStart).getDay():new Date().getDay()),
+    moreKind:r.mode==="afterDone"?"after":(r.type==="years"?"years":"days"),
+    yearly:(r.type==="years"),
+    ends:r.until?"until":(r.count?"count":"never"),
+    until:r.until||null,
+    count:r.count||3
   };
+  if(r.type==="years") cfg.mode="more";
   sheetPush(()=>drawRepeatEditor(d,cfg,onChange));
 }
 function drawRepeatEditor(d,cfg,onChange){
   const dn=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const set=v=>{ d.recurrence=v; if(onChange) onChange(); };
+  const withEnds=v=>{
+    if(!v) return v;
+    if(cfg.ends==="until"&&cfg.until) v.until=cfg.until;
+    if(cfg.ends==="count"&&cfg.count>0){ v.count=cfg.count; v.left=cfg.count; }
+    return v;
+  };
   const presets=[
     {v:null,l:"Never"},
     {v:{type:"days",every:1},l:"Every day"},
@@ -3712,53 +3818,103 @@ function drawRepeatEditor(d,cfg,onChange){
     {v:{mode:"afterDone",every:3},l:"3 days after I finish it"},
     {v:{mode:"afterDone",every:7},l:"7 days after I finish it"},
   ];
-  const cur=JSON.stringify(d.recurrence);
+  const strip=x=>{ if(!x) return x; const c=Object.assign({},x); delete c.until; delete c.count; delete c.left; return c; };
+  const cur=JSON.stringify(strip(d.recurrence));
   showSheet("Repeats",
     `<div class="group">${presets.map((p,i)=>`<button class="pickrow" data-rp="${i}">
         <span>${p.l}</span>${JSON.stringify(p.v)===cur?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
-     ${sec("Custom","<span>build any pattern</span>")}
+     ${sec("Build any pattern")}
      <div class="seg" id="rpMode">
-       <button data-m="week"${cfg.mode==="week"?' class="on"':""}>Days of the week</button>
-       <button data-m="month"${cfg.mode==="month"?' class="on"':""}>Day of the month</button></div>
+       <button data-m="week"${cfg.mode==="week"?' class="on"':""}>Weekly</button>
+       <button data-m="month"${cfg.mode==="month"?' class="on"':""}>Monthly</button>
+       <button data-m="more"${cfg.mode==="more"?' class="on"':""}>More</button></div>
      ${cfg.mode==="week"?`
      <div class="daychips" id="rpDays">${dn.map((x,i)=>`<button data-dow="${i}"${cfg.days.includes(i)?' class="on"':""}>${x}</button>`).join("")}</div>
      <div class="field" style="margin-top:14px">
        <div class="line"><label>Repeats every</label><input type="number" inputmode="numeric" min="1" max="52" id="rpEvery" value="${cfg.every}"><span class="unit">week${cfg.every>1?"s":""}</span></div>
      </div>
-     <div class="fieldnote">Pick the days, then the rhythm: every week, every 2 weeks (biweekly), every 3… The pattern anchors to the task's current date.</div>`
-     :`
+     <div class="fieldnote">Pick the days, then the rhythm: every week, every 2 weeks, every 3. The pattern anchors to the task's current date.</div>`:""}
+     ${cfg.mode==="month"?`
+     <div class="seg" id="rpMM">
+       <button data-mm="dom"${cfg.monthMode==="dom"?' class="on"':""}>On a date</button>
+       <button data-mm="nth"${cfg.monthMode==="nth"?' class="on"':""}>On a weekday</button></div>
+     ${cfg.monthMode==="dom"?`
      <div class="field">
        <div class="line"><label>On day</label><input type="number" inputmode="numeric" min="1" max="31" id="rpDom" value="${cfg.dayOfMonth}"><span class="unit">of the month</span></div>
-       <div class="line"><label>Repeats every</label><input type="number" inputmode="numeric" min="1" max="24" id="rpEvery" value="${cfg.every}"></div>
+       <div class="line"><label>Repeats every</label><input type="number" inputmode="numeric" min="1" max="24" id="rpEvery" value="${cfg.every}"><span class="unit">month${cfg.every>1?"s":""}</span></div>
      </div>
-     <div class="seg" id="rpUnit">
-       <button data-u="months"${cfg.unit!=="years"?' class="on"':""}>month${cfg.every>1?"s":""}</button>
-       <button data-u="years"${cfg.unit==="years"?' class="on"':""}>year${cfg.every>1?"s":""}</button></div>
-     <div class="fieldnote">"On day 15, every 3 months." A short month clips to its last day. Yearly repeats on the same date each year.</div>`}
-     <div class="field" style="margin-top:10px"><button class="line accent" id="rpApply">Use this custom pattern</button></div>
-     <div class="fieldnote">Presets apply right away. The check mark shows what is active. Go back with ‹ when done.</div>`,null);
+     <div class="fieldnote">Like rent on the 1st, or a bill on the 15th every 3 months. A short month clips to its last day.</div>`
+     :`
+     <div class="field">
+       <button class="line" id="rpNth"><label>Which</label><span class="val">${cfg.nth===-1?"Last":["First","Second","Third","Fourth"][cfg.nth-1]}</span>${ICON_CHEV}</button>
+     </div>
+     <div class="daychips" id="rpNthDow">${dn.map((x,i)=>`<button data-ndow="${i}"${cfg.nthDow===i?' class="on"':""}>${x}</button>`).join("")}</div>
+     <div class="field" style="margin-top:14px">
+       <div class="line"><label>Repeats every</label><input type="number" inputmode="numeric" min="1" max="24" id="rpEvery" value="${cfg.every}"><span class="unit">month${cfg.every>1?"s":""}</span></div>
+     </div>
+     <div class="fieldnote">Like the second Tuesday of every month, or the last Friday.</div>`}`:""}
+     ${cfg.mode==="more"?`
+     <div class="seg" id="rpMore">
+       <button data-mk="days"${cfg.moreKind==="days"?' class="on"':""}>Every N days</button>
+       <button data-mk="years"${cfg.moreKind==="years"?' class="on"':""}>Yearly</button>
+       <button data-mk="after"${cfg.moreKind==="after"?' class="on"':""}>After I finish</button></div>
+     <div class="field">
+       <div class="line"><label>Every</label><input type="number" inputmode="numeric" min="1" max="365" id="rpEvery" value="${cfg.every}"><span class="unit">${cfg.moreKind==="years"?"year"+(cfg.every>1?"s":""):"day"+(cfg.every>1?"s":"")}${cfg.moreKind==="after"?" after done":""}</span></div>
+     </div>
+     <div class="fieldnote">${cfg.moreKind==="after"?"The next one is scheduled only when you finish this one. Good for watering plants or a haircut.":cfg.moreKind==="years"?"Once a year on the same date, like a renewal or a birthday.":"A fixed rhythm of days, like every 10 days."}</div>`:""}
+     ${sec("Ends")}
+     <div class="seg" id="rpEnds">
+       <button data-en="never"${cfg.ends==="never"?' class="on"':""}>Never</button>
+       <button data-en="until"${cfg.ends==="until"?' class="on"':""}>On a date</button>
+       <button data-en="count"${cfg.ends==="count"?' class="on"':""}>After N times</button></div>
+     ${cfg.ends==="until"?`<div class="field"><div class="line"><label>Last day</label><input type="date" id="rpUntil" value="${dateInput(cfg.until)}"></div></div>
+     <div class="fieldnote">Good for a class schedule that stops at the end of the term.</div>`:""}
+     ${cfg.ends==="count"?`<div class="field"><div class="line"><label>Times</label><input type="number" inputmode="numeric" min="1" max="200" id="rpCount" value="${cfg.count}"></div></div>`:""}
+     <div class="field" style="margin-top:10px"><button class="line accent" id="rpApply">Use this pattern</button></div>
+     <div class="fieldnote">Presets at the top apply right away. The check mark shows what is active. Go back with ‹ when done.</div>`,null);
   sheetBody.querySelectorAll("[data-rp]").forEach(b=>b.addEventListener("click",()=>{
-    set(presets[Number(b.dataset.rp)].v); drawRepeatEditor(d,cfg,onChange); }));
+    set(withEnds(presets[Number(b.dataset.rp)].v?JSON.parse(JSON.stringify(presets[Number(b.dataset.rp)].v)):null));
+    drawRepeatEditor(d,cfg,onChange); }));
   $$("#rpMode button").forEach(b=>b.addEventListener("click",()=>{
-    cfg.mode=b.dataset.m; cfg.unit=cfg.mode==="week"?"weeks":"months"; drawRepeatEditor(d,cfg,onChange); }));
+    cfg.mode=b.dataset.m; drawRepeatEditor(d,cfg,onChange); }));
+  const mm=$("#rpMM"); if(mm) mm.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    cfg.monthMode=b.dataset.mm; drawRepeatEditor(d,cfg,onChange); }));
+  const mo=$("#rpMore"); if(mo) mo.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    cfg.moreKind=b.dataset.mk; drawRepeatEditor(d,cfg,onChange); }));
   const days=$("#rpDays"); if(days) days.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
     const di=Number(b.dataset.dow);
     cfg.days=cfg.days.includes(di)?cfg.days.filter(x=>x!==di):cfg.days.concat(di).sort();
     drawRepeatEditor(d,cfg,onChange); }));
-  const ev=$("#rpEvery"); if(ev) ev.addEventListener("input",e=>{ cfg.every=clamp(Number(e.target.value)||1,1,52); });
+  const ndow=$("#rpNthDow"); if(ndow) ndow.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    cfg.nthDow=Number(b.dataset.ndow); drawRepeatEditor(d,cfg,onChange); }));
+  const nthBtn=$("#rpNth"); if(nthBtn) nthBtn.addEventListener("click",()=>openOptions({title:"Which one",
+    options:[{v:"1",l:"First"},{v:"2",l:"Second"},{v:"3",l:"Third"},{v:"4",l:"Fourth"},{v:"-1",l:"Last"}],
+    current:String(cfg.nth),onPick:v=>{ cfg.nth=Number(v); }}));
+  const ev=$("#rpEvery"); if(ev) ev.addEventListener("input",e=>{ cfg.every=clamp(Number(e.target.value)||1,1,365); });
   const dom=$("#rpDom"); if(dom) dom.addEventListener("input",e=>{ cfg.dayOfMonth=clamp(Number(e.target.value)||1,1,31); });
-  const un=$("#rpUnit"); if(un) un.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
-    cfg.unit=b.dataset.u; drawRepeatEditor(d,cfg,onChange); }));
+  $$("#rpEnds button").forEach(b=>b.addEventListener("click",()=>{
+    cfg.ends=b.dataset.en;
+    if(cfg.ends==="until"&&!cfg.until) cfg.until=startOfDay(addDays(new Date(),90)).toISOString();
+    drawRepeatEditor(d,cfg,onChange); }));
+  const un=$("#rpUntil"); if(un) un.addEventListener("change",e=>{
+    cfg.until=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; });
+  const ct=$("#rpCount"); if(ct) ct.addEventListener("input",e=>{ cfg.count=clamp(Number(e.target.value)||1,1,200); });
   $("#rpApply").addEventListener("click",()=>{
+    let v=null;
     if(cfg.mode==="week"){
       if(!cfg.days.length){ toast("Pick at least one day"); return; }
-      set({type:"weeks",every:cfg.every,days:cfg.days});
-    } else if(cfg.unit==="years"){
-      set({type:"years",every:cfg.every});
+      v={type:"weeks",every:cfg.every,days:cfg.days};
+    } else if(cfg.mode==="month"){
+      v=cfg.monthMode==="nth"
+        ? {type:"months",every:cfg.every,nth:cfg.nth,nthDow:cfg.nthDow}
+        : {type:"months",every:cfg.every,dayOfMonth:cfg.dayOfMonth};
     } else {
-      set({type:"months",every:cfg.every,dayOfMonth:cfg.dayOfMonth});
+      if(cfg.moreKind==="after") v={mode:"afterDone",every:cfg.every};
+      else if(cfg.moreKind==="years") v={type:"years",every:cfg.every};
+      else v={type:"days",every:cfg.every};
     }
-    drawRepeatEditor(d,cfg,onChange); toast("Pattern applied"); });
+    set(withEnds(v));
+    drawRepeatEditor(d,cfg,onChange); toast("Pattern set"); });
 }
 
 function pickField(which,d,onChange){
@@ -3781,8 +3937,8 @@ function pickField(which,d,onChange){
     current:d.deliverable,allowNew:true,allowNone:true,
     onPick:async(v,isNew)=>{ if(isNew&&v&&!state.settings.deliverables.includes(v)){ state.settings.deliverables.push(v); await saveSettings(); }
       d.deliverable=v; Q(); }});
-  if(which==="context") return openOptions({title:"Context",options:state.settings.contexts,
-    current:d.context,allowNew:true,allowNone:true,
+  if(which==="context") return openOptions({title:"Where",options:state.settings.contexts,
+    current:d.context,allowNew:true,allowNone:true,prefix:"@",
     onPick:async(v,isNew)=>{ if(isNew&&v&&!state.settings.contexts.includes(v)){ state.settings.contexts.push(v); await saveSettings(); }
       d.context=v; Q(); }});
   if(which==="energy") return openOptions({title:"Energy",
@@ -4148,8 +4304,318 @@ function openCapture(pre){
     d.fixedEnd=new Date(new Date(d.fixedStart).getTime()+60*MIN).toISOString(); }
   state.capDraft=d; state.capSubs=[]; state.capIgnore=new Set(); state.capSet=new Set();
   if(pre.deadlineDay) state.capSet.add("deadline");
-  sheetRoot(drawTaskSheet);
-  setTimeout(()=>{ const t=$("#tTitle"); if(t) t.focus(); },380);
+  state.capWiz={i:0};
+  sheetRoot(drawWizard);
+}
+/* ---------------------------------------------------------------------------
+   THE NEW-TASK WIZARD
+   One question at a time, in the order of the capture tree. Back returns to
+   the last question with everything kept. Skip moves on without answering.
+   The review step shows the whole task and jumps back to any answer.
+   --------------------------------------------------------------------------- */
+function wizSteps(){
+  const d=state.capDraft;
+  return (d&&d.actionable===false)
+    ? ["type","title","time","repeat","shape","review"]
+    : ["type","title","dotoday","due","window","repeat","effort","shape","review"];
+}
+function wizGo(n){
+  const steps=wizSteps();
+  state.capWiz.i=clamp(n,0,steps.length-1);
+  drawWizard();
+}
+function wizKeep(){
+  const d=state.capDraft; if(!d) return;
+  const t=$("#wTitle"); if(t) d.title=t.value;
+  const nn=$("#wNotes"); if(nn) d.notes=nn.value;
+}
+function wizFoot(i,total,last){
+  return `<div class="wizfoot">
+    <button class="wizbtn" id="wzBack"${i===0?" disabled":""}>‹ Back</button>
+    <span class="wizprog tnum">${i+1} of ${total}</span>
+    ${last?`<button class="wizbtn strong" id="wzAdd">Add task</button>`
+          :`<button class="wizbtn" id="wzSkip">Skip</button><button class="wizbtn strong" id="wzNext">Next ›</button>`}
+  </div>`;
+}
+function drawWizard(){
+  const d=state.capDraft; if(!d){ closeSheet(); return; }
+  const steps=wizSteps();
+  if(state.capWiz.i>steps.length-1) state.capWiz.i=steps.length-1;
+  const i=state.capWiz.i, key=steps[i], last=key==="review";
+  const P=state.settings.plan;
+  const q=(t2,sub)=>`<div class="wizq">${esc(t2)}</div>${sub?`<div class="wizsub">${sub}</div>`:""}`;
+  let h="", title="New";
+
+  if(key==="type"){
+    title="New";
+    const opts=[
+      ["todo","To do","Something you do and finish. Most things."],
+      ["event","Event","You attend it at its time. A class, a visit, a meeting."],
+      ["block","Time block","Walls off time. Commute, gym, quiet hours."],
+      ["sleep","Sleep","A sleep block, filled in from your schedule."],
+      ["bgp","Background thing","Runs by itself while you do other work. Laundry."],
+      ["project","Project","A group that holds steps inside it."],
+      ["template","From a template","Start from a saved shape."]
+    ];
+    const cur=d.actionable===false
+      ?(d.preset==="Sleep"?"sleep":(d.preset==="event"?"event":(d.background?"bgp":"block")))
+      :"todo";
+    h=q("What is this?","Pick one and the right questions follow.")+
+      `<div class="group">${opts.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpre="${k}">
+        <span>${l}<span class="path">${note}</span></span>${k===cur?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
+  }
+  if(key==="title"){
+    const isTodo=d.actionable!==false;
+    title=isTodo?"To do":(d.preset==="event"?"Event":"Time block");
+    h=q(isTodo?"What needs doing?":"What is it called?",
+        isTodo?'Shorthand works: "essay draft friday 4pm ~1h #School @computer". It turns into chips you can dismiss.':"")+
+      `<div class="field">
+        <div class="line"><input class="big" id="wTitle" value="${esc(d.title)}" placeholder="${isTodo?"Title":"Name, like Math class or Commute"}" autocapitalize="sentences" enterkeyhint="next"></div>
+        <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="wNotes" placeholder="Notes, if any">${esc(d.notes||"")}</textarea></div>
+      </div>
+      <div class="chips" id="capChips" style="display:none"></div>`;
+  }
+  if(key==="dotoday"){
+    title="Timing";
+    h=q("Is this for today?","Do today puts it at the top of today no matter how it ranks.")+
+      `<div class="group">
+        <button class="pickrow" data-wdt="1"><span>Yes, do it today</span>${d.flagged?'<span class="tick">✓</span>':""}</button>
+        <button class="pickrow" data-wdt="0"><span>No, it can find its own place</span>${!d.flagged?'<span class="tick">✓</span>':""}</button>
+      </div>`;
+  }
+  if(key==="due"){
+    title="Due";
+    h=q("Does it have a due date?","Blank time means end of that day. Skip if nothing real is due.")+
+      `<div class="field">
+        <div class="line"><label>Due</label><input type="date" id="wDue" value="${dateInput(d.deadline)}"></div>
+        <div class="line"><label>Time</label><input type="time" id="wDueTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}"></div>
+        ${d.deadline?`<button class="line accent" id="wDueClear">No due date</button>`:""}
+      </div>`;
+  }
+  if(key==="window"){
+    title="Work window";
+    const af=d.availableFrom;
+    const afLbl=!af?"From now":(af.mode==="beforeDue"?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due"):(af.at?fmtDate(af.at):"From now"));
+    const aw=d.aimWindow;
+    const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
+    const twv=d.todWindow;
+    const twLbl=twv&&(twv.after||twv.before)?[twv.after?"after "+fmtHM(twv.after):"",twv.before?"before "+fmtHM(twv.before):""].filter(Boolean).join(", "):"Any time";
+    h=q("When can you work on it?","All three are optional. Skip and it competes from today onward.")+
+      `<div class="field">
+        <button class="line" id="wAvail"><label>Available from</label><span class="val${af?" set":""}">${esc(afLbl)}</span>${ICON_CHEV}</button>
+        <button class="line" id="wAim"><label>Aim to do it</label><span class="val${aw?" set":""}">${esc(awLbl)}</span>${ICON_CHEV}</button>
+        <button class="line" id="wTod"><label>Time of day</label><span class="val${twv?" set":""}">${esc(twLbl)}</span>${ICON_CHEV}</button>
+      </div>
+      <div class="fieldnote">Available from keeps it hidden until it opens, like an assignment that unlocks a week before it is due. Aim is the day or stretch you want it in. Time of day keeps it after or before a clock time.</div>`;
+  }
+  if(key==="time"){
+    title=d.preset==="event"?"Event time":"Block time";
+    h=q("When does it happen?",d.preset==="Sleep"?"Filled in from your sleep schedule. Adjust if this night differs.":"")+
+      `<div class="field">
+        <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+        <div class="line"><label>Start</label><input type="time" id="wStart" value="${timeInput(d.fixedStart)}"></div>
+        <div class="line"><label>End</label><input type="time" id="wEnd" value="${timeInput(d.fixedEnd)}"></div>
+      </div>
+      ${d.preset!=="event"?`<div class="field"><button class="line" id="wBg"><label>Runs alongside other things</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button></div>
+      <div class="fieldnote">On means it never blocks other work and does not eat your hours. Laundry, a download.</div>`:""}`;
+  }
+  if(key==="repeat"){
+    title="Repeats";
+    h=q("Does it repeat?","A class on set weekdays, rent on the 1st, watering every 10 days.")+
+      `<div class="field">
+        <button class="line" id="wRepeat"><label>Repeats</label><span class="val${d.recurrence?" set":""}">${recurLabel(d.recurrence)}</span>${ICON_CHEV}</button>
+        ${d.recurrence?`<button class="line accent" id="wRepClear">Does not repeat</button>`:""}
+      </div>`;
+  }
+  if(key==="effort"){
+    title="Effort";
+    h=q("How long will it take?","A rough range is enough. Skip and the plan uses "+(P.guessMin||30)+" minutes.")+
+      `<div class="field">
+        <div class="line"><label>Takes about</label>${durSelect("wEstMin",d.estMinMinutes)}<span class="unit" style="margin:0 2px">to</span>${durSelect("wEstMax",d.estMaxMinutes)}</div>
+        <button class="line" id="wEnergy"><label>Energy</label><span class="val">${d.energy?(d.energy==="deep"?"Deep focus":"Shallow"):"None"}</span>${ICON_CHEV}</button>
+      </div>
+      <div class="fieldnote">Deep focus work gets steered into your deep focus windows.</div>`;
+  }
+  if(key==="shape"){
+    title="Shape";
+    const isTodo=d.actionable!==false;
+    const cat=catByName(d.category);
+    h=q("Where does it belong?","All optional. Category first, then its group.")+
+      `<div class="field">
+        <button class="line" data-wpick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${ICON_CHEV}</button>
+        <button class="line" id="wGroup"><label>Group</label><span class="val${d.parentId&&d.parentId!==UNSORTED?" set":""}">${esc(pathLabel(d.parentId))}</span>${ICON_CHEV}</button>
+        ${isTodo?`<button class="line" data-wpick="stakes"><label>Stakes</label><span class="val">${d.stakesOverridden?STAKES_LABEL[d.stakes||"normal"]:"Normal"}</span>${ICON_CHEV}</button>`:""}
+        <button class="line" data-wpick="context"><label>Where</label><span class="val">${esc(d.context||"Anywhere")}</span>${ICON_CHEV}</button>
+        ${isTodo?`<button class="line" data-wpick="deliverable"><label>Deliverable</label><span class="val">${esc(d.deliverable||"None")}</span>${ICON_CHEV}</button>`:""}
+        <button class="line" id="wIcon"><label>Icon</label><span class="val">${d.icon?esc(d.icon):"None"}</span>${ICON_CHEV}</button>
+      </div>
+      ${isTodo?`<div class="fieldnote">Stakes says what slipping would cost. Protect keeps full urgency. Flexible presses less.</div>`:""}`;
+  }
+  if(key==="review"){
+    title="Review";
+    const isTodo=d.actionable!==false;
+    const rows=[];
+    const jump=k2=>steps.indexOf(k2);
+    const row=(k2,l,v)=>rows.push(`<button class="line" data-goto="${jump(k2)}"><label>${l}</label><span class="val">${v}</span>${ICON_CHEV}</button>`);
+    row("title","Title",d.title?esc(d.title):'<span style="color:var(--red)">needs one</span>');
+    if(isTodo){
+      if(d.flagged) row("dotoday","Do today","Yes");
+      row("due","Due",d.deadline?esc(relDay(d.deadline))+(d.deadlineHasTime?" "+esc(fmtTime(d.deadline)):""):"None");
+      const af=d.availableFrom;
+      if(af) row("window","Available from",af.mode==="beforeDue"?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due"):esc(fmtDate(af.at)));
+      if(d.aimWindow) row("window","Aim",[d.aimWindow.start?esc(fmtDate(d.aimWindow.start)):"any",d.aimWindow.end?esc(fmtDate(d.aimWindow.end)):"onward"].join(" to "));
+      if(d.todWindow) row("window","Time of day",[d.todWindow.after?"after "+esc(fmtHM(d.todWindow.after)):"",d.todWindow.before?"before "+esc(fmtHM(d.todWindow.before)):""].filter(Boolean).join(", "));
+      row("effort","Takes about",d.estMaxMinutes?esc(mins(d.estMaxMinutes)):"about "+(P.guessMin||30)+"m");
+      if(d.energy) row("effort","Energy",d.energy==="deep"?"Deep focus":"Shallow");
+      if(d.stakesOverridden) row("shape","Stakes",STAKES_LABEL[d.stakes||"normal"]);
+    } else {
+      row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):'<span style="color:var(--red)">needs a time</span>');
+      if(d.background) row("time","Background","Yes");
+    }
+    if(d.recurrence) row("repeat","Repeats",esc(recurLabel(d.recurrence)));
+    if(d.category) row("shape","Category",esc(d.category));
+    row("shape","Group",esc(pathLabel(d.parentId)));
+    if(d.context) row("shape","Where",esc(d.context));
+    h=q("Ready to add it","Tap any line to change that answer.")+
+      `<div class="field">${rows.join("")}</div>
+      ${sec("Extras","<span>optional</span>")}
+      <div class="field">
+        <button class="line" id="wDeps"><label>Waits on other tasks</label><span class="val">${(d.dependsOn||[]).length||"None"}</span>${ICON_CHEV}</button>
+        <button class="line" id="wAlerts"><label>Alerts</label><span class="val">${d.notify?(d.notify.enabled?"Custom":"Off"):"Inherit"}</span>${ICON_CHEV}</button>
+        <button class="line" id="wSubs"><label>Subtasks</label><span class="val">${state.capSubs.filter(x=>x.trim()).length||"None"}</span>${ICON_CHEV}</button>
+      </div>
+      <div class="field"><button class="line accent" id="wMore">Add and start another</button></div>`;
+  }
+
+  h+=wizFoot(i,steps.length,last);
+  showSheet(title,h,null);
+  wireWizard(key);
+}
+function wireWizard(key){
+  const d=state.capDraft; if(!d) return;
+  const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
+  const steps=wizSteps(), i=state.capWiz.i;
+  on("#wzBack","click",()=>{ wizKeep(); wizGo(state.capWiz.i-1); });
+  on("#wzSkip","click",()=>{ wizKeep(); wizGo(state.capWiz.i+1); });
+  on("#wzNext","click",()=>{
+    wizKeep();
+    if(key==="time"&&!d.fixedStart){ toast("Set the day and start time first"); return; }
+    wizGo(state.capWiz.i+1); });
+  on("#wzAdd","click",async()=>{ wizKeep(); await commitCapture(false); });
+  on("#wMore","click",async()=>{ wizKeep(); await commitCapture(true); });
+  sheetBody.querySelectorAll("[data-goto]").forEach(b=>b.addEventListener("click",()=>wizGo(Number(b.dataset.goto))));
+
+  if(key==="type"){
+    sheetBody.querySelectorAll("[data-wpre]").forEach(b=>b.addEventListener("click",async()=>{
+      const k=b.dataset.wpre;
+      if(k==="project"){ await closeSheet(); openGroupSheet(null); return; }
+      if(k==="template"){ openTemplatePicker(); return; }
+      if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
+      if(k==="event") applyTaskType(d,"event");
+      if(k==="block") applyTaskType(d,"block");
+      if(k==="sleep"){
+        applyTaskType(d,"block"); d.preset="Sleep"; if(!d.title) d.title="Sleep";
+        const sl=state.settings.sleep;
+        const t0=new Date(); const [bh,bm]=(sl.bed||"23:00").split(":"); t0.setHours(+bh,+bm,0,0);
+        const t1=new Date(t0); const [wh,wm]=(sl.wake||"07:00").split(":"); t1.setHours(+wh,+wm,0,0);
+        if(t1<=t0) t1.setDate(t1.getDate()+1);
+        d.fixedStart=t0.toISOString(); d.fixedEnd=t1.toISOString();
+      }
+      if(k==="bgp"){ applyTaskType(d,"block");
+        if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
+          d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); }
+        d.background=true; }
+      normalizeTiming(d);
+      wizGo(1);
+      setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
+    }));
+  }
+  if(key==="title"){
+    let chipT=null;
+    on("#wTitle","input",e=>{ d.title=e.target.value;
+      clearTimeout(chipT); chipT=setTimeout(refreshWizChips,140); });
+    on("#wTitle","keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); wizKeep(); wizGo(state.capWiz.i+1); } });
+    const nn=$("#wNotes");
+    if(nn){ const grow=()=>{ nn.style.height="auto"; nn.style.height=Math.max(56,nn.scrollHeight)+"px"; };
+      nn.addEventListener("input",e=>{ d.notes=e.target.value; grow(); }); grow(); }
+    refreshWizChips();
+    setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
+  }
+  if(key==="dotoday"){
+    sheetBody.querySelectorAll("[data-wdt]").forEach(b=>b.addEventListener("click",()=>{
+      d.flagged=b.dataset.wdt==="1"; wizGo(state.capWiz.i+1); }));
+  }
+  if(key==="due"){
+    on("#wDue","change",e=>{ state.capSet.add("deadline");
+      const t=d.deadlineHasTime?timeInput(d.deadline):"17:00";
+      d.deadline=e.target.value?new Date(e.target.value+"T"+t+":00").toISOString():null;
+      if(!d.deadline) d.deadlineHasTime=false;
+      if(d.deadline) d.timeframe=null; normalizeTiming(d); });
+    on("#wDue","blur",()=>setTimeout(drawWizard,80));
+    on("#wDueTime","change",e=>{ state.capSet.add("deadline");
+      if(!d.deadline&&e.target.value){ const t2=new Date(); d.deadline=new Date(dayKey(t2)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
+      else if(d.deadline){
+        if(e.target.value){ d.deadline=new Date(dateInput(d.deadline)+"T"+e.target.value+":00").toISOString(); d.deadlineHasTime=true; }
+        else { d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; }
+      } normalizeTiming(d); });
+    on("#wDueClear","click",()=>{ d.deadline=null; d.deadlineHasTime=false; normalizeTiming(d); drawWizard(); });
+  }
+  if(key==="window"){
+    on("#wAvail","click",()=>openAvailSheet(d,null));
+    on("#wAim","click",()=>openAimSheet(d,null));
+    on("#wTod","click",()=>openTodSheet(d,null));
+  }
+  if(key==="time"){
+    const upd=()=>{ const day=$("#wDay").value, st=$("#wStart").value, en=$("#wEnd").value;
+      if(day&&st){ d.fixedStart=new Date(day+"T"+st+":00").toISOString();
+        d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); }
+      else if(!st){ d.fixedStart=null; d.fixedEnd=null; } };
+    ["#wDay","#wStart","#wEnd"].forEach(sel=>on(sel,"change",upd));
+    on("#wBg","click",()=>{ d.background=!d.background; drawWizard(); });
+  }
+  if(key==="repeat"){
+    on("#wRepeat","click",()=>openRepeatEditor(d,null));
+    on("#wRepClear","click",()=>{ d.recurrence=null; drawWizard(); });
+  }
+  if(key==="effort"){
+    on("#wEstMin","change",e=>{ d.estMinMinutes=e.target.value===""?null:Number(e.target.value);
+      state.capSet.add("dur"); normalizeTiming(d); drawWizard(); });
+    on("#wEstMax","change",e=>{ d.estMaxMinutes=e.target.value===""?null:Number(e.target.value);
+      state.capSet.add("dur"); normalizeTiming(d); drawWizard(); });
+    on("#wEnergy","click",()=>pickField("energy",d,null));
+  }
+  if(key==="shape"){
+    sheetBody.querySelectorAll("[data-wpick]").forEach(b=>b.addEventListener("click",()=>{
+      const k=b.dataset.wpick;
+      pickField(k,d,()=>{ if(k==="category") state.capSet.add("cat"); if(k==="context") state.capSet.add("ctx");
+        if(k==="stakes") state.capSet.add("imp"); }); }));
+    on("#wGroup","click",()=>openPicker(d,null));
+    on("#wIcon","click",()=>openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; }));
+  }
+  if(key==="review"){
+    on("#wDeps","click",()=>{ if(d.dependencyMode==="none") d.dependencyMode="required"; openDepPicker(d,null); });
+    on("#wAlerts","click",()=>openNotifyEditor(d.notify,v=>{ d.notify=v; },
+      "Overrides the group and category defaults for this task only."));
+    on("#wSubs","click",()=>openSubtasksSheet());
+  }
+}
+function refreshWizChips(){
+  const el=$("#capChips"); if(!el) return;
+  el.innerHTML=capChipsHTML();
+  el.style.display=el.innerHTML?"flex":"none";
+  el.querySelectorAll("[data-chipx]").forEach(b=>b.addEventListener("click",()=>{
+    state.capIgnore.add(b.dataset.chipx);
+    if(b.dataset.chipx==="due"||b.dataset.chipx==="time"){ state.capIgnore.add("due"); state.capIgnore.add("time"); }
+    refreshWizChips(); }));
+}
+function openSubtasksSheet(){
+  sheetPush(()=>{
+    showSheet("Subtasks",
+      `<div class="fieldnote" style="margin:0 20px 12px">One per line. Each becomes a step inside this task. The same shorthand works per line.</div>
+       <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px">
+         <textarea id="wSubText" style="min-height:160px" placeholder="Read the chapter&#10;Outline ~30m&#10;Write the draft ~2h">${esc(state.capSubs.join("\n"))}</textarea></div></div>`,null);
+    $("#wSubText").addEventListener("input",e=>{ state.capSubs=e.target.value.split("\n"); });
+  });
 }
 const CAP_OPEN={when:false,effort:false,organize:false,deps:false,alerts:false,steps:false,status:false,advanced:false};
 function capChipsHTML(){
@@ -4198,12 +4664,15 @@ function drawFixedSheet(d,onChange){
 }
 async function commitCapture(again){
   const d=state.capDraft; if(!d) return;
-  const t=$("#tTitle"); if(t) d.title=t.value;
-  const nn=$("#tNotes"); if(nn) d.notes=nn.value;
+  const t=$("#tTitle")||$("#wTitle"); if(t) d.title=t.value;
+  const nn=$("#tNotes")||$("#wNotes"); if(nn) d.notes=nn.value;
   const ss=$("#tSteps"); if(ss) state.capSubs=ss.value.split("\n");
   d.title=(d.title||"").trim();
-  if(!d.title){ toast("Give it a name"); const t2=$("#tTitle"); if(t2) t2.focus(); return; }
-  if(d.actionable===false&&!d.fixedStart){ toast("Set its time first. Events and blocks live at a time"); CAP_OPEN.when=true; drawTaskSheet(); return; }
+  if(!d.title){ toast("Give it a name");
+    if(state.capWiz){ wizGo(wizSteps().indexOf("title")); }
+    const t2=$("#tTitle")||$("#wTitle"); if(t2) t2.focus(); return; }
+  if(d.actionable===false&&!d.fixedStart){ toast("Set its time first. Events and blocks live at a time");
+    if(state.capWiz){ wizGo(wizSteps().indexOf("time")); } else { CAP_OPEN.when=true; drawTaskSheet(); } return; }
   const p=parseNL(d.title);
   const ig=state.capIgnore, st=state.capSet;
   const used=new Set();
@@ -4248,7 +4717,8 @@ async function commitCapture(again){
   if(again){
     const keep=n.parentId;
     state.capDraft=newNode({parentId:keep}); state.capSubs=[]; state.capIgnore=new Set(); state.capSet=new Set();
-    drawTaskSheet(); const t3=$("#tTitle"); if(t3) t3.focus();
+    if(state.capWiz){ state.capWiz.i=0; drawWizard(); }
+    else { drawTaskSheet(); const t3=$("#tTitle"); if(t3) t3.focus(); }
   } else { closeSheet(); }
   render();
 }
@@ -4256,12 +4726,13 @@ async function commitCapture(again){
 /* ===========================================================================
    MORE MENU — the root of the settings stack.
    =========================================================================== */
-$("#moreBtn").addEventListener("click",openMore);
+
 function openMore(){ sheetRoot(drawMore); }
 function drawMore(){
   showSheet("More",
     `<div class="field">
       <button class="line" data-more="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
+      <button class="line" data-more="log"><label>Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
       <button class="line" data-more="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
      </div>
      <div class="fieldnote">Create, rename, move and delete anything, like a file manager for your whole system. Unsorted is the one fixture that cannot be touched.</div>
@@ -4274,6 +4745,7 @@ function drawMore(){
 }
 async function moreAction(a){
   if(a==="lists") return sheetPush(drawListsManager);
+  if(a==="log"){ await closeSheet(); state.tab="log"; scrollEl.scrollTop=0; render(); return; }
   if(a==="templates") return sheetPush(drawTemplates);
   if(a==="settings") return sheetPush(drawSettings);
 }
@@ -4363,7 +4835,7 @@ function drawSettings(){
       <div class="line"><label>Gap between unlike tasks</label><input type="number" inputmode="numeric" min="0" max="60" id="pBuf" value="${s.plan.switchBufMin}"><span class="unit">min</span></div>
       <div class="line"><label>No estimate counts as</label><input type="number" inputmode="numeric" min="5" max="240" id="pGuess" value="${s.plan.guessMin}"><span class="unit">min</span></div>
      </div>
-     <div class="fieldnote">The planner's dials. Assignments open sets the usual head start before a due date. Long work is placed as two or three sittings. Leave the focus break blank for no cap, so deep work is never interrupted. The gap models the cost of switching between unlike tasks; it is skipped when two tasks share the same place.</div>
+     <div class="fieldnote">The planner's dials. Assignments open sets the usual head start before a due date. Zero means work is never split and every task is planned as one sitting. Leave the focus break blank for no cap, so deep work is never interrupted. The gap models the cost of switching between unlike tasks; it is skipped when two tasks share the same place.</div>
      ${secBig("Calendar")}
      <div class="field">
       <button class="line" data-lyr="fixed"><label>Show fixed blocks</label><span class="val"></span><span class="toggle${s.layers.fixed?" on":""}"></span></button>
@@ -4559,13 +5031,15 @@ function drawGroupsManage(){
 }
 function drawList(key){
   const arr=state.settings[key];
+  const pfx=key==="contexts"?"@":"";
   showSheet(key[0].toUpperCase()+key.slice(1),
     `<div class="group">${arr.map((v,i)=>`<button class="pickrow" data-rm="${i}"><span>${esc(v)}</span><span class="tick" style="color:var(--red)">Remove</span></button>`).join("")}</div>
-     <div class="field" style="margin-top:18px"><div class="line"><input class="big" id="lNew" placeholder="Add new…" autocapitalize="words"></div>
+     <div class="field" style="margin-top:18px"><div class="line">${pfx?`<span style="color:var(--label2);flex:0 0 auto">${pfx}</span>`:""}<input class="big" id="lNew" placeholder="Add new…" autocapitalize="${pfx?"none":"words"}" style="${pfx?"margin-left:-6px":""}"></div>
        <button class="line accent" id="lAdd">Add</button></div>`,null);
   sheetBody.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",async()=>{
     arr.splice(Number(b.dataset.rm),1); await saveSettings(); drawList(key); }));
-  $("#lAdd").addEventListener("click",async()=>{ const v=$("#lNew").value.trim();
+  $("#lAdd").addEventListener("click",async()=>{ let v=$("#lNew").value.trim();
+    if(pfx){ v=v.replace(/^[@\s]+/,""); if(v) v=pfx+v.toLowerCase().replace(/\s+/g,"-"); }
     if(v&&!arr.includes(v)){ arr.push(v); await saveSettings(); } drawList(key); });
 }
 function drawCategories(){
@@ -4669,9 +5143,11 @@ function applyTheme(){
   root.style.setProperty("--accent",acc);
   root.style.setProperty("--accent-rgb",hexToRgb(acc));
   if(wantDark&&th.oled){ root.style.setProperty("--bg","#000000"); root.style.setProperty("--elev","#121214");
-    root.style.setProperty("--press","#232326"); root.style.setProperty("--navbg","rgba(10,10,12,.85)"); }
+    root.style.setProperty("--press","#232326"); root.style.setProperty("--navbg","rgba(10,10,12,.85)");
+    root.style.setProperty("--segon","#2E2E33"); }
   else{ root.style.removeProperty("--bg"); root.style.removeProperty("--elev");
-    root.style.removeProperty("--press"); root.style.removeProperty("--navbg"); }
+    root.style.removeProperty("--press"); root.style.removeProperty("--navbg");
+    root.style.removeProperty("--segon"); }
   const bgD="#000000", bgL="#F2F2F7";
   $("#metaThemeL").setAttribute("content",t.mode==="dark"?bgD:bgL);
   $("#metaThemeD").setAttribute("content",t.mode==="light"?bgL:bgD);
@@ -5148,6 +5624,9 @@ async function seed(){
   if((prevSchema||0)<4){
     const rep=await migrateToStakes();
     if(rep.protect.length||rep.flexible.length) state._stakesReport=rep;
+  }
+  if((prevSchema||0)===4&&state.settings.plan&&state.settings.plan.splitMin===90){
+    state.settings.plan.splitMin=0; await saveSettings();   /* one sitting by default */
   }
   await putMeta("schemaVersion",SCHEMA);
   try{ state.templates=await allTpls(); }catch(e){ state.templates=[]; }
