@@ -223,6 +223,7 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
   padding:2px 4px;overflow:hidden;background:rgba(var(--accent-rgb),.16);border-left:2px solid var(--accent)}
 .wkblk.proj{background:repeating-linear-gradient(135deg,var(--hatch) 0 5px,transparent 5px 10px);border-left-style:dashed}
 .wkblk.sleepz{left:0;right:0;border-radius:0;border-left:0;background:var(--sleep)}
+.wkblk .bs{font-size:8px;opacity:.75;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* tabs */
 .tabs{flex:0 0 auto;display:flex;background:var(--navbg);backdrop-filter:saturate(180%) blur(20px);
@@ -266,7 +267,8 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .field .line{padding:11px 16px;display:flex;align-items:center;gap:12px;min-height:44px;
   width:100%;text-align:left;font-size:17px}
 .field .line + .line{border-top:.33px solid var(--sep)}
-.field .line label{color:var(--label);flex:0 0 auto;font-size:17px}
+.field .line label{color:var(--label);flex:1 1 auto;min-width:0;font-size:17px;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.25}
 .field .line .val{flex:1;text-align:right;color:var(--label2);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .field .line .val.set{color:var(--accent)}
@@ -274,8 +276,10 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .field textarea{width:100%;font-size:17px;min-height:80px;line-height:1.35;padding:0}
 .field button.line.accent{color:var(--accent);justify-content:center;text-align:center}
 .field button.line.danger{color:var(--red);justify-content:center;text-align:center}
-.field input[type=date],.field input[type=time],.field input[type=number]{
-  text-align:right;color:var(--accent);flex:1;min-width:0}
+.field input[type=date],.field input[type=time]{
+  text-align:right;color:var(--accent);flex:0 0 auto;margin-left:auto}
+.field input[type=number]{text-align:right;color:var(--accent);flex:0 1 64px;min-width:52px;margin-left:auto}
+.unit{white-space:nowrap}
 .fieldnote{font-size:13px;color:var(--label2);margin:-10px 20px 16px;line-height:1.38}
 .fieldnote.warn{color:var(--orange)}
 .fieldnote.inline{margin:0;padding:0 16px 10px}
@@ -310,10 +314,11 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .capsec.open .capbd{display:block}
 .capsec .line{padding:11px 16px;display:flex;align-items:center;gap:12px;min-height:44px;width:100%;font-size:17px}
 .capsec .line + .line{border-top:.33px solid var(--sep)}
-.capsec .line label{flex:0 0 auto}
+.capsec .line label{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
 .capsec .line .val{flex:1;text-align:right;color:var(--label2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .capsec .line .val.set{color:var(--accent)}
-.capsec input[type=date],.capsec input[type=time],.capsec input[type=number]{text-align:right;color:var(--accent);flex:1;min-width:0}
+.capsec input[type=date],.capsec input[type=time]{text-align:right;color:var(--accent);flex:0 0 auto;margin-left:auto}
+.capsec input[type=number]{text-align:right;color:var(--accent);flex:0 1 64px;min-width:52px;margin-left:auto}
 .capsec textarea{width:100%;min-height:70px;padding:0}
 
 /* browse selector bar */
@@ -400,6 +405,8 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .planrow.ghost .pbar{background:repeating-linear-gradient(180deg,var(--accent) 0 5px,transparent 5px 9px);opacity:.6}
 .planrow.fuzzy .pbar{background:linear-gradient(180deg,var(--accent),transparent);opacity:.55}
 .planrow.past{opacity:.45}
+.planrow.due{padding:6px 14px}
+.planrow.due .pbar{background:var(--red);opacity:.55}
 .planrow .body{flex:1;min-width:0}
 .planrow .why{font-size:12px;color:var(--label2);margin-top:1px}
 .plannote{padding:10px 16px;font-size:13px;color:var(--label2);border-top:.33px solid var(--sep)}
@@ -412,8 +419,8 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .dlTick{position:absolute;left:52px;right:6px;height:0;border-top:2px solid var(--red);opacity:.75}
 .dlTick::after{content:attr(data-l);position:absolute;right:0;top:-15px;font-size:10px;color:var(--red);font-weight:600}
 /* new-task wizard */
-.wizfoot{position:sticky;bottom:0;z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;
-  padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:.33px solid var(--sep);margin-top:20px}
+.wizdock{flex:0 0 auto;background:var(--bg);display:flex;gap:8px;align-items:center;
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:.33px solid var(--sep)}
 .wizbtn{padding:11px 16px;border-radius:11px;background:var(--fill);font-size:16px;font-weight:600;
   color:var(--label);text-align:center;min-width:76px}
 .wizbtn.strong{background:var(--accent);color:#fff;flex:1}
@@ -551,8 +558,8 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.4" y="5.4" width="19.2" height="17.2" rx="2.6"/><path d="M3.4 10.4h19.2M8.6 3.4v4M17.4 3.4v4"/></svg><span>Calendar</span></button>
     <button class="tab" data-tab="browse">
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.2 8.2a2 2 0 0 1 2-2h4.1l2.3 2.6h9.2a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2z"/></svg><span>Browse</span></button>
-    <button class="tab" id="moreTab" aria-label="More">
-      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="13" r="3.1"/><path d="M13 3.6v3M13 19.4v3M3.6 13h3M19.4 13h3M6.4 6.4l2.1 2.1M17.5 17.5l2.1 2.1M19.6 6.4l-2.1 2.1M8.5 17.5l-2.1 2.1"/></svg><span>More</span></button>
+    <button class="tab" data-tab="settings" id="moreTab" aria-label="Settings">
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="13" cy="13" r="3.3"/><path d="M13 2.9l1.1 2.7a7.8 7.8 0 0 1 2.5 1.5l2.8-.8 1.7 3-2.1 2a7.8 7.8 0 0 1 0 2.9l2.1 2-1.7 3-2.8-.8a7.8 7.8 0 0 1-2.5 1.5L13 23.1h-3.4l-1.1-2.7a7.8 7.8 0 0 1-2.5-1.5l-2.8.8-1.7-3 2.1-2a7.8 7.8 0 0 1 0-2.9l-2.1-2 1.7-3 2.8.8a7.8 7.8 0 0 1 2.5-1.5L9.6 2.9z" transform="translate(1.7 0)"/></svg><span>Settings</span></button>
   </nav>
 </div>
 
@@ -570,6 +577,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
     <button id="sheetDone" class="strong" hidden>Done</button>
   </div>
   <div class="sheetbody" id="sheetBody"></div>
+  <div class="wizdock" id="wizDock" hidden></div>
 </div>
 <div class="banner" id="banner"><span class="bi" id="bIcon">⏰</span><div><div class="bt" id="bTitle"></div><div class="bs" id="bSub"></div></div></div>
 <div class="toast" id="toast"></div>
@@ -585,7 +593,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
    One node type: group, task and subtask are the same object.
    =========================================================================== */
 
-const DB_NAME="tasks-db", DB_VER=3, UNSORTED="__inbox__", SCHEMA=5;
+const DB_NAME="tasks-db", DB_VER=3, UNSORTED="__inbox__", SCHEMA=6;
 const MIN=60000, HOUR=3600000, DAY=86400000;
 
 const $=(s,r=document)=>r.querySelector(s);
@@ -1263,15 +1271,16 @@ function projection(){
       for(let d=new Date(from); d<=to; d=addDays(d,1)) if(freeOn(d)>=need) return new Date(d);
       return null;
     };
-    let day=firstFit(a0,a1);
-    if(!day&&(+a0!==+earliest||+a1!==+end)) day=firstFit(earliest,end);
-    let over=false;
+    const hasAim=!!(n.aimWindow&&(n.aimWindow.start||n.aimWindow.end));
+    let day=firstFit(a0,a1), over=false;
     if(!day){
-      /* nothing has full room: take the roomiest day in the window */
+      /* no day has full room: take the roomiest day, and an aim never
+         gets abandoned for another day */
+      const lo=hasAim?a0:earliest, hi=hasAim?a1:end;
       let best=null,bestFree=-1;
-      for(let d=new Date(earliest); d<=end; d=addDays(d,1)){
+      for(let d=new Date(lo); d<=hi; d=addDays(d,1)){
         const f=freeOn(d); if(f>bestFree){ bestFree=f; best=new Date(d); } }
-      day=best||new Date(end); over=bestFree<need;
+      day=best||new Date(hi); over=bestFree<need;
     }
     const k=dayKey(day);
     used[k]=(used[k]||0)+need;
@@ -1329,6 +1338,10 @@ function planFor(day,proj){
     const b=todayBands();
     items=[...b.must,...b.should].filter(n=>!n.fixedStart)
       .map(n=>({node:n,minutes:n.estMaxMinutes||state.settings.plan.guessMin||30,fuzzy:!n.estMaxMinutes}));
+    /* stamp your hand order from the List view; the sort below honors it */
+    const saved=(state.todayOrder&&state.todayOrder.day===dayKey(new Date()))?state.todayOrder.ids:null;
+    if(saved&&saved.length)
+      items.forEach((it,idx)=>{ it._rank=idx; const ix=saved.indexOf(it.node.id); it._hand=ix<0?null:ix; });
   }else{
     const k=dayKey(day);
     const seen=new Set();
@@ -1351,6 +1364,11 @@ function planFor(day,proj){
   items.sort((x,y)=>{
     if(!!x.dueBy!==!!y.dueBy) return x.dueBy?-1:1;
     if(x.dueBy&&y.dueBy) return x.dueBy-y.dueBy;
+    if(x._hand!=null||y._hand!=null){        /* your List order wins */
+      if((x._hand!=null)!==(y._hand!=null)) return x._hand!=null?-1:1;
+      if(x._hand!=null&&x._hand!==y._hand) return x._hand-y._hand;
+      return (x._rank||0)-(y._rank||0);
+    }
     const dx=x.node.deadline?new Date(x.node.deadline):null, dy=y.node.deadline?new Date(y.node.deadline):null;
     if(dx&&dy&&dx-dy!==0) return dx-dy;
     if(dx&&!dy) return -1; if(dy&&!dx) return 1;
@@ -1616,6 +1634,7 @@ function render(){
   if(state.tab==="today") renderToday();
   else if(state.tab==="calendar") renderCalendar();
   else if(state.tab==="browse") renderBrowse();
+  else if(state.tab==="settings") renderSettings();
   else renderLog();
   if(render._vk!==undefined&&render._vk!==viewKey){
     content.classList.remove("anim"); void content.offsetWidth; content.classList.add("anim"); }
@@ -1746,6 +1765,23 @@ function renderToday(){
   else content.innerHTML=weekPlanHTML();
 }
 
+function catInline(n){
+  const c=n.category&&catByName(n.category);
+  return c?` <span style="color:${esc(c.color||"var(--label2)")};font-size:12px;font-weight:500">${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>`:"";
+}
+/* a thin line that marks when something is due, next to its real work block */
+function dueRowHTML(n){
+  return `<div class="planrow due" data-open="${n.id}">
+    <div class="pt tnum"><b>due</b>${n.deadlineHasTime?esc(fmtTime(n.deadline)):""}</div>
+    <div class="pbar"></div>
+    <div class="body"><div class="title" style="font-size:14px">${esc(n.title||"Untitled")}${catInline(n)}</div></div>
+  </div>`;
+}
+function dueOn(day){
+  return Array.from(state.nodes.values())
+    .filter(n=>n.kind==="task"&&n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped")
+    .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+}
 /* one day's schedule as plan rows, used by Tomorrow and the Week */
 function dayPlanListHTML(day,proj){
   const pl=planFor(day,proj);
@@ -1786,14 +1822,12 @@ function otherDayHTML(day){
       <span style="color:var(--label2)">${Math.round(cap/60*10)/10}h available</span></div>
     <div class="bar"><div class="seg1" style="width:${clamp(load/Math.max(cap,1)*100,0,100)}%"></div></div></div>`;
   let html="";
-  const projAll=new Set();
-  for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
-  const dls=Array.from(state.nodes.values())
-    .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped"&&!projAll.has(n.id));
+  const dls=dueOn(day);
+  const dueStrip=dls.length?sec("Due tomorrow")+`<div class="plan">${dls.map(dueRowHTML).join("")}</div>`:"";
   if(state.todayView==="list"){
     const fx=fixedOn(day).filter(n=>n.status!=="done");
     const pj=proj[k]||[];
-    if(dls.length) html+=sec("Due tomorrow")+listHTML(dls,{hideNotes:true,showPath:true});
+    html+=dueStrip;
     if(fx.length) html+=sec("At a set time")+`<div class="plan">`+fx.map(n=>
       `<div class="planrow" data-open="${n.id}">
         <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b>${n.fixedEnd?mins((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):""}</div>
@@ -1808,7 +1842,7 @@ function otherDayHTML(day){
           <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`).join("")+`</div>`;
     if(!dls.length&&!fx.length&&!pj.length) html+=emptyHTML("A clear day","Nothing due, nothing pinned, nothing planned for tomorrow yet.",null);
   }else{
-    if(dls.length) html+=sec("Due tomorrow")+listHTML(dls,{hideNotes:true});
+    html+=dueStrip;
     const body=dayPlanListHTML(day,proj);
     html+= body?sec("The plan for tomorrow")+body
       : emptyHTML("A clear day","Nothing lands on tomorrow yet.",null);
@@ -1820,8 +1854,6 @@ function otherDayHTML(day){
 /* the coming week: days stacked on top of each other, scroll down through it */
 function weekPlanHTML(){
   const proj=projection();
-  const projAll=new Set();
-  for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
   let html="";
   for(let i=0;i<7;i++){
     const day=addDays(new Date(),i);
@@ -1830,28 +1862,38 @@ function weekPlanHTML(){
     const lbl=i===0?"Today":i===1?"Tomorrow":day.toLocaleDateString(undefined,{weekday:"long"});
     const right=day.toLocaleDateString(undefined,{month:"short",day:"numeric"})+(load?" · "+mins(Math.round(load)):"");
     html+=secBig(lbl,`<span>${esc(right)}</span>`);
+    const dls=dueOn(day);
     if(state.todayView==="list"){
-      const fx=fixedOn(day).filter(n=>n.status!=="done");
-      const dls=Array.from(state.nodes.values())
-        .filter(n=>n.deadline&&sameDay(n.deadline,day)&&n.status!=="done"&&n.status!=="dropped"&&!projAll.has(n.id));
-      const pj=proj[k]||[];
-      let rows="";
-      for(const n of fx) rows+=`<div class="planrow" data-open="${n.id}">
-        <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div><div class="pbar"></div>
-        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
-          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`;
-      for(const n of dls) rows+=`<div class="planrow" data-open="${n.id}">
-        <div class="pt tnum"><b>due</b>${n.deadlineHasTime?esc(fmtTime(n.deadline)):""}</div><div class="pbar" style="--pc:var(--red)"></div>
-        <div class="body"><div class="title" style="font-size:15px">${esc(n.title||"Untitled")}</div></div></div>`;
-      for(const p of pj) rows+=`<div class="planrow ghost" data-open="${p.node.id}">
-        <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div><div class="pbar"></div>
-        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}</div>
-          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`;
+      let rows=dls.map(dueRowHTML).join("");
+      if(i===0){
+        /* Today in the week shows the same plan Today itself computes */
+        for(const bk of planFor(day,proj).blocks){
+          if(bk.unavail) continue;
+          const n=bk.node;
+          rows+=`<div class="planrow${bk.fixed?"":" ghost"}" data-open="${n.id}">
+            <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+            <div class="pbar"${nodeColor(n)?` style="--pc:${esc(nodeColor(n))}"`:""}></div>
+            <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
+              ${bk.bg?`<div class="why">runs alongside</div>`:""}</div></div>`;
+        }
+      } else {
+        const fx=fixedOn(day).filter(n=>n.status!=="done");
+        const pj=proj[k]||[];
+        for(const n of fx) rows+=`<div class="planrow" data-open="${n.id}">
+          <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div><div class="pbar"></div>
+          <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
+            ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`;
+        for(const p of pj) rows+=`<div class="planrow ghost" data-open="${p.node.id}">
+          <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div><div class="pbar"${nodeColor(p.node)?` style="--pc:${esc(nodeColor(p.node))}"`:""}></div>
+          <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
+            <div class="why">${p.over?"no room before it is due":"work toward "+esc(relDay(p.node.deadline))}</div></div></div>`;
+      }
       html+= rows?`<div class="plan">${rows}</div>`
         :`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
     }else{
+      const dueStrip=dls.length?`<div class="plan" style="margin-bottom:8px">${dls.map(dueRowHTML).join("")}</div>`:"";
       const body=dayPlanListHTML(day,proj);
-      html+= body||`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
+      html+= dueStrip+(body||(dls.length?"":`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`));
     }
   }
   html+=`<div class="fieldnote" style="margin-top:12px">Each day shows what is pinned, what is due, and where the planned work lands so every deadline is met. It is worked out live and changes as you finish things.</div>`;
@@ -1898,14 +1940,17 @@ function todayHTML(d){
       <span style="color:${over?"var(--orange)":"var(--label2)"}">${over?"+"+mins(Math.round(b.committed-capMin))+" over · ":""}${leftLbl}</span></div>
     <div class="bar"><div class="seg1" style="width:${seg1}%"></div><div class="seg2" style="width:${seg2}%"></div></div></div>`;
   let html="";
+  const dueToday=dueOn(d);
+  const dueStrip=dueToday.length?sec("Due today")+`<div class="plan">${dueToday.map(dueRowHTML).join("")}</div>`:"";
 
   /* THE PLAN — the system's live proposal for the whole day, in order */
   const pl=planFor(d);
   const now=Date.now();
   if(state.todayView==="list"){
     const taskBlocks=pl.blocks.filter(b2=>!b2.unavail);
-    const ids=todayListOrder(taskBlocks.map(b2=>b2.node.id));
-    const byIdBlock={}; taskBlocks.forEach(b2=>byIdBlock[b2.node.id]=b2);
+    const ids=todayListOrder([...new Set(taskBlocks.map(b2=>b2.node.id))]);
+    const byIdBlock={}; taskBlocks.forEach(b2=>{ if(!byIdBlock[b2.node.id]) byIdBlock[b2.node.id]=b2; });
+    html+=dueStrip;
     let lh=sec("Today's tasks","<span>hold ≡ to reorder</span>")+`<div class="plan" id="todayList">`;
     for(const id of ids){
       const bk=byIdBlock[id]; if(!bk) continue;
@@ -1920,13 +1965,14 @@ function todayHTML(d){
       </div>`;
     }
     lh+=`</div>
-    <div class="fieldnote">Reorder these however you like. It never changes the computed Schedule view.</div>`;
+    <div class="fieldnote">Reorder these however you like. The Schedule view follows your order; only real due times can still pull something earlier.</div>`;
     html+= taskBlocks.length?lh:emptyHTML("Nothing planned yet","Tap + to add something.",null);
     if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
     if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
     html+=`<div style="height:8px"></div>`+capCard;
     return html;
   }
+  html+=dueStrip;
   if(pl.blocks.length){
     html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
     for(const bk of pl.blocks){
@@ -2126,7 +2172,9 @@ function weekColsHTML(proj){
       const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
       const L=bk.lanes||1, li=bk.lane||0;
       const pos=L>1?`left:calc(2px + (100% - 4px)*${li}/${L});width:calc((100% - 4px)/${L} - 2px);right:auto;`:"";
-      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}</div>`;
+      const wc=bk.node.category&&catByName(bk.node.category);
+      const wsub=h>=26?`<div class="bs">${esc(fmtTime(bk.start.toISOString()))}${wc?" · "+(wc.icon?esc(wc.icon):esc(wc.name)):""}${h>=40&&wc&&wc.icon?" "+esc(wc.name):""}</div>`:"";
+      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}${wsub}</div>`;
     }
     if(state.settings.layers.deadline){
       const dls=Array.from(state.nodes.values()).filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
@@ -2176,11 +2224,15 @@ function dayViewHTML(d,proj){
     const col=nodeColor(bk.node);
     const L=bk.lanes||1, li=bk.lane||0;
     const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
+    const cat2=bk.node.category&&catByName(bk.node.category);
+    const catTxt=cat2?(cat2.icon?esc(cat2.icon)+" ":"")+esc(cat2.name):null;
     const sub=bk.fixed
-      ? (bk.bg?"⟳ runs alongside · ":"")+esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?" to "+esc(fmtTime(bk.node.fixedEnd)):" · open end")
-      : [bk.fuzzy?"~"+mins(bk.minutes)+", flexible":mins(bk.minutes),
+      ? [(bk.bg?"⟳ runs alongside":null),
+         esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?" to "+esc(fmtTime(bk.node.fixedEnd)):" · open end"),
+         catTxt].filter(Boolean).join(" · ")
+      : [esc(fmtTime(bk.start.toISOString()))+", "+(bk.fuzzy?"~"+mins(bk.minutes)+" flexible":mins(bk.minutes)),
          bk.late?"⚠︎ after due time":(bk.dueBy?"due by "+esc(fmtTime(bk.node.deadline)):(bk.node.deadline?"due "+esc(relDay(bk.node.deadline)):null)),
-         bk.slice?"part of "+mins(bk.node.estMaxMinutes):null].filter(Boolean).join(" · ");
+         catTxt].filter(Boolean).join(" · ");
     inner+=`<div class="dayblock${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}${col?"border-left-color:"+esc(col)+";":""}">
       <div class="bt">${esc(bk.node.title||"Untitled")}</div><div class="bs">${sub}</div></div>`;
   }
@@ -2607,7 +2659,7 @@ function svgHBars(entries){
 $$(".tab[data-tab]").forEach(t=>t.addEventListener("click",()=>{
   if(state.tab===t.dataset.tab&&t.dataset.tab==="browse"){ state.browseCat=null; state.browseCtx=null; state.path=[]; state.search=""; }
   state.tab=t.dataset.tab; render(); }));
-$("#moreTab").addEventListener("click",openMore);
+
 $("#backBtn").addEventListener("click",()=>{
   if(state.tab==="browse"){
     if(state.browseMode.startsWith("attn:")){ state.browseMode="foryou"; state.search=""; }
@@ -2667,7 +2719,7 @@ content.addEventListener("touchcancel",endSwipe,{passive:true});
 
 document.addEventListener("click",async e=>{
   if(e.target.closest("#sheet")||e.target.closest(".tabs")||e.target.closest("#fab")||
-     e.target.closest("#moreTab")||e.target.closest("#backBtn")) return;
+     e.target.closest("#backBtn")) return;
   const act=e.target.closest("[data-act]");
   if(act){
     const a=act.dataset.act, n=act.dataset.id?byId(act.dataset.id):null;
@@ -2872,6 +2924,7 @@ const sheet=$("#sheet"), scrim=$("#scrim"), sheetBody=$("#sheetBody");
 const SHEET={stack:[],current:null,leave:null,action:null};
 
 function showSheet(title,html,onAction,actionLabel){
+  const dock=$("#wizDock"); if(dock){ dock.hidden=true; dock.innerHTML=""; }
   const sameView=sheet.classList.contains("on")&&$("#sheetTitle").textContent===title;
   const keep=sameView?sheetBody.scrollTop:0;
   $("#sheetTitle").textContent=title;
@@ -2984,7 +3037,7 @@ function normalizeTiming(d){
   if(d.estMinMinutes!=null&&d.estMaxMinutes!=null&&d.estMinMinutes>d.estMaxMinutes){
     const t=d.estMinMinutes; d.estMinMinutes=d.estMaxMinutes; d.estMaxMinutes=t; }
   if(d.fixedStart&&d.fixedEnd&&new Date(d.fixedEnd)<=new Date(d.fixedStart))
-    d.fixedEnd=new Date(new Date(d.fixedStart).getTime()+30*MIN).toISOString();
+    d.fixedEnd=new Date(new Date(d.fixedEnd).getTime()+DAY).toISOString();   /* it runs past midnight */
   if(d.deadline&&d.deferUntil&&startOfDay(d.deferUntil)>startOfDay(d.deadline))
     d.deferUntil=startOfDay(d.deadline).toISOString();
   if(d.deadline&&d.expiry&&new Date(d.expiry)<new Date(d.deadline))
@@ -3160,9 +3213,7 @@ function drawTaskSheet(){
   const kindLbl=!isTodo?(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"Time block":(d.preset==="block"?"Time block":"Event"))):"To do";
   const P=state.settings.plan;
   const af=d.availableFrom;
-  const afLbl=!af?"From now":(af.mode==="beforeDue"
-    ?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due")
-    :(af.at?fmtDate(af.at):"From now"));
+  const afLbl=availLabel(af);
   const aw=d.aimWindow;
   const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
   const twv=d.todWindow;
@@ -3413,6 +3464,14 @@ async function applyCapturePreset(d,k){
   normalizeTiming(d);
   if(state.capWiz) drawWizard(); else drawTaskSheet();
 }
+function availLabel(af){
+  const P=state.settings.plan;
+  if(!af) return "From now";
+  if(af.mode==="beforeDue") return (af.leadDays!=null?af.leadDays:P.leadDays)+" days before due";
+  if(!af.at) return "From now";
+  const dt=new Date(af.at);
+  return fmtDate(af.at)+((dt.getHours()||dt.getMinutes())?" "+fmtTime(af.at):"");
+}
 /* Available from: an exact date, or days before the due date */
 function openAvailSheet(d,onChange){ sheetPush(()=>drawAvailSheet(d,onChange)); }
 function drawAvailSheet(d,onChange){
@@ -3427,7 +3486,11 @@ function drawAvailSheet(d,onChange){
      </div>
      ${af&&af.mode==="beforeDue"?`<div class="field" style="margin-top:14px"><div class="line"><label>Days before due</label><input type="number" inputmode="numeric" min="0" max="365" id="afLead" value="${af.leadDays!=null?af.leadDays:P.leadDays}"></div></div>
      <div class="fieldnote">Made for assignments an instructor opens later in the term. ${P.leadDays} days is the app default, set in Settings.</div>`:""}
-     ${af&&af.mode==="absolute"?`<div class="field" style="margin-top:14px"><div class="line"><label>Date</label><input type="date" id="afAt" value="${dateInput(af.at)}"></div></div>`:""}
+     ${af&&af.mode==="absolute"?`<div class="field" style="margin-top:14px">
+       <div class="line"><label>Date</label><input type="date" id="afAt" value="${dateInput(af.at)}"></div>
+       <div class="line"><label>Time</label><input type="time" id="afAtT" value="${af.at&&(new Date(af.at).getHours()||new Date(af.at).getMinutes())?timeInput(af.at):""}"></div>
+     </div>
+     <div class="fieldnote">A blank time means from the start of that day.</div>`:""}
      ${!d.deadline?`<div class="fieldnote">The days before due choice appears once this has a due date.</div>`:""}`,null);
   sheetBody.querySelectorAll("[data-am]").forEach(b=>b.addEventListener("click",()=>{
     const m=b.dataset.am;
@@ -3438,9 +3501,12 @@ function drawAvailSheet(d,onChange){
   const lead=$("#afLead"); if(lead) lead.addEventListener("change",e=>{
     d.availableFrom={mode:"beforeDue",at:null,leadDays:clamp(Number(e.target.value)||0,0,365)};
     if(onChange) onChange(); });
-  const at=$("#afAt"); if(at) at.addEventListener("change",e=>{
-    d.availableFrom=e.target.value?{mode:"absolute",at:new Date(e.target.value+"T00:00:00").toISOString(),leadDays:null}:null;
-    if(onChange) onChange(); });
+  const compose=()=>{
+    const dv=$("#afAt")?$("#afAt").value:"", tv=$("#afAtT")?$("#afAtT").value:"";
+    d.availableFrom=dv?{mode:"absolute",at:new Date(dv+"T"+(tv||"00:00")+":00").toISOString(),leadDays:null}:null;
+    if(onChange) onChange(); };
+  const at=$("#afAt"); if(at) at.addEventListener("change",compose);
+  const att=$("#afAtT"); if(att) att.addEventListener("change",compose);
 }
 /* Aim window: the stretch you want to do it in */
 function openAimSheet(d,onChange){ sheetPush(()=>drawAimSheet(d,onChange)); }
@@ -4330,12 +4396,10 @@ function wizKeep(){
   const nn=$("#wNotes"); if(nn) d.notes=nn.value;
 }
 function wizFoot(i,total,last){
-  return `<div class="wizfoot">
-    <button class="wizbtn" id="wzBack"${i===0?" disabled":""}>‹ Back</button>
+  return `<button class="wizbtn" id="wzBack"${i===0?" disabled":""}>‹ Back</button>
     <span class="wizprog tnum">${i+1} of ${total}</span>
     ${last?`<button class="wizbtn strong" id="wzAdd">Add task</button>`
-          :`<button class="wizbtn" id="wzSkip">Skip</button><button class="wizbtn strong" id="wzNext">Next ›</button>`}
-  </div>`;
+          :`<button class="wizbtn" id="wzSkip">Skip</button><button class="wizbtn strong" id="wzNext">Next ›</button>`}`;
 }
 function drawWizard(){
   const d=state.capDraft; if(!d){ closeSheet(); return; }
@@ -4352,15 +4416,14 @@ function drawWizard(){
       ["todo","To do","Something you do and finish. Most things."],
       ["event","Event","You attend it at its time. A class, a visit, a meeting."],
       ["block","Time block","Walls off time. Commute, gym, quiet hours."],
-      ["sleep","Sleep","A sleep block, filled in from your schedule."],
       ["bgp","Background thing","Runs by itself while you do other work. Laundry."],
       ["project","Project","A group that holds steps inside it."],
       ["template","From a template","Start from a saved shape."]
     ];
     const cur=d.actionable===false
-      ?(d.preset==="Sleep"?"sleep":(d.preset==="event"?"event":(d.background?"bgp":"block")))
+      ?(d.preset==="event"?"event":(d.background?"bgp":"block"))
       :"todo";
-    h=q("What is this?","Pick one and the right questions follow.")+
+    h=q("What is this?","Tap to choose, then press Next. A custom sleep night is set in Settings, then Sleep, under per day overrides.")+
       `<div class="group">${opts.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpre="${k}">
         <span>${l}<span class="path">${note}</span></span>${k===cur?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
   }
@@ -4395,7 +4458,7 @@ function drawWizard(){
   if(key==="window"){
     title="Work window";
     const af=d.availableFrom;
-    const afLbl=!af?"From now":(af.mode==="beforeDue"?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due"):(af.at?fmtDate(af.at):"From now"));
+    const afLbl=availLabel(af);
     const aw=d.aimWindow;
     const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
     const twv=d.todWindow;
@@ -4462,7 +4525,7 @@ function drawWizard(){
       if(d.flagged) row("dotoday","Do today","Yes");
       row("due","Due",d.deadline?esc(relDay(d.deadline))+(d.deadlineHasTime?" "+esc(fmtTime(d.deadline)):""):"None");
       const af=d.availableFrom;
-      if(af) row("window","Available from",af.mode==="beforeDue"?((af.leadDays!=null?af.leadDays:P.leadDays)+" days before due"):esc(fmtDate(af.at)));
+      if(af) row("window","Available from",esc(availLabel(af)));
       if(d.aimWindow) row("window","Aim",[d.aimWindow.start?esc(fmtDate(d.aimWindow.start)):"any",d.aimWindow.end?esc(fmtDate(d.aimWindow.end)):"onward"].join(" to "));
       if(d.todWindow) row("window","Time of day",[d.todWindow.after?"after "+esc(fmtHM(d.todWindow.after)):"",d.todWindow.before?"before "+esc(fmtHM(d.todWindow.before)):""].filter(Boolean).join(", "));
       row("effort","Takes about",d.estMaxMinutes?esc(mins(d.estMaxMinutes)):"about "+(P.guessMin||30)+"m");
@@ -4487,8 +4550,12 @@ function drawWizard(){
       <div class="field"><button class="line accent" id="wMore">Add and start another</button></div>`;
   }
 
-  h+=wizFoot(i,steps.length,last);
   showSheet(title,h,null);
+  $("#sheetBackLbl").textContent="Cancel";
+  $("#sheetBack svg").style.display="none";
+  const dock=$("#wizDock");
+  dock.innerHTML=wizFoot(i,steps.length,last);
+  dock.hidden=false;
   wireWizard(key);
 }
 function wireWizard(key){
@@ -4512,22 +4579,13 @@ function wireWizard(key){
       if(k==="template"){ openTemplatePicker(); return; }
       if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
       if(k==="event") applyTaskType(d,"event");
-      if(k==="block") applyTaskType(d,"block");
-      if(k==="sleep"){
-        applyTaskType(d,"block"); d.preset="Sleep"; if(!d.title) d.title="Sleep";
-        const sl=state.settings.sleep;
-        const t0=new Date(); const [bh,bm]=(sl.bed||"23:00").split(":"); t0.setHours(+bh,+bm,0,0);
-        const t1=new Date(t0); const [wh,wm]=(sl.wake||"07:00").split(":"); t1.setHours(+wh,+wm,0,0);
-        if(t1<=t0) t1.setDate(t1.getDate()+1);
-        d.fixedStart=t0.toISOString(); d.fixedEnd=t1.toISOString();
-      }
+      if(k==="block"){ applyTaskType(d,"block"); d.background=false; }
       if(k==="bgp"){ applyTaskType(d,"block");
         if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
           d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); }
         d.background=true; }
       normalizeTiming(d);
-      wizGo(1);
-      setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
+      drawWizard();       /* the check mark moves; Next moves you on */
     }));
   }
   if(key==="title"){
@@ -4727,28 +4785,6 @@ async function commitCapture(again){
    MORE MENU — the root of the settings stack.
    =========================================================================== */
 
-function openMore(){ sheetRoot(drawMore); }
-function drawMore(){
-  showSheet("More",
-    `<div class="field">
-      <button class="line" data-more="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
-      <button class="line" data-more="log"><label>Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
-      <button class="line" data-more="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
-     </div>
-     <div class="fieldnote">Create, rename, move and delete anything, like a file manager for your whole system. Unsorted is the one fixture that cannot be touched.</div>
-     <div class="field">
-      <button class="line" data-more="settings"><label>Settings</label><span class="val"></span>${ICON_CHEV}</button>
-     </div>
-     <div class="fieldnote">Everything you enter lives on this device only. New versions load on their own the next time the app opens online.</div>`,
-    null);
-  sheetBody.querySelectorAll("[data-more]").forEach(b=>b.addEventListener("click",()=>moreAction(b.dataset.more)));
-}
-async function moreAction(a){
-  if(a==="lists") return sheetPush(drawListsManager);
-  if(a==="log"){ await closeSheet(); state.tab="log"; scrollEl.scrollTop=0; render(); return; }
-  if(a==="templates") return sheetPush(drawTemplates);
-  if(a==="settings") return sheetPush(drawSettings);
-}
 
 /* ---------- filters (saved filters appear as Browse chips) ---------- */
 function drawFilters(){
@@ -4799,10 +4835,17 @@ function drawFilters(){
    =========================================================================== */
 let _setT=null;
 function setSave(){ clearTimeout(_setT); _setT=setTimeout(()=>saveSettings(),250); }
-function drawSettings(){
+function renderSettings(){
   const s=state.settings;
-  showSheet("Settings",
-    `<div class="fieldnote" style="margin:2px 20px 12px">Changes save as you make them.</div>
+  setTitles("Settings","Settings",null);
+  content.innerHTML=`
+     ${secBig("Manage")}
+     <div class="field">
+      <button class="line" data-s="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
+      <button class="line" data-s="log"><label>Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
+      <button class="line" data-s="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
+     </div>
+     <div class="fieldnote">Changes below save as you make them.</div>
      ${secBig("Schedule")}
      <div class="field">
       <button class="line" data-s="sleep"><label>Sleep</label><span class="val">${esc(fmtHM(s.sleep.bed))} to ${esc(fmtHM(s.sleep.wake))}</span>${ICON_CHEV}</button>
@@ -4829,9 +4872,9 @@ function drawSettings(){
      <div class="fieldnote">When your brain does its best work. Early morning, late night, or both. Tasks marked Deep focus get steered into these windows. No windows means deep work can land anywhere.</div>
      ${sec("Planning")}
      <div class="field">
-      <div class="line"><label>Assignments open</label><input type="number" inputmode="numeric" min="0" max="365" id="pLead" value="${s.plan.leadDays}"><span class="unit">days before due</span></div>
-      <div class="line"><label>Split work over</label><input type="number" inputmode="numeric" min="0" max="480" id="pSplit" value="${s.plan.splitMin}"><span class="unit">min into sittings</span></div>
-      <div class="line"><label>Focus break after</label><input type="number" inputmode="numeric" min="0" max="480" id="pCap" value="${s.plan.focusCapMin||""}" placeholder="no cap"><span class="unit">min of deep work</span></div>
+      <div class="line"><label>Assignments open this many days before due</label><input type="number" inputmode="numeric" min="0" max="365" id="pLead" value="${s.plan.leadDays}"><span class="unit">days</span></div>
+      <div class="line"><label>Split work into sittings over</label><input type="number" inputmode="numeric" min="0" max="480" id="pSplit" value="${s.plan.splitMin}"><span class="unit">min</span></div>
+      <div class="line"><label>Focus break after this much deep work</label><input type="number" inputmode="numeric" min="0" max="480" id="pCap" value="${s.plan.focusCapMin||""}" placeholder="no cap"><span class="unit">min</span></div>
       <div class="line"><label>Gap between unlike tasks</label><input type="number" inputmode="numeric" min="0" max="60" id="pBuf" value="${s.plan.switchBufMin}"><span class="unit">min</span></div>
       <div class="line"><label>No estimate counts as</label><input type="number" inputmode="numeric" min="5" max="240" id="pGuess" value="${s.plan.guessMin}"><span class="unit">min</span></div>
      </div>
@@ -4865,36 +4908,39 @@ function drawSettings(){
       <button class="line" data-s="export"><label>Export and import</label><span class="val"></span>${ICON_CHEV}</button>
       <button class="line danger" id="sWipe" style="justify-content:flex-start">Erase everything</button>
      </div>
-     <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`,null);
+     <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`;
   const pOn=(id,key,lo,hi)=>{ const el=$(id); if(el) el.addEventListener("change",e=>{
     s.plan[key]=e.target.value===""?0:clamp(Number(e.target.value)||0,lo,hi); setSave(); }); };
   pOn("#pLead","leadDays",0,365); pOn("#pSplit","splitMin",0,480);
   pOn("#pCap","focusCapMin",0,480); pOn("#pBuf","switchBufMin",0,60); pOn("#pGuess","guessMin",5,240);
   $("#unavAdd").addEventListener("click",()=>{
     s.unavailable.push({label:"",from:"17:30",to:"18:30",days:[]});
-    saveSettings(); sheetPush(()=>drawUnavail(s.unavailable.length-1)); });
+    saveSettings(); sheetRoot(()=>drawUnavail(s.unavailable.length-1)); });
   $("#deepAdd").addEventListener("click",()=>{
     s.deepWindows.push({from:"21:00",to:"23:00"});
-    saveSettings(); sheetPush(()=>drawDeepWindow(s.deepWindows.length-1)); });
-  sheetBody.querySelectorAll("[data-unav]").forEach(b=>b.addEventListener("click",()=>{
-    const i=Number(b.dataset.unav); sheetPush(()=>drawUnavail(i)); }));
-  sheetBody.querySelectorAll("[data-deepw]").forEach(b=>b.addEventListener("click",()=>{
-    const i=Number(b.dataset.deepw); sheetPush(()=>drawDeepWindow(i)); }));
-  sheetBody.querySelectorAll("[data-rmunav]").forEach(b=>b.addEventListener("click",async e=>{
-    e.stopPropagation(); s.unavailable.splice(Number(b.dataset.rmunav),1); await saveSettings(); drawSettings(); }));
-  sheetBody.querySelectorAll("[data-rmdeepw]").forEach(b=>b.addEventListener("click",async e=>{
-    e.stopPropagation(); s.deepWindows.splice(Number(b.dataset.rmdeepw),1); await saveSettings(); drawSettings(); }));
-  sheetBody.querySelectorAll("[data-lyr]").forEach(b=>b.addEventListener("click",async()=>{
-    const k=b.dataset.lyr; s.layers[k]=!s.layers[k]; await saveSettings(); drawSettings(); }));
+    saveSettings(); sheetRoot(()=>drawDeepWindow(s.deepWindows.length-1)); });
+  content.querySelectorAll("[data-unav]").forEach(b=>b.addEventListener("click",()=>{
+    const i=Number(b.dataset.unav); sheetRoot(()=>drawUnavail(i)); }));
+  content.querySelectorAll("[data-deepw]").forEach(b=>b.addEventListener("click",()=>{
+    const i=Number(b.dataset.deepw); sheetRoot(()=>drawDeepWindow(i)); }));
+  content.querySelectorAll("[data-rmunav]").forEach(b=>b.addEventListener("click",async e=>{
+    e.stopPropagation(); s.unavailable.splice(Number(b.dataset.rmunav),1); await saveSettings(); renderSettings(); }));
+  content.querySelectorAll("[data-rmdeepw]").forEach(b=>b.addEventListener("click",async e=>{
+    e.stopPropagation(); s.deepWindows.splice(Number(b.dataset.rmdeepw),1); await saveSettings(); renderSettings(); }));
+  content.querySelectorAll("[data-lyr]").forEach(b=>b.addEventListener("click",async()=>{
+    const k=b.dataset.lyr; s.layers[k]=!s.layers[k]; await saveSettings(); renderSettings(); }));
   
-  sheetBody.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{
+  content.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.s;
-    if(k==="sleep") sheetPush(drawSleep);
-    if(k==="filters") sheetPush(drawFilters);
-    if(k==="appearance") sheetPush(drawAppearance);
-    if(k==="notif") sheetPush(drawNotifCenter);
-    if(k==="backups") sheetPush(drawBackups);
-    if(k==="export") sheetPush(drawExport);
+    if(k==="lists") return sheetRoot(drawListsManager);
+    if(k==="log"){ state.tab="log"; scrollEl.scrollTop=0; render(); return; }
+    if(k==="templates") return sheetRoot(drawTemplates);
+    if(k==="sleep") sheetRoot(drawSleep);
+    if(k==="filters") sheetRoot(drawFilters);
+    if(k==="appearance") sheetRoot(drawAppearance);
+    if(k==="notif") sheetRoot(drawNotifCenter);
+    if(k==="backups") sheetRoot(drawBackups);
+    if(k==="export") sheetRoot(drawExport);
   }));
   $("#sWipe").addEventListener("click",async()=>{
     if(!confirm("Erase every task, group and setting on this device? This cannot be undone.")) return;
@@ -5625,8 +5671,8 @@ async function seed(){
     const rep=await migrateToStakes();
     if(rep.protect.length||rep.flexible.length) state._stakesReport=rep;
   }
-  if((prevSchema||0)===4&&state.settings.plan&&state.settings.plan.splitMin===90){
-    state.settings.plan.splitMin=0; await saveSettings();   /* one sitting by default */
+  if((prevSchema||0)<6&&state.settings.plan&&state.settings.plan.splitMin){
+    state.settings.plan.splitMin=0; await saveSettings();   /* one sitting unless you turn splitting back on */
   }
   await putMeta("schemaVersion",SCHEMA);
   try{ state.templates=await allTpls(); }catch(e){ state.templates=[]; }
