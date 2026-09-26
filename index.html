@@ -1255,14 +1255,22 @@ function projection(){
     const cap=(k===todayK?Math.min(hoursFor(d),hoursLeftToday()):hoursFor(d))*60;
     return Math.max(0,cap-fixedMin(k)-(used[k]||0));
   };
+  const hasAimW=n=>!!(n.aimWindow&&(n.aimWindow.start||n.aimWindow.end));
   const nodes=Array.from(state.nodes.values())
-    .filter(n=>n.kind==="task"&&n.status!=="done"&&n.status!=="dropped"&&n.deadline&&!n.fixedStart
-      &&!n.background&&n.actionable!==false&&(n.estMaxMinutes||0)>0)
-    .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline)||score(b)-score(a));
+    .filter(n=>n.kind==="task"&&n.status!=="done"&&n.status!=="dropped"&&!n.fixedStart
+      &&!n.background&&n.actionable!==false
+      &&(n.deadline||hasAimW(n))
+      &&((n.estMaxMinutes||0)>0||hasAimW(n)))
+    .sort((a,b)=>{
+      const da=a.deadline?+new Date(a.deadline):Infinity, db=b.deadline?+new Date(b.deadline):Infinity;
+      return da-db||score(b)-score(a); });
   const today=startOfDay(new Date());
   for(const n of nodes){
-    const need=n.estMaxMinutes||0;
-    const end=startOfDay(n.deadline);
+    const need=n.estMaxMinutes||state.settings.plan.guessMin||30;
+    const guess=!(n.estMaxMinutes>0);
+    let end=n.deadline?startOfDay(n.deadline)
+      :startOfDay(n.aimWindow.end||n.aimWindow.start);
+    if(!n.deadline&&end<today) end=new Date(today);   /* an aim with no due date never hides in the past */
     let earliest=new Date(today);
     const av=availableFromDate(n);
     if(av&&startOfDay(av)>earliest) earliest=startOfDay(av);
@@ -1290,7 +1298,10 @@ function projection(){
     }
     const k=dayKey(day);
     used[k]=(used[k]||0)+need;
-    (map[k]=map[k]||[]).push(over?{node:n,minutes:need,over:true}:{node:n,minutes:need});
+    const entry={node:n,minutes:need};
+    if(over) entry.over=true;
+    if(guess) entry.guess=true;
+    (map[k]=map[k]||[]).push(entry);
   }
   return map;
 }
@@ -1354,7 +1365,7 @@ function planFor(day,proj){
     const projAll=new Set();
     if(proj) for(const k2 in proj) for(const p of proj[k2]) projAll.add(p.node.id);
     for(const p of ((proj&&proj[k])||[])){ seen.add(p.node.id);
-      items.push({node:p.node,minutes:p.minutes,over:p.over,fuzzy:false,slice:p.minutes<(p.node.estMaxMinutes||0)}); }
+      items.push({node:p.node,minutes:p.minutes,over:p.over,fuzzy:!!p.guess,slice:p.minutes<(p.node.estMaxMinutes||0)}); }
     for(const n of state.nodes.values()){
       if(n.kind!=="task"||seen.has(n.id)||n.fixedStart) continue;
       if(projAll.has(n.id)) continue;      /* already planned whole on another day */
@@ -1688,9 +1699,9 @@ function metaBits(n,opts={}){
   if(effStakes(n)==="protect") out.push(`<span class="pill red">Protect</span>`);
   if(n.recurrence) out.push(`<span class="pill">Repeats</span>`);
   if(effNotify(n).enabled&&state.settings.notif.master) out.push(`<span class="pill gray">🔔</span>`);
-  if(opts.showPath&&n.parentId&&n.parentId!==UNSORTED) out.push(esc(pathLabel(n.parentId)));
   if(n.category&&!opts.hideCat){ const c=catByName(n.category);
     out.push(`<span class="pill tint"${c&&c.color?' style="color:'+c.color+'"':''}>${c&&c.icon?c.icon+" ":""}${esc(n.category)}</span>`); }
+  if(n.parentId&&n.parentId!==UNSORTED) out.push(esc(pathLabel(n.parentId)));
   if(opts.est&&n.estMaxMinutes) out.push(esc(mins(n.estMaxMinutes)));
   if(n.notes&&!opts.hideNotes) out.push(esc(n.notes.split("\n")[0]).slice(0,70));
   return out;
@@ -1773,7 +1784,13 @@ function renderToday(){
 
 function catInline(n){
   const c=n.category&&catByName(n.category);
-  return c?` <span style="color:${esc(c.color||"var(--label2)")};font-size:12px;font-weight:500">${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>`:"";
+  const cat=c?` <span style="color:${esc(c.color||"var(--label2)")};font-size:12px;font-weight:500">${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>`:"";
+  let grp="";
+  if(n.parentId&&n.parentId!==UNSORTED){
+    const pg=byId(n.parentId);
+    if(pg) grp=` <span style="color:var(--label3);font-size:12px">${esc(pg.title||"Untitled")}</span>`;
+  }
+  return cat+grp;
 }
 /* a due mark: a pinned point in time, deliberately unlike the block rows */
 function dueRowHTML(n){
@@ -3112,7 +3129,7 @@ function taskBits(n,opts={}){
   if(n.deliverable) bits.push(esc(n.deliverable.toLowerCase()));
   const cat=n.category&&catByName(n.category);
   if(cat&&!opts.hideCat) bits.push(`<span style="color:${esc(cat.color||"var(--label2)")}">${cat.icon?esc(cat.icon)+" ":""}${esc(cat.name)}</span>`);
-  if(opts.showPath&&n.parentId&&n.parentId!==UNSORTED) bits.push(esc(pathLabel(n.parentId)));
+  if(n.parentId&&n.parentId!==UNSORTED) bits.push(esc(pathLabel(n.parentId)));
   return bits;
 }
 
@@ -4440,9 +4457,9 @@ function drawWizard(){
       ["project","Project","A group that holds steps inside it."],
       ["template","From a template","Start from a saved shape."]
     ];
-    const cur=d.actionable===false
+    const cur=state.capWiz.launch||(d.actionable===false
       ?(d.preset==="event"?"event":(d.background?"bgp":"block"))
-      :"todo";
+      :"todo");
     h=q("What is this?","Tap to choose, then press Next. A custom sleep night is set in Settings, then Sleep, under per day overrides.")+
       `<div class="group">${opts.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpre="${k}">
         <span>${l}<span class="path">${note}</span></span>${k===cur?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
@@ -4583,9 +4600,11 @@ function wireWizard(key){
   const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
   const steps=wizSteps(), i=state.capWiz.i;
   on("#wzBack","click",()=>{ wizKeep(); wizGo(state.capWiz.i-1); });
-  on("#wzSkip","click",()=>{ wizKeep(); wizGo(state.capWiz.i+1); });
-  on("#wzNext","click",()=>{
+  on("#wzSkip","click",()=>{ wizKeep(); if(state.capWiz) state.capWiz.launch=null; wizGo(state.capWiz.i+1); });
+  on("#wzNext","click",async()=>{
     wizKeep();
+    if(key==="type"&&state.capWiz.launch==="project"){ await closeSheet(); openGroupSheet(null); return; }
+    if(key==="type"&&state.capWiz.launch==="template"){ state.capWiz.launch=null; openTemplatePicker(); return; }
     if(key==="time"&&!d.fixedStart){ toast("Set the day and start time first"); return; }
     wizGo(state.capWiz.i+1); });
   on("#wzAdd","click",async()=>{ wizKeep(); await commitCapture(false); });
@@ -4595,8 +4614,8 @@ function wireWizard(key){
   if(key==="type"){
     sheetBody.querySelectorAll("[data-wpre]").forEach(b=>b.addEventListener("click",async()=>{
       const k=b.dataset.wpre;
-      if(k==="project"){ await closeSheet(); openGroupSheet(null); return; }
-      if(k==="template"){ openTemplatePicker(); return; }
+      if(k==="project"||k==="template"){ state.capWiz.launch=k; drawWizard(); return; }
+      state.capWiz.launch=null;
       if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
       if(k==="event") applyTaskType(d,"event");
       if(k==="block"){ applyTaskType(d,"block"); d.background=false; }
@@ -4893,7 +4912,7 @@ function renderSettings(){
      ${sec("Planning")}
      <div class="field">
       <div class="line"><label>Assignments open this many days before due</label><input type="number" inputmode="numeric" min="0" max="365" id="pLead" value="${s.plan.leadDays}"><span class="unit">days</span></div>
-      <div class="line"><label>Split work into sittings over</label><input type="number" inputmode="numeric" min="0" max="480" id="pSplit" value="${s.plan.splitMin}"><span class="unit">min</span></div>
+      <div class="line"><label>Split work into sittings over</label><input type="number" inputmode="numeric" min="0" max="960" id="pSplit" value="${s.plan.splitMin}"><span class="unit">min</span></div>
       <div class="line"><label>Focus break after this much deep work</label><input type="number" inputmode="numeric" min="0" max="480" id="pCap" value="${s.plan.focusCapMin||""}" placeholder="no cap"><span class="unit">min</span></div>
       <div class="line"><label>Gap between unlike tasks</label><input type="number" inputmode="numeric" min="0" max="60" id="pBuf" value="${s.plan.switchBufMin}"><span class="unit">min</span></div>
       <div class="line"><label>No estimate counts as</label><input type="number" inputmode="numeric" min="5" max="240" id="pGuess" value="${s.plan.guessMin}"><span class="unit">min</span></div>
@@ -4931,7 +4950,7 @@ function renderSettings(){
      <div class="fieldnote">Erasing is permanent. Export a backup first.</div>`;
   const pOn=(id,key,lo,hi)=>{ const el=$(id); if(el) el.addEventListener("change",e=>{
     s.plan[key]=e.target.value===""?0:clamp(Number(e.target.value)||0,lo,hi); setSave(); }); };
-  pOn("#pLead","leadDays",0,365); pOn("#pSplit","splitMin",0,480);
+  pOn("#pLead","leadDays",0,365); pOn("#pSplit","splitMin",0,960);
   pOn("#pCap","focusCapMin",0,480); pOn("#pBuf","switchBufMin",0,60); pOn("#pGuess","guessMin",5,240);
   $("#unavAdd").addEventListener("click",()=>{
     s.unavailable.push({label:"",from:"17:30",to:"18:30",days:[]});
