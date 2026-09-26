@@ -272,7 +272,7 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .field .line .val{flex:1;text-align:right;color:var(--label2);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .field .line .val.set{color:var(--accent)}
-.field input.big{font-size:17px;width:100%}
+.field input.big{font-size:17px;flex:1 1 auto;min-width:0;width:auto}
 .field textarea{width:100%;font-size:17px;min-height:80px;line-height:1.35;padding:0}
 .field button.line.accent{color:var(--accent);justify-content:center;text-align:center}
 .field button.line.danger{color:var(--red);justify-content:center;text-align:center}
@@ -357,10 +357,16 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
   border-radius:10px;flex-wrap:wrap}
 .colorrow button{width:29px;height:29px;border-radius:50%;border:.5px solid var(--sep)}
 .colorrow button.on{outline:3px solid var(--accent);outline-offset:2px}
-.colorrow label.custom{width:29px;height:29px;border-radius:50%;position:relative;overflow:hidden;
-  border:.5px solid var(--sep);background:conic-gradient(#f43,#fd0,#3c6,#0cc,#07f,#a5e,#f43);flex:0 0 auto}
-.colorrow label.custom input{position:absolute;inset:-10px;width:60px;height:60px;opacity:0}
-.colorrow label.custom.on{outline:3px solid var(--accent);outline-offset:2px}
+.colorrow button.custom{background:conic-gradient(#f43,#fd0,#3c6,#0cc,#07f,#a5e,#f43)}
+.colorrow button.custom.on{outline:3px solid var(--accent);outline-offset:2px}
+.cwprev{margin:4px 16px 16px;height:76px;border-radius:14px;display:flex;align-items:center;justify-content:center;border:.5px solid var(--sep)}
+.cwprev span{font-size:16px;font-weight:700;letter-spacing:.03em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.55)}
+.cwrow{padding:12px 16px;display:flex;align-items:center;gap:12px}
+.cwrow+.cwrow{border-top:.33px solid var(--sep)}
+.cwrow label{flex:0 0 82px;font-size:16px}
+input.cw{-webkit-appearance:none;appearance:none;flex:1;height:26px;border-radius:13px;border:.5px solid var(--sep);min-width:0}
+input.cw::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:#fff;
+  border:2px solid rgba(0,0,0,.18);box-shadow:0 1px 4px rgba(0,0,0,.35)}
 
 /* in-app banner */
 .banner{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:12px;right:12px;z-index:90;
@@ -3526,6 +3532,75 @@ function availLabel(af){
   const dt=new Date(af.at);
   return fmtDate(af.at)+((dt.getHours()||dt.getMinutes())?" "+fmtTime(af.at):"");
 }
+/* ---- in-app color mixer: no native sheet, nothing to kick you out ---- */
+function hexToHsl(hex){
+  let r=0,g=0,b=0;
+  if(/^#[0-9a-fA-F]{6}$/.test(hex||"")){
+    r=parseInt(hex.slice(1,3),16)/255; g=parseInt(hex.slice(3,5),16)/255; b=parseInt(hex.slice(5,7),16)/255;
+  } else return {h:210,s:80,l:55};
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+  let h=0;
+  if(d){ if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h=Math.round(h*60); if(h<0) h+=360; }
+  const l=(mx+mn)/2;
+  const s2=d?d/(1-Math.abs(2*l-1)):0;
+  return {h,s:Math.round(s2*100),l:Math.round(l*100)};
+}
+function hslToHex(h,s,l){
+  s/=100; l/=100;
+  const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2;
+  let r=0,g=0,b=0;
+  if(h<60){r=c;g=x;} else if(h<120){r=x;g=c;} else if(h<180){g=c;b=x;}
+  else if(h<240){g=x;b=c;} else if(h<300){r=x;b=c;} else {r=c;b=x;}
+  const px=v=>Math.round((v+m)*255).toString(16).padStart(2,"0");
+  return "#"+px(r)+px(g)+px(b);
+}
+function openColorWheel(cur,cb){
+  const st=hexToHsl(cur);
+  sheetPush(()=>drawColorWheel(st,cb));
+}
+function drawColorWheel(st,cb){
+  const hex=hslToHex(st.h,st.s,st.l);
+  showSheet("Any color",
+    `<div class="cwprev" id="cwPrev" style="background:${hex}"><span id="cwHexLbl">${hex.toUpperCase()}</span></div>
+     <div class="field">
+       <div class="cwrow"><label>Color</label>
+         <input type="range" class="cw" id="cwH" min="0" max="360" value="${st.h}"
+           style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)"></div>
+       <div class="cwrow"><label>Strength</label>
+         <input type="range" class="cw" id="cwS" min="0" max="100" value="${st.s}"></div>
+       <div class="cwrow"><label>Brightness</label>
+         <input type="range" class="cw" id="cwL" min="8" max="92" value="${st.l}"></div>
+     </div>
+     <div class="field"><div class="line">
+       <label>Hex</label><span style="color:var(--label2);flex:0 0 auto;margin-left:auto">#</span>
+       <input class="big" id="cwHex" style="flex:0 0 84px;text-align:left" maxlength="6" autocapitalize="none" autocomplete="off" spellcheck="false" value="${hex.slice(1).toUpperCase()}">
+     </div></div>
+     <div class="fieldnote">Slide to mix. The color applies as you move. Go back with ‹ when you are happy with it.</div>`,null);
+  const H=$("#cwH"), S2=$("#cwS"), L=$("#cwL"), prev=$("#cwPrev"), lbl=$("#cwHexLbl"), hx=$("#cwHex");
+  const paint=()=>{
+    S2.style.background=`linear-gradient(90deg,${hslToHex(st.h,0,st.l)},${hslToHex(st.h,100,st.l)})`;
+    L.style.background=`linear-gradient(90deg,#000,${hslToHex(st.h,st.s,50)},#fff)`;
+  };
+  const apply=exact=>{
+    const v=exact||hslToHex(st.h,st.s,st.l);
+    prev.style.background=v; lbl.textContent=v.toUpperCase();
+    if(!exact) hx.value=v.slice(1).toUpperCase();
+    paint(); cb(v);
+  };
+  paint();
+  H.addEventListener("input",()=>{ st.h=+H.value; apply(); });
+  S2.addEventListener("input",()=>{ st.s=+S2.value; apply(); });
+  L.addEventListener("input",()=>{ st.l=+L.value; apply(); });
+  hx.addEventListener("input",()=>{
+    const v=hx.value.trim().replace(/^#/,"");
+    if(/^[0-9a-fA-F]{6}$/.test(v)){
+      const p=hexToHsl("#"+v.toLowerCase()); st.h=p.h; st.s=p.s; st.l=p.l;
+      H.value=st.h; S2.value=st.s; L.value=st.l;
+      apply("#"+v.toUpperCase());
+    }
+  });
+}
+
 /* Available from: an exact date, or days before the due date */
 function openAvailSheet(d,onChange){ sheetPush(()=>drawAvailSheet(d,onChange)); }
 function drawAvailSheet(d,onChange){
@@ -4207,7 +4282,7 @@ function openGroupSheet(id,push){
       <button class="line" data-pick="category"><label>Category</label><span class="val${d.category?" set":""}">${cat&&cat.icon?esc(cat.icon)+" ":""}${esc(d.category||"None")}</span>${CLRX("gcat",!!d.category)}${ICON_CHEV}</button>
     </div>
     <div class="colorrow" id="gColors">${PALETTE.map(c=>`<button data-col="${c}" style="background:${c}"${d.color===c?' class="on"':""}></button>`).join("")}
-      <label class="custom${d.color&&!PALETTE.includes(d.color)?" on":""}" title="Any color"><input type="color" id="gCust" value="${d.color&&/^#[0-9a-fA-F]{6}$/.test(d.color)?d.color:"#8E8E93"}"></label>
+      <button class="custom${d.color&&!PALETTE.includes(d.color)?" on":""}" id="gCust" aria-label="Any color"></button>
       <button data-col="" style="background:var(--fill);color:var(--label2);font-size:11px;display:flex;align-items:center;justify-content:center"${!d.color?' class="on"':""}>none</button></div>
     <div class="fieldnote">Icon and color mark this group's folder and its tasks' pills everywhere.</div>
     ${secBig("How it works")}
@@ -4247,8 +4322,8 @@ function openGroupSheet(id,push){
     on("#gTitle","input",e=>{ d.title=e.target.value; G(); });
     on("#gNotes","input",e=>{ d.notes=e.target.value; G(); });
     on("#gIcon","click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),d.icon,v=>{ d.icon=v; G(); }));
-    $$("#gColors button").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; G(); draw(); }));
-    on("#gCust","change",e=>{ d.color=e.target.value; G(); draw(); });
+    $$("#gColors button[data-col]").forEach(b=>b.addEventListener("click",()=>{ d.color=b.dataset.col||null; G(); draw(); }));
+    on("#gCust","click",()=>openColorWheel(d.color,v=>{ d.color=v; G(); }));
     $$("#gMode button").forEach(b=>b.addEventListener("click",()=>{ d.childMode=b.dataset.mode; G(); draw(); }));
     on("#gDeadline","change",e=>{ d.deadline=e.target.value?new Date(e.target.value+"T17:00:00").toISOString():null; G(); });
     on("#gDeadline","blur",()=>setTimeout(draw,80));
@@ -5170,7 +5245,7 @@ function drawCategory(i){
     `<div class="field"><div class="line"><label>Name</label><input class="big" id="ecName" style="text-align:right" value="${esc(c.name)}"></div>
       <button class="line" id="ecIcon"><label>Icon</label><span class="val">${esc(c.icon||"None")}</span>${ICON_CHEV}</button></div>
      <div class="colorrow" id="ecColors">${PALETTE.map(p=>`<button data-col="${p}" style="background:${p}"${c.color===p?' class="on"':""}></button>`).join("")}
-      <label class="custom${c.color&&!PALETTE.includes(c.color)?" on":""}" title="Any color"><input type="color" id="ecCust" value="${c.color&&/^#[0-9a-fA-F]{6}$/.test(c.color)?c.color:"#8E8E93"}"></label></div>
+      <button class="custom${c.color&&!PALETTE.includes(c.color)?" on":""}" id="ecCust" aria-label="Any color"></button></div>
      <div class="fieldnote">Renaming updates every task that carries this category. Saved as you go.</div>`,null);
   let renT=null;
   $("#ecName").addEventListener("input",e=>{
@@ -5184,8 +5259,9 @@ function drawCategory(i){
     },600); });
   $("#ecIcon").addEventListener("click",()=>openIconPicker(CAT_ICONS.concat(TASK_ICONS),c.icon,
     async v=>{ c.icon=v; await saveSettings(); }));
-  $$("#ecColors button").forEach(b=>b.addEventListener("click",async()=>{ c.color=b.dataset.col; await saveSettings(); drawCategory(i); }));
-  const ec=$("#ecCust"); if(ec) ec.addEventListener("change",async e=>{ c.color=e.target.value; await saveSettings(); drawCategory(i); });
+  $$("#ecColors button[data-col]").forEach(b=>b.addEventListener("click",async()=>{ c.color=b.dataset.col; await saveSettings(); drawCategory(i); }));
+  const ec=$("#ecCust"); if(ec) ec.addEventListener("click",()=>openColorWheel(c.color,v=>{
+    c.color=v; clearTimeout(drawCategory._cw); drawCategory._cw=setTimeout(()=>saveSettings(),350); }));
 }
 
 /* ---------- sleep — saves on every change ---------- */
