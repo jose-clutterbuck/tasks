@@ -405,8 +405,14 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
 .planrow.ghost .pbar{background:repeating-linear-gradient(180deg,var(--accent) 0 5px,transparent 5px 9px);opacity:.6}
 .planrow.fuzzy .pbar{background:linear-gradient(180deg,var(--accent),transparent);opacity:.55}
 .planrow.past{opacity:.45}
-.planrow.due{padding:6px 14px}
-.planrow.due .pbar{background:var(--red);opacity:.55}
+.duemark{display:flex;align-items:center;gap:9px;padding:6px 14px;position:relative;background:var(--elev)}
+.duemark .dt{flex:0 0 66px;text-align:right;font-size:12.5px;color:var(--red);font-weight:700;position:relative;z-index:1}
+.duemark .pin{width:8px;height:8px;border-radius:2px;transform:rotate(45deg);background:var(--red);flex:0 0 auto;position:relative;z-index:1}
+.duemark::after{content:"";position:absolute;left:92px;right:14px;top:50%;border-top:1.5px dashed var(--red);opacity:.28}
+.duemark .dtitle{position:relative;z-index:1;background:var(--elev);padding:0 7px 0 2px;font-size:14px;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.duemark .due-lbl{font-size:9.5px;font-weight:800;color:var(--red);letter-spacing:.05em;text-transform:uppercase;margin-right:6px}
+.plan .planrow + .duemark,.plan .duemark + .planrow,.plan .duemark + .duemark{border-top:.33px solid var(--sep)}
 .planrow .body{flex:1;min-width:0}
 .planrow .why{font-size:12px;color:var(--label2);margin-top:1px}
 .plannote{padding:10px 16px;font-size:13px;color:var(--label2);border-top:.33px solid var(--sep)}
@@ -1769,12 +1775,12 @@ function catInline(n){
   const c=n.category&&catByName(n.category);
   return c?` <span style="color:${esc(c.color||"var(--label2)")};font-size:12px;font-weight:500">${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>`:"";
 }
-/* a thin line that marks when something is due, next to its real work block */
+/* a due mark: a pinned point in time, deliberately unlike the block rows */
 function dueRowHTML(n){
-  return `<div class="planrow due" data-open="${n.id}">
-    <div class="pt tnum"><b>due</b>${n.deadlineHasTime?esc(fmtTime(n.deadline)):""}</div>
-    <div class="pbar"></div>
-    <div class="body"><div class="title" style="font-size:14px">${esc(n.title||"Untitled")}${catInline(n)}</div></div>
+  return `<div class="duemark" data-open="${n.id}">
+    <div class="dt tnum">${n.deadlineHasTime?esc(fmtTime(n.deadline)):"end of day"}</div>
+    <span class="pin"></span>
+    <div class="dtitle"><span class="due-lbl">due</span>${esc(n.title||"Untitled")}${catInline(n)}</div>
   </div>`;
 }
 function dueOn(day){
@@ -1785,27 +1791,31 @@ function dueOn(day){
 /* one day's schedule as plan rows, used by Tomorrow and the Week */
 function dayPlanListHTML(day,proj){
   const pl=planFor(day,proj);
-  if(!pl.blocks.length&&!pl.unplaced.length) return "";
-  let h=`<div class="plan">`;
+  const dues=dueOn(day);
+  if(!pl.blocks.length&&!pl.unplaced.length&&!dues.length) return "";
+  const entries=[];
   for(const bk of pl.blocks){
     if(bk.unavail){
-      h+=`<div class="planrow unavail">
+      entries.push({t:+bk.start,h:`<div class="planrow unavail">
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
         <div class="pbar"></div>
         <div class="body"><div class="title" style="font-size:15px">${esc(bk.label)}</div>
-          <div class="why">unavailable</div></div></div>`;
+          <div class="why">unavailable</div></div></div>`});
       continue;
     }
     const n=bk.node;
     const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
     const col=nodeColor(n);
     const bits=taskBits(n,{block:bk});
-    h+=`<div class="planrow ${cls}" data-open="${n.id}">
+    entries.push({t:+bk.start,h:`<div class="planrow ${cls}" data-open="${n.id}">
       <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
       <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
       <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
-        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`;
+        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`});
   }
+  for(const n of dues) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+  entries.sort((a,b)=>a.t-b.t);
+  let h=`<div class="plan">`+entries.map(e=>e.h).join("");
   if(pl.unplaced.length) h+=`<div class="plannote">${pl.unplaced.length} more did not fit this day: ${
     esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}</div>`;
   h+=`</div>`;
@@ -1823,26 +1833,28 @@ function otherDayHTML(day){
     <div class="bar"><div class="seg1" style="width:${clamp(load/Math.max(cap,1)*100,0,100)}%"></div></div></div>`;
   let html="";
   const dls=dueOn(day);
-  const dueStrip=dls.length?sec("Due tomorrow")+`<div class="plan">${dls.map(dueRowHTML).join("")}</div>`:"";
   if(state.todayView==="list"){
     const fx=fixedOn(day).filter(n=>n.status!=="done");
     const pj=proj[k]||[];
-    html+=dueStrip;
-    if(fx.length) html+=sec("At a set time")+`<div class="plan">`+fx.map(n=>
-      `<div class="planrow" data-open="${n.id}">
+    const entries=[];
+    for(const n of fx){ const col=nodeColor(n);
+      entries.push({t:+new Date(n.fixedStart),h:`<div class="planrow" data-open="${n.id}">
         <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b>${n.fixedEnd?mins((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):""}</div>
-        <div class="pbar"></div>
-        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
-          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`).join("")+`</div>`;
-    if(pj.length) html+=sec("Planned work","<span>the even spread toward each due date</span>")+`<div class="plan">`+pj.map(p=>
-      `<div class="planrow ghost" data-open="${p.node.id}">
+        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
+          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`}); }
+    for(const n of dls) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+    for(const p of pj){ const col=nodeColor(p.node);
+      entries.push({t:Infinity,h:`<div class="planrow ghost" data-open="${p.node.id}">
         <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div>
-        <div class="pbar"></div>
-        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}</div>
-          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`).join("")+`</div>`;
-    if(!dls.length&&!fx.length&&!pj.length) html+=emptyHTML("A clear day","Nothing due, nothing pinned, nothing planned for tomorrow yet.",null);
+        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
+          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`}); }
+    entries.sort((a,b)=>a.t-b.t);
+    if(entries.length) html+=sec("Tomorrow","<span>in time order · work without a slot listed last</span>")
+      +`<div class="plan">${entries.map(e=>e.h).join("")}</div>`;
+    else html+=emptyHTML("A clear day","Nothing due, nothing pinned, nothing planned for tomorrow yet.",null);
   }else{
-    html+=dueStrip;
     const body=dayPlanListHTML(day,proj);
     html+= body?sec("The plan for tomorrow")+body
       : emptyHTML("A clear day","Nothing lands on tomorrow yet.",null);
@@ -1864,36 +1876,41 @@ function weekPlanHTML(){
     html+=secBig(lbl,`<span>${esc(right)}</span>`);
     const dls=dueOn(day);
     if(state.todayView==="list"){
-      let rows=dls.map(dueRowHTML).join("");
+      const entries=[];
+      for(const n of dls) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
       if(i===0){
         /* Today in the week shows the same plan Today itself computes */
         for(const bk of planFor(day,proj).blocks){
           if(bk.unavail) continue;
-          const n=bk.node;
-          rows+=`<div class="planrow${bk.fixed?"":" ghost"}" data-open="${n.id}">
+          const n=bk.node, col=nodeColor(n);
+          entries.push({t:+bk.start,h:`<div class="planrow${bk.fixed?"":" ghost"}" data-open="${n.id}">
             <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
-            <div class="pbar"${nodeColor(n)?` style="--pc:${esc(nodeColor(n))}"`:""}></div>
+            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
             <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
-              ${bk.bg?`<div class="why">runs alongside</div>`:""}</div></div>`;
+              ${bk.bg?`<div class="why">runs alongside</div>`:""}</div></div>`});
         }
       } else {
         const fx=fixedOn(day).filter(n=>n.status!=="done");
         const pj=proj[k]||[];
-        for(const n of fx) rows+=`<div class="planrow" data-open="${n.id}">
-          <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div><div class="pbar"></div>
-          <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
-            ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`;
-        for(const p of pj) rows+=`<div class="planrow ghost" data-open="${p.node.id}">
-          <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div><div class="pbar"${nodeColor(p.node)?` style="--pc:${esc(nodeColor(p.node))}"`:""}></div>
-          <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
-            <div class="why">${p.over?"no room before it is due":"work toward "+esc(relDay(p.node.deadline))}</div></div></div>`;
+        for(const n of fx){ const col=nodeColor(n);
+          entries.push({t:+new Date(n.fixedStart),h:`<div class="planrow" data-open="${n.id}">
+            <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div>
+            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+            <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
+              ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`}); }
+        for(const p of pj){ const col=nodeColor(p.node);
+          entries.push({t:Infinity,h:`<div class="planrow ghost" data-open="${p.node.id}">
+            <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div>
+            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+            <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
+              <div class="why">${p.over?"no room before it is due":"work toward "+esc(relDay(p.node.deadline))}</div></div></div>`}); }
       }
-      html+= rows?`<div class="plan">${rows}</div>`
+      entries.sort((a,b)=>a.t-b.t);
+      html+= entries.length?`<div class="plan">${entries.map(e=>e.h).join("")}</div>`
         :`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
     }else{
-      const dueStrip=dls.length?`<div class="plan" style="margin-bottom:8px">${dls.map(dueRowHTML).join("")}</div>`:"";
       const body=dayPlanListHTML(day,proj);
-      html+= dueStrip+(body||(dls.length?"":`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`));
+      html+= body||`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
     }
   }
   html+=`<div class="fieldnote" style="margin-top:12px">Each day shows what is pinned, what is due, and where the planned work lands so every deadline is met. It is worked out live and changes as you finish things.</div>`;
@@ -1941,7 +1958,6 @@ function todayHTML(d){
     <div class="bar"><div class="seg1" style="width:${seg1}%"></div><div class="seg2" style="width:${seg2}%"></div></div></div>`;
   let html="";
   const dueToday=dueOn(d);
-  const dueStrip=dueToday.length?sec("Due today")+`<div class="plan">${dueToday.map(dueRowHTML).join("")}</div>`:"";
 
   /* THE PLAN — the system's live proposal for the whole day, in order */
   const pl=planFor(d);
@@ -1950,8 +1966,8 @@ function todayHTML(d){
     const taskBlocks=pl.blocks.filter(b2=>!b2.unavail);
     const ids=todayListOrder([...new Set(taskBlocks.map(b2=>b2.node.id))]);
     const byIdBlock={}; taskBlocks.forEach(b2=>{ if(!byIdBlock[b2.node.id]) byIdBlock[b2.node.id]=b2; });
-    html+=dueStrip;
     let lh=sec("Today's tasks","<span>hold ≡ to reorder</span>")+`<div class="plan" id="todayList">`;
+    lh+=dueToday.map(dueRowHTML).join("");
     for(const id of ids){
       const bk=byIdBlock[id]; if(!bk) continue;
       const n=bk.node, col=nodeColor(n);
@@ -1966,36 +1982,39 @@ function todayHTML(d){
     }
     lh+=`</div>
     <div class="fieldnote">Reorder these however you like. The Schedule view follows your order; only real due times can still pull something earlier.</div>`;
-    html+= taskBlocks.length?lh:emptyHTML("Nothing planned yet","Tap + to add something.",null);
+    html+= (taskBlocks.length||dueToday.length)?lh:emptyHTML("Nothing planned yet","Tap + to add something.",null);
     if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
     if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
     html+=`<div style="height:8px"></div>`+capCard;
     return html;
   }
-  html+=dueStrip;
-  if(pl.blocks.length){
+  if(pl.blocks.length||dueToday.length){
     html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
+    const entries=[];
     for(const bk of pl.blocks){
       if(bk.unavail){
-        html+=`<div class="planrow unavail">
+        entries.push({t:+bk.start,h:`<div class="planrow unavail">
           <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
           <div class="pbar"></div>
           <div class="body"><div class="title" style="font-size:15px">${esc(bk.label)}</div>
-            <div class="why">unavailable</div></div></div>`;
+            <div class="why">unavailable</div></div></div>`});
         continue;
       }
       const n=bk.node, past=bk.end.getTime()<now;
       const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
       const col=nodeColor(n);
       const bits=taskBits(n,{block:bk});
-      html+=`<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
+      entries.push({t:+bk.start,h:`<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
         ${markHTML(n)}
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
-      </div>`;
+      </div>`});
     }
+    for(const n of dueToday) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+    entries.sort((a,b)=>a.t-b.t);
+    html+=entries.map(e=>e.h).join("");
     if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more did not fit before your day ends: ${
       esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}. Trim estimates, push deadlines, or let them go.</div>`;
     html+=`</div>`;
@@ -2174,7 +2193,8 @@ function weekColsHTML(proj){
       const pos=L>1?`left:calc(2px + (100% - 4px)*${li}/${L});width:calc((100% - 4px)/${L} - 2px);right:auto;`:"";
       const wc=bk.node.category&&catByName(bk.node.category);
       const wsub=h>=26?`<div class="bs">${esc(fmtTime(bk.start.toISOString()))}${wc?" · "+(wc.icon?esc(wc.icon):esc(wc.name)):""}${h>=40&&wc&&wc.icon?" "+esc(wc.name):""}</div>`:"";
-      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}${wsub}</div>`;
+      const wcol=nodeColor(bk.node);
+      blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}${wcol?"border-left-color:"+esc(wcol)+";":""}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}${wsub}</div>`;
     }
     if(state.settings.layers.deadline){
       const dls=Array.from(state.nodes.values()).filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped");
@@ -2225,7 +2245,7 @@ function dayViewHTML(d,proj){
     const L=bk.lanes||1, li=bk.lane||0;
     const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
     const cat2=bk.node.category&&catByName(bk.node.category);
-    const catTxt=cat2?(cat2.icon?esc(cat2.icon)+" ":"")+esc(cat2.name):null;
+    const catTxt=cat2?`<span style="color:${esc(cat2.color||"var(--label2)")}">${cat2.icon?esc(cat2.icon)+" ":""}${esc(cat2.name)}</span>`:null;
     const sub=bk.fixed
       ? [(bk.bg?"⟳ runs alongside":null),
          esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?" to "+esc(fmtTime(bk.node.fixedEnd)):" · open end"),

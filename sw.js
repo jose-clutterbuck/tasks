@@ -3,7 +3,7 @@
    touched by this file, never cached, and never sent anywhere.
 
    Bump CACHE when you upload a new index.html. */
-const CACHE = "tasks-v3-2";
+const CACHE = "tasks-v3-3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => {
