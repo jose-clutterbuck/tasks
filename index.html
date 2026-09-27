@@ -2396,15 +2396,20 @@ function matchSearch(n,q){
 }
 function selbarHTML(){
   const modes=[["all","All"],["foryou","Attention"],["groups","Groups"],["cats","Categories"],
-    ["contexts","Contexts"],["flagged","Flagged"],["someday","Someday"],["ranked","Ranked"],["completed","Completed"]];
+    ["contexts","Contexts"]];
+  const mode=state.browseMode;
   const f=state.activeFilter;
   const fLbl=f?Object.entries(f).filter(([k,v])=>k!=="name"&&v&&!(Array.isArray(v)&&!v.length)).map(([k,v])=>filterValLabel(k,v)).join(" · "):"";
-  let h=`<div class="selbar"><button data-bmode="custom"${state.browseMode==="custom"?' class="on"':""}
+  let h=`<div class="selbar"><button data-bmode="custom"${mode==="custom"?' class="on"':""}
     style="display:inline-flex;align-items:center;gap:5px">
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4h13M4 8h8M6.5 12h3"/></svg>${fLbl?esc(fLbl.slice(0,28)):"Filter"}</button>`;
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4h13M4 8h8M6.5 12h3"/></svg>${fLbl?esc(fLbl.slice(0,28)):"Filter"}${mode==="custom"?'<span style="font-weight:700;margin-left:2px">✕</span>':""}</button>`;
+  /* the saved filter you are viewing sits right next to Filter, with an x to drop it */
+  if(mode&&mode.startsWith("filter:")){ const fi=+mode.slice(7), f2=state.filters[fi];
+    if(f2) h+=`<button data-bmode="filter:${fi}" class="on" style="display:inline-flex;align-items:center;gap:5px">${esc(f2.name)}<span style="font-weight:700">✕</span></button>`; }
   h+=modes.map(([m,l])=>
-    `<button data-bmode="${m}"${state.browseMode===m?' class="on"':""}>${l}</button>`).join("");
-  state.filters.forEach((f2,i)=>{ h+=`<button data-bmode="filter:${i}"${state.browseMode==="filter:"+i?' class="on"':""}>${esc(f2.name)}</button>`; });
+    `<button data-bmode="${m}"${mode===m?' class="on"':""}>${l}</button>`).join("");
+  state.filters.forEach((f2,i)=>{ if(mode==="filter:"+i) return;
+    h+=`<button data-bmode="filter:${i}">${esc(f2.name)}</button>`; });
   return h+`</div>`;
 }
 function searchHTML(ph){
@@ -2879,9 +2884,12 @@ document.addEventListener("click",async e=>{
     state.calCursor=startOfDay(state.calSel); render(); return; }
   const bm=e.target.closest("[data-bmode]");
   if(bm){
-    if(bm.dataset.bmode==="custom"&&!(state.browseMode==="custom"&&state.activeFilter)){
-      sheetRoot(drawFilters); return; }
-    state.browseMode=bm.dataset.bmode; state.browseCat=null; state.browseCtx=null;
+    const m=bm.dataset.bmode;
+    if(m===state.browseMode&&m!=="all"&&state.tab==="browse"){
+      state.browseMode="all"; state.browseCat=null; state.browseCtx=null;
+      state.path=[]; state.search=""; render(); return; }
+    if(m==="custom"){ sheetRoot(drawFilters); return; }
+    state.browseMode=m; state.browseCat=null; state.browseCtx=null;
     state.path=[]; state.search=""; render(); return; }
   const bc=e.target.closest("[data-cat]");
   if(bc){ state.browseCat=bc.dataset.cat; state.search=""; render(); return; }
@@ -5093,8 +5101,14 @@ function drawFilters(){
      <div class="field"><button class="line accent" id="fClear">Clear filter</button></div>
      <div class="field"><button class="line" id="fShowDone"><label>Show completed in lists</label><span class="val"></span><span class="toggle${state.showDone?" on":""}"></span></button></div>
      <div class="fieldnote">Applies to Groups and drill-in lists across Browse.</div>
-     ${state.filters.length?sec("Saved")+`<div class="group">${state.filters.map((s,i)=>
-        `<button class="pickrow" data-saved="${i}"><span>${esc(s.name)}</span><button class="tick" data-delsaved="${i}" style="color:var(--red)">Remove</button></button>`).join("")}</div>`:""}
+     ${state.filters.length?sec("Saved")+`<div class="group">${state.filters.map((s,i)=>{
+        const parts=Object.entries(s).filter(([k,v])=>k!=="name"&&v&&!(Array.isArray(v)&&!v.length))
+          .map(([k,v])=>filterValLabel(k,v)).join(" · ");
+        return `<div class="pickrow" data-saved="${i}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="flex:1;min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
+          ${parts?`<span style="display:block;font-size:12px;color:var(--label3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(parts)}</span>`:""}</span>
+          <button class="trail" data-delsaved="${i}" style="flex:0 0 auto;color:var(--red);font-size:14px">Remove</button>
+        </div>`;}).join("")}</div>`:""}
      <div class="field" style="margin-top:18px"><div class="line">
         <input class="big" id="fName" placeholder="Name this filter…"></div>
         <button class="line accent" id="fSave">Save filter</button></div>
