@@ -569,7 +569,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
 
   <nav class="tabs">
     <button class="tab" data-tab="today">
-      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13l3.8 2.6"/></svg><span>Direction</span></button>
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="13" r="9.4"/><path d="M16.6 9.4l-2.2 5-5 2.2 2.2-5z"/></svg><span>Direction</span></button>
     <button class="tab" data-tab="calendar">
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.4" y="5.4" width="19.2" height="17.2" rx="2.6"/><path d="M3.4 10.4h19.2M8.6 3.4v4M17.4 3.4v4"/></svg><span>Calendar</span></button>
     <button class="tab" data-tab="browse">
@@ -1419,13 +1419,13 @@ function planFor(day,proj){
       const dl=new Date(n.deadline); it.dueBy=dl; }
   }
   items.sort((x,y)=>{
-    if(!!x.dueBy!==!!y.dueBy) return x.dueBy?-1:1;
-    if(x.dueBy&&y.dueBy) return x.dueBy-y.dueBy;
-    if(x._hand!=null||y._hand!=null){        /* your List order wins */
+    if(x._hand!=null||y._hand!=null){        /* your List order wins, even over due times */
       if((x._hand!=null)!==(y._hand!=null)) return x._hand!=null?-1:1;
       if(x._hand!=null&&x._hand!==y._hand) return x._hand-y._hand;
-      return (x._rank||0)-(y._rank||0);
+      if(x._hand!=null) return (x._rank||0)-(y._rank||0);
     }
+    if(!!x.dueBy!==!!y.dueBy) return x.dueBy?-1:1;
+    if(x.dueBy&&y.dueBy) return x.dueBy-y.dueBy;
     const dx=x.node.deadline?new Date(x.node.deadline):null, dy=y.node.deadline?new Date(y.node.deadline):null;
     if(dx&&dy&&dx-dy!==0) return dx-dy;
     if(dx&&!dy) return -1; if(dy&&!dx) return 1;
@@ -1998,6 +1998,7 @@ function wireTodayList(){
       const ids=[...list.querySelectorAll(".planrow")].map(r=>r.dataset.open).filter(Boolean);
       state.todayOrder={day:dayKey(new Date()),ids};
       try{ await putMeta("todayOrder",state.todayOrder); }catch(e){}
+      const st2=scrollEl.scrollTop; render(); scrollEl.scrollTop=st2;
     },{passive:true});
   });
 }
@@ -2182,11 +2183,17 @@ function daySummaryHTML(d,proj){
       <div class="tlbar"${col?` style="background:${esc(col)}"`:""}></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}${catInline(n)}</div>
       <div class="sub">${sub}</div></div></div>`;}).join("")+`</div>`;
   if(pj.length) html+=sec("Projected work")+`<div class="tl">`+
-    pj.map(p=>`<div class="tlrow" data-open="${p.node.id}">
-      <div class="tltime tnum">${esc(mins(p.minutes))}</div><div class="tlbar ghost"></div>
-      <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title)}</div>
-      <div class="sub">${p.over?'<span class="pill orange">No room before deadline</span>':"due "+esc(relDay(p.node.deadline))}</div>
-      </div></div>`).join("")+`</div>`;
+    pj.map(p=>{ const n2=p.node, col=nodeColor(n2);
+      const sub=[p.over?'<span class="pill orange">No room before deadline</span>'
+          :(n2.deadline?"due "+esc(relDay(n2.deadline))+(n2.deadlineHasTime?" "+esc(fmtTime(n2.deadline)):""):null),
+        p.guess?"rough guess":null,
+        n2.aimWindow&&n2.aimWindow.start?"aimed here":null,
+        n2.context?esc(n2.context):null].filter(Boolean).join(" · ");
+      return `<div class="tlrow" data-open="${n2.id}">
+      <div class="tltime tnum">${esc(mins(p.minutes))}</div><div class="tlbar ghost"${col?` style="background:${esc(col)}"`:""}></div>
+      <div class="body"><div class="title" style="font-size:15px">${n2.icon?esc(n2.icon)+" ":""}${esc(n2.title)}${catInline(n2)}</div>
+      <div class="sub">${sub}</div>
+      </div></div>`;}).join("")+`</div>`;
   html+=`<div class="field" style="margin-top:14px"><button class="line accent" data-newon="${k}">Add a task on this day</button>
     <button class="line" data-caphours="${k}"><label>Hours available</label><span class="val">${Math.round(hoursFor(d)*10)/10}h</span></button></div>`;
   return html;
@@ -2349,11 +2356,11 @@ function dayViewHTML(d,proj){
     .filter(n=>n.deadline&&sameDay(n.deadline,d)&&n.status!=="done"&&n.status!=="dropped"):[];
   const unpl=pl.unplaced.length?`<div class="fieldnote warn" style="margin-top:10px">${pl.unplaced.length} task${pl.unplaced.length===1?"":"s"} didn’t fit this day: ${esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}</div>`:"";
   return calNav()
-    +(dls.length?sec("Due this day")+listHTML(dls,{hideNotes:true}):"")
     +`<div class="caldate"><span>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</span>
        <span>${mins(Math.round(loadOn(d,proj)))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>
      <div class="daywrap"><div class="dayaxis" style="height:${height}px">${inner}</div></div>`
     +unpl
+    +(dls.length?sec("Due this day")+listHTML(dls,{hideNotes:true}):"")
     +`<div class="fieldnote" style="margin-top:10px">Solid blocks are fixed. Dashed blocks are the plan, drawn to scale. Gradient edged blocks are on the day but not pinned to a length. A red line marks a due time. Tap an empty slot to put a task there.</div>`;
 }
 
@@ -3152,6 +3159,7 @@ function normalizeTiming(d){
     if(w.start&&w.end&&new Date(w.start)>new Date(w.end)) d.aimWindow={start:w.end,end:w.start};
     if(!w.start&&!w.end) d.aimWindow=null;
   }
+  if(d.timeframe&&(d.aimWindow||d.todWindow)) d.timeframe=null;
   if(d.todWindow){
     const t=d.todWindow;
     const floor=t.start||t.after;
@@ -3491,7 +3499,8 @@ function wireTaskSheet(){
   on("#tFixed","click",()=>{ keepText(); openFixedSheet(d,Q); });
   on("#tRepeat","click",()=>{ keepText(); openRepeatEditor(d,()=>{ S("rec"); Q(); }); });
   on("#tMoreWhen","click",()=>{ d._moreWhen=!d._moreWhen; redraw(); });
-  on("#tTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; S("deadline"); Q(); }); });
+  on("#tTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf;
+    if(tf){ d.aimWindow=null; d.todWindow=null; } S("deadline"); Q(); }); });
   on("#tExpiry","change",e=>{ d.expiry=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; normalizeTiming(d); Q(); });
   on("#tActual","input",e=>{ d.actualMinutes=e.target.value===""?null:Math.max(0,Number(e.target.value)); Q(); });
   on("#tIcon","click",()=>{ keepText(); openIconPicker(TASK_ICONS,d.icon,v=>{ d.icon=v; Q(); }); });
@@ -3719,40 +3728,56 @@ function drawAimSheet(d,onChange){
      </div>
      ${sec("Time on the day","<span>optional</span>")}
      <div style="display:flex;gap:8px;margin:0 16px 10px">
-       <button class="navbtn" data-atp="m" style="flex:1">Morning</button>
-       <button class="navbtn" data-atp="a" style="flex:1">Afternoon</button>
-       <button class="navbtn" data-atp="e" style="flex:1">Evening</button>
+       ${(()=>{const t2=d.todWindow||{};
+         const onM=!t2.start&&!t2.after&&t2.before==="12:00";
+         const onA=!t2.start&&t2.after==="12:00"&&!t2.before;
+         const onE=!t2.start&&t2.after==="17:00"&&!t2.before;
+         const onX=!d.todWindow;
+         const st3=o=>o?"color:var(--accent);font-weight:600;":"";
+         return `<button class="navbtn" data-atp="x" style="flex:1;${st3(onX)}">Any time</button>
+       <button class="navbtn" data-atp="m" style="flex:1;${st3(onM)}">Morning</button>
+       <button class="navbtn" data-atp="a" style="flex:1;${st3(onA)}">Afternoon</button>
+       <button class="navbtn" data-atp="e" style="flex:1;${st3(onE)}">Evening</button>`;})()}
      </div>
      <div class="field">
        <div class="line"><label>Start at</label><input type="time" id="awAt" value="${(d.todWindow&&d.todWindow.start)||""}"></div>
        <div class="line"><label>After</label><input type="time" id="awAfter" value="${(d.todWindow&&d.todWindow.after)||""}"></div>
        <div class="line"><label>Before</label><input type="time" id="awBefore" value="${(d.todWindow&&d.todWindow.before)||""}"></div>
      </div>
-     <div class="fieldnote">Start at aims the work at that exact time. After and Before fence it in. Backwards dates get swapped for you.</div>`,null);
+     <div class="fieldnote">Start at aims the work at that exact time. After and Before fence it in. Backwards dates get swapped for you. Setting an aim clears any Sometime window, since a task can only follow one of the two.</div>`,null);
   sheetBody.querySelectorAll("[data-ap]").forEach(b=>b.addEventListener("click",()=>{
     d.aimWindow=presets[Number(b.dataset.ap)].v?JSON.parse(JSON.stringify(presets[Number(b.dataset.ap)].v)):null;
+    if(d.aimWindow) d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
   sheetBody.querySelectorAll("[data-am2]").forEach(b=>b.addEventListener("click",()=>{
     d.aimWindow=JSON.parse(JSON.stringify(months[Number(b.dataset.am2)].v));
+    d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
   const day=$("#awDay"); if(day) day.addEventListener("change",e=>{
     const v=e.target.value;
     d.aimWindow=v?{start:new Date(v+"T00:00:00").toISOString(),end:new Date(v+"T00:00:00").toISOString()}:null;
+    if(d.aimWindow) d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); });
   const upd=()=>{ const a=$("#awStart").value, b2=$("#awEnd").value;
     d.aimWindow=(a||b2)?{start:a?new Date(a+"T00:00:00").toISOString():null,end:b2?new Date(b2+"T00:00:00").toISOString():null}:null;
+    if(d.aimWindow) d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); };
   $("#awStart").addEventListener("change",upd);
   $("#awEnd").addEventListener("change",upd);
   const tupd=()=>{
     const at=$("#awAt").value||null, af=$("#awAfter").value||null, bf=$("#awBefore").value||null;
     d.todWindow=(at||af||bf)?{start:at,after:af,before:bf}:null;
+    if(d.todWindow) d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); };
   sheetBody.querySelectorAll("[data-atp]").forEach(b=>b.addEventListener("click",()=>{
     const k2=b.dataset.atp;
-    d.todWindow=k2==="m"?{start:null,after:null,before:"12:00"}
+    const next=k2==="x"?null
+      :k2==="m"?{start:null,after:null,before:"12:00"}
       :k2==="a"?{start:null,after:"12:00",before:null}
       :{start:null,after:"17:00",before:null};
+    const c2=x=>x?[x.start||"",x.after||"",x.before||""].join("|"):"";
+    d.todWindow=(next&&c2(d.todWindow)===c2(next))?null:next;
+    if(d.todWindow) d.timeframe=null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
   $("#awAt").addEventListener("change",()=>{ if($("#awAt").value) $("#awAfter").value=""; tupd(); });
   $("#awAfter").addEventListener("change",()=>{ if($("#awAfter").value) $("#awAt").value=""; tupd(); });
@@ -3925,7 +3950,7 @@ function drawTimeframe(cfg){
   cfg.drill=cfg.drill||{};
   const now=new Date(), Y=now.getFullYear();
   const curV=cur?cur.type+"|"+cur.value:null;
-  let h=`<div class="fieldnote" style="margin:0 20px 12px">A loose window for things with no real date yet, as wide as a stretch of years or as narrow as one day. It stays off the daily plan. It waits in the Sometime list and on the calendar months it covers until you give it a real date.</div>
+  let h=`<div class="fieldnote" style="margin:0 20px 12px">A loose window for things with no real date yet, as wide as a stretch of years or as narrow as one day. It stays off the daily plan. It waits in the Sometime list and on the calendar months it covers until you give it a real date. Setting it clears any aim, since a task can only follow one of the two.</div>
     <div class="group"><button class="pickrow" data-tf=""><span>None</span>${!cur?'<span class="tick">✓</span>':""}</button>
     <button class="pickrow" data-tf="years|${Y}-${Y+3}"><span>Within a few years (${Y} to ${Y+3})</span>${curV==="years|"+Y+"-"+(Y+3)?'<span class="tick">✓</span>':""}</button></div>`;
   h+=sec("A year","<span>tap one to narrow it down</span>")+`<div class="group">`;
@@ -4679,7 +4704,7 @@ function drawWizard(){
     h=q("Is this for today?","Do today puts it at the top of today no matter how it ranks.")+
       `<div class="group">
         <button class="pickrow" data-wdt="1"><span>Yes, do it today</span>${d.flagged?'<span class="tick">✓</span>':""}</button>
-        <button class="pickrow" data-wdt="0"><span>No, it can find its own place</span>${!d.flagged?'<span class="tick">✓</span>':""}</button>
+        <button class="pickrow" data-wdt="0"><span>No</span>${!d.flagged?'<span class="tick">✓</span>':""}</button>
       </div>`;
   }
   if(key==="due"){
@@ -4863,7 +4888,8 @@ function wireWizard(key){
   if(key==="window"){
     on("#wAvail","click",()=>openAvailSheet(d,null));
     on("#wAim","click",()=>openAimSheet(d,null));
-    on("#wTf","click",()=>openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; }));
+    on("#wTf","click",()=>openTimeframe(d.timeframe,tf=>{ d.timeframe=tf;
+      if(tf){ d.aimWindow=null; d.todWindow=null; } }));
   }
   if(key==="time"){
     const upd=()=>{ const day=$("#wDay").value, st=$("#wStart").value, en=$("#wEnd").value;
