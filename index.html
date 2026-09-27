@@ -198,7 +198,7 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
   font-size:13px;line-height:1.25;background:rgba(var(--accent-rgb),.16);
   border-left:3px solid var(--accent);color:var(--label)}
 .dayblock .bt{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dayblock .bs{font-size:11px;color:var(--label2)}
+.dayblock .bs{font-size:11px;color:var(--label2);overflow-wrap:anywhere}
 .dayblock.proj{background:repeating-linear-gradient(135deg,var(--hatch) 0 6px,transparent 6px 12px);
   border-left-color:var(--hatch2);border-left-style:dashed;border-left-width:2px}
 .dayblock.sleepz{left:0;right:0;border-radius:0;border-left:0;background:var(--sleep);
@@ -223,7 +223,7 @@ body.hasbg[data-hasdark="1"]{--elev:rgba(28,28,30,.72);--press:rgba(44,44,46,.8)
   padding:2px 4px;overflow:hidden;background:rgba(var(--accent-rgb),.16);border-left:2px solid var(--accent)}
 .wkblk.proj{background:repeating-linear-gradient(135deg,var(--hatch) 0 5px,transparent 5px 10px);border-left-style:dashed}
 .wkblk.sleepz{left:0;right:0;border-radius:0;border-left:0;background:var(--sleep)}
-.wkblk .bs{font-size:8px;opacity:.75;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wkblk .bs{font-size:8px;opacity:.75;line-height:1.15;white-space:normal;overflow:hidden;overflow-wrap:anywhere}
 
 /* tabs */
 .tabs{flex:0 0 auto;display:flex;background:var(--navbg);backdrop-filter:saturate(180%) blur(20px);
@@ -569,7 +569,7 @@ body.hasbg .empty{background:var(--elev);border-radius:12px;margin:20px 16px;pad
 
   <nav class="tabs">
     <button class="tab" data-tab="today">
-      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13l3.8 2.6"/></svg><span>Plan</span></button>
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13l3.8 2.6"/></svg><span>Direction</span></button>
     <button class="tab" data-tab="calendar">
       <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.4" y="5.4" width="19.2" height="17.2" rx="2.6"/><path d="M3.4 10.4h19.2M8.6 3.4v4M17.4 3.4v4"/></svg><span>Calendar</span></button>
     <button class="tab" data-tab="browse">
@@ -1126,6 +1126,9 @@ const SEASONS={spring:[2,3,4],summer:[5,6,7],fall:[8,9,10],winter:[11,0,1]};
 const SEASON_LABEL={spring:"Spring",summer:"Summer",fall:"Fall",winter:"Winter"};
 function tfLabel(tf){
   if(!tf) return "";
+  if(tf.type==="day") return new Date(tf.value+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});
+  if(tf.type==="week") return "Week of "+new Date(tf.value+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});
+  if(tf.type==="years"){ const [a,b]=tf.value.split("-"); return a+" to "+b; }
   if(tf.type==="month"){ const [y,m]=tf.value.split("-");
     return new Date(+y,+m-1,1).toLocaleDateString(undefined,{month:"long",year:"numeric"}); }
   if(tf.type==="season"){ const [y,s]=tf.value.split("-"); return SEASON_LABEL[s]+" "+y; }
@@ -1140,13 +1143,24 @@ function tfMonths(tf){
     return SEASONS[s].map(m=>({y:(s==="winter"&&m<11)?y+1:y,m})); }
   if(tf.type==="quarter"){ const [ys,q]=tf.value.split("-"); const y=+ys, q0=(+q.slice(1)-1)*3;
     return [0,1,2].map(i=>({y,m:q0+i})); }
-  const y=+tf.value; return Array.from({length:12},(_,m)=>({y,m}));
+  if(tf.type==="year"){ const y=+tf.value; return Array.from({length:12},(_,m)=>({y,m})); }
+  return [];
 }
-function tfStart(tf){ const ms=tfMonths(tf); if(!ms.length)return null;
-  const f=ms.reduce((a,b)=>(a.y*12+a.m)<=(b.y*12+b.m)?a:b); return new Date(f.y,f.m,1); }
-function tfEnd(tf){ const ms=tfMonths(tf); if(!ms.length)return null;
-  const l=ms.reduce((a,b)=>(a.y*12+a.m)>=(b.y*12+b.m)?a:b); return new Date(l.y,l.m+1,0,23,59); }
-function tfInMonth(tf,y,m){ return tfMonths(tf).some(x=>x.y===y&&x.m===m); }
+/* the window as plain start and end dates, for any shape */
+function tfRange(tf){
+  if(!tf) return null;
+  if(tf.type==="day"){ const d=new Date(tf.value+"T00:00:00"); return {s:d,e:new Date(tf.value+"T23:59:00")}; }
+  if(tf.type==="week"){ const d=new Date(tf.value+"T00:00:00"); const e=addDays(d,6); e.setHours(23,59,0,0); return {s:d,e}; }
+  if(tf.type==="years"){ const [a,b]=tf.value.split("-").map(Number); return {s:new Date(a,0,1),e:new Date(b,11,31,23,59)}; }
+  const ms=tfMonths(tf); if(!ms.length) return null;
+  const f=ms.reduce((a,b)=>(a.y*12+a.m)<=(b.y*12+b.m)?a:b);
+  const l=ms.reduce((a,b)=>(a.y*12+a.m)>=(b.y*12+b.m)?a:b);
+  return {s:new Date(f.y,f.m,1),e:new Date(l.y,l.m+1,0,23,59)};
+}
+function tfStart(tf){ const r=tfRange(tf); return r?r.s:null; }
+function tfEnd(tf){ const r=tfRange(tf); return r?r.e:null; }
+function tfInMonth(tf,y,m){ const r=tfRange(tf); if(!r) return false;
+  return r.s<=new Date(y,m+1,0,23,59)&&r.e>=new Date(y,m,1); }
 function timeframeItems(){ return Array.from(state.nodes.values())
   .filter(n=>n.timeframe&&!n.deadline&&n.status!=="done"&&n.status!=="dropped"); }
 
@@ -1207,12 +1221,15 @@ function todayBands(){
   const fixedIds=new Set(fixed.map(n=>n.id));
 
   /* timeframe-only items and pinned items never rank in the day's bands */
+  const isDue=n=>n.deadline && startOfDay(n.deadline)<=startOfDay(now);
+  /* aimed at a later day: it belongs to that day, not to today */
+  const aimFuture=n=>{ const w2=n.aimWindow;
+    return !!(w2&&w2.start&&startOfDay(w2.start)>startOfDay(now))&&!isDue(n)&&!n.flagged; };
   const actionable=open.filter(n=>n.actionable!==false&&!n.fixedStart&&!fixedIds.has(n.id)
-    &&effStatus(n)==="available"&&!(n.timeframe&&!n.deadline));
+    &&effStatus(n)==="available"&&!(n.timeframe&&!n.deadline)&&!aimFuture(n));
   const waiting=open.filter(n=>n.status==="waiting"||effStatus(n)==="waiting");
   const blocked=open.filter(n=>effStatus(n)==="blocked"&&(n.dependencyMode==="required"&&openDeps(n).length));
 
-  const isDue=n=>n.deadline && startOfDay(n.deadline)<=startOfDay(now);
   /* just opened with little room: it comes straight into Must */
   const openedTight=n=>{
     const a=availableFromDate(n); if(!a) return false;
@@ -1443,8 +1460,8 @@ function planFor(day,proj){
       const rm=(c2-d0)/MIN;
       const cm=Math.round(rm)%1440;
       const tw=it.node.todWindow;
-      if(tw&&tw.after){ const am=hmToMin(tw.after);
-        if(rm<am){ c2=new Date(d0.getTime()+am*MIN); continue; } }
+      const twFloor=tw&&(tw.start||tw.after)?hmToMin(tw.start||tw.after):null;
+      if(twFloor!=null&&rm<twFloor){ c2=new Date(d0.getTime()+twFloor*MIN); continue; }
       if(it.node.energy==="deep"&&!it.dueBy&&hasWindows&&!inDeepWindow(cm)&&!triedDeep){
         const nx=nextDeepStart(cm);
         if(nx!=null){ c2=new Date(d0.getTime()+nx*MIN); triedDeep=true; continue; }
@@ -1560,7 +1577,7 @@ function scheduledAlerts(days=14){
     for(let i=0;i<days;i++){
       const d=addDays(new Date(),i); const [h,m]=(nf.morningAt||"08:30").split(":");
       const ts=startOfDay(d).getTime()+(+h*60+ +m)*MIN;
-      if(ts>now) out.push({ts,type:"morning",icon:"☀️",title:"Morning summary",sub:"Open Today for the plan"});
+      if(ts>now) out.push({ts,type:"morning",icon:"☀️",title:"Morning summary",sub:"Open the Direction tab for the plan"});
     }
   }
   if(nf.types.weekly){
@@ -1788,7 +1805,7 @@ const secBig=(h,right)=>`<div class="sechead big"><span class="h">${esc(h)}</spa
 function renderToday(){
   const range=state.planRange||"today";
   const d=range==="tomorrow"?addDays(new Date(),1):new Date();
-  setTitles("Plan",range==="week"?"This week":(range==="tomorrow"?"Tomorrow":"Today"),null);
+  setTitles("Direction",range==="week"?"This week":(range==="tomorrow"?"Tomorrow":"Today"),null);
   $("#subTitle").hidden=false;
   $("#subTitle").textContent= range==="week"
     ? "Today through "+addDays(new Date(),6).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})
@@ -2007,19 +2024,22 @@ function todayHTML(d){
     const ids=todayListOrder([...new Set(taskBlocks.map(b2=>b2.node.id))]);
     const byIdBlock={}; taskBlocks.forEach(b2=>{ if(!byIdBlock[b2.node.id]) byIdBlock[b2.node.id]=b2; });
     let lh=sec("Today's tasks","<span>hold ≡ to reorder</span>")+`<div class="plan" id="todayList">`;
-    lh+=dueToday.map(dueRowHTML).join("");
+    const lentries=[];
     for(const id of ids){
       const bk=byIdBlock[id]; if(!bk) continue;
       const n=bk.node, col=nodeColor(n);
       const bits=taskBits(n,{block:bk.fixed?bk:null});
-      lh+=`<div class="planrow" data-open="${n.id}">
+      lentries.push({t:+bk.start,h:`<div class="planrow" data-open="${n.id}">
         ${markHTML(n)}
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
         <span class="draghandle" data-drag>≡</span>
-      </div>`;
+      </div>`});
     }
+    for(const n of dueToday) lentries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+    lentries.sort((a,b)=>a.t-b.t);
+    lh+=lentries.map(e=>e.h).join("");
     lh+=`</div>
     <div class="fieldnote">Reorder these however you like. The Schedule view follows your order; only real due times can still pull something earlier.</div>`;
     html+= (taskBlocks.length||dueToday.length)?lh:emptyHTML("Nothing planned yet","Tap + to add something.",null);
@@ -2134,7 +2154,7 @@ function monthHTML(proj){
   }
   /* timeframe banner: fuzzy commitments aimed at this month, never at a day */
   const tfs=timeframeItems().filter(n=>tfInMonth(n.timeframe,cur.getFullYear(),cur.getMonth()));
-  const banner=tfs.length?`<div class="tfbanner"><div class="t">Sometime this month</div>${
+  const banner=tfs.length?`<div class="tfbanner"><div class="t" style="display:flex;justify-content:space-between;align-items:center">Sometime this month<button class="needs" data-sdlist>All</button></div>${
     tfs.map(n=>`<div class="tfitem"><span data-open="${n.id}" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</span>
       <button class="needs" data-needsdate="${n.id}">Needs a date</button></div>`).join("")}</div>`:"";
   return calNav()+banner+`<div class="calhead">${dows.map(x=>`<div>${x}</div>`).join("")}</div>
@@ -2152,10 +2172,15 @@ function daySummaryHTML(d,proj){
   let html=`<div class="caldate"><span>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</span>
     <span>${mins(Math.round(load))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>`;
   if(dls.length) html+=sec("Due this day")+listHTML(dls,{hideNotes:true});
-  if(fx.length) html+=sec("Fixed")+`<div class="tl">`+fx.map(n=>
-    `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtTime(n.fixedStart))}</div>
-      <div class="tlbar"></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}</div>
-      <div class="sub">${n.fixedEnd?esc("until "+fmtTime(n.fixedEnd)):""}</div></div></div>`).join("")+`</div>`;
+  if(fx.length) html+=sec("Fixed")+`<div class="tl">`+fx.map(n=>{
+    const col=nodeColor(n);
+    const dur=n.fixedEnd?Math.round((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):0;
+    const sub=[n.fixedEnd?esc("until "+fmtTime(n.fixedEnd))+(dur>0?" ("+esc(mins(dur))+")":""):"open end",
+      n.recurrence?esc(recurLabel(n.recurrence)):null,
+      n.context?esc(n.context):null].filter(Boolean).join(" · ");
+    return `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtTime(n.fixedStart))}</div>
+      <div class="tlbar"${col?` style="background:${esc(col)}"`:""}></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}${catInline(n)}</div>
+      <div class="sub">${sub}</div></div></div>`;}).join("")+`</div>`;
   if(pj.length) html+=sec("Projected work")+`<div class="tl">`+
     pj.map(p=>`<div class="tlrow" data-open="${p.node.id}">
       <div class="tltime tnum">${esc(mins(p.minutes))}</div><div class="tlbar ghost"></div>
@@ -2194,10 +2219,15 @@ function monthOverviewHTML(proj){
       <button class="trail" data-needsdate="${n.id}" style="color:var(--accent);font-size:14px">Set date</button>
     </div></div>`).join("")}</div>`;
   if(dls.length) html+=sec("Deadlines this month")+listHTML(dls.slice(0,12),{hideNotes:true,showPath:true});
-  if(fx.length) html+=sec("Fixed blocks this month")+`<div class="tl">`+fx.slice(0,10).map(n=>
-    `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtDate(n.fixedStart))}</div>
-      <div class="tlbar"></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}</div>
-      <div class="sub">${esc(fmtTime(n.fixedStart))}${n.fixedEnd?" to "+esc(fmtTime(n.fixedEnd)):""}</div></div></div>`).join("")+`</div>`;
+  if(fx.length) html+=sec("Fixed blocks this month")+`<div class="tl">`+fx.slice(0,10).map(n=>{
+    const col=nodeColor(n);
+    const dur=n.fixedEnd?Math.round((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):0;
+    const sub=[esc(fmtTime(n.fixedStart))+(n.fixedEnd?" to "+esc(fmtTime(n.fixedEnd)):"")+(dur>0?" ("+esc(mins(dur))+")":""),
+      n.recurrence?esc(recurLabel(n.recurrence)):null,
+      n.context?esc(n.context):null].filter(Boolean).join(" · ");
+    return `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtDate(n.fixedStart))}</div>
+      <div class="tlbar"${col?` style="background:${esc(col)}"`:""}></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}${catInline(n)}</div>
+      <div class="sub">${sub}</div></div></div>`;}).join("")+`</div>`;
   return html;
 }
 
@@ -2232,7 +2262,13 @@ function weekColsHTML(proj){
       const L=bk.lanes||1, li=bk.lane||0;
       const pos=L>1?`left:calc(2px + (100% - 4px)*${li}/${L});width:calc((100% - 4px)/${L} - 2px);right:auto;`:"";
       const wc=bk.node.category&&catByName(bk.node.category);
-      const wsub=h>=26?`<div class="bs">${esc(fmtTime(bk.start.toISOString()))}${wc?" · "+(wc.icon?esc(wc.icon):esc(wc.name)):""}${h>=40&&wc&&wc.icon?" "+esc(wc.name):""}</div>`:"";
+      let wsub="";
+      if(h>=26){ const bits=[esc(fmtTime(bk.start.toISOString()))+(h>=40?" to "+esc(fmtTime(bk.end.toISOString())):"")];
+        if(wc) bits.push(((wc.icon?esc(wc.icon)+" ":""))+((h>=40||!wc.icon)?esc(wc.name):""));
+        if(h>=54){ const pg2=bk.node.parentId&&bk.node.parentId!==UNSORTED?byId(bk.node.parentId):null;
+          if(pg2) bits.push(esc(pg2.title||""));
+          if(!bk.fixed&&bk.minutes) bits.push(esc(mins(bk.minutes))); }
+        wsub=`<div class="bs">${bits.filter(Boolean).join(" · ")}</div>`; }
       const wcol=nodeColor(bk.node);
       blocks+=`<div class="wkblk${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}${wcol?"border-left-color:"+esc(wcol)+";":""}">${bk.bg?"⟳ ":""}${esc(bk.node.title||"")}${wsub}</div>`;
     }
@@ -2832,6 +2868,8 @@ document.addEventListener("click",async e=>{
   if(lmm){ state.logMonth=new Date(state.logMonth.getFullYear(),state.logMonth.getMonth()+Number(lmm.dataset.lmMove),1); render(); return; }
   const nd=e.target.closest("[data-needsdate]");
   if(nd){ openNeedsDate(nd.dataset.needsdate); return; }
+  const sdl=e.target.closest("[data-sdlist]");
+  if(sdl){ sheetRoot(drawSometimeList); return; }
   const sl=e.target.closest("[data-slot]");
   if(sl&&!e.target.closest("[data-open]")){ openCapture({fixedSlot:sl.dataset.slot}); return; }
   const dj=e.target.closest("[data-dayjump]");
@@ -3116,8 +3154,9 @@ function normalizeTiming(d){
   }
   if(d.todWindow){
     const t=d.todWindow;
-    if(t.after&&t.before&&hmToMin(t.after)>=hmToMin(t.before)) d.todWindow={after:t.after,before:null};
-    if(!t.after&&!t.before) d.todWindow=null;
+    const floor=t.start||t.after;
+    if(floor&&t.before&&hmToMin(floor)>=hmToMin(t.before)) d.todWindow={start:t.start||null,after:t.after||null,before:null};
+    if(!t.start&&!t.after&&!t.before) d.todWindow=null;
   }
   d.timePinned=!!d.fixedStart;
   d.durationMode=d.fixedStart?"fixed":(d.estMaxMinutes!=null?"estimate":"none");
@@ -3275,24 +3314,25 @@ function drawTaskSheet(){
   const af=d.availableFrom;
   const afLbl=availLabel(af);
   const aw=d.aimWindow;
-  const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
   const twv=d.todWindow;
-  const twLbl=twv&&(twv.after||twv.before)?[twv.after?"after "+fmtHM(twv.after):"",twv.before?"before "+fmtHM(twv.before):""].filter(Boolean).join(", "):"Any time";
+  const awDay=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):null;
+  const awTod=twv?todLabel(twv):null;
+  const awLbl=(awDay||awTod)?[awDay,(awTod&&awTod!=="Any time")?awTod:null].filter(Boolean).join(" · "):"No aim";
 
   const whenBody=isTodo?`
     <div class="line"><label>Due</label><input type="date" id="tDeadline" value="${dateInput(d.deadline)}">${
       d.deadline?`<input type="time" id="tDlTime" value="${d.deadlineHasTime?timeInput(d.deadline):""}">`:""}${CLRX("deadline",!!d.deadline)}</div>
     <button class="line" id="tAvail"><label>Available from</label><span class="val${af?" set":""}">${esc(afLbl)}</span>${CLRX("avail",!!af)}${ICON_CHEV}</button>
-    <button class="line" id="tAim"><label>Aim to do it</label><span class="val${aw?" set":""}">${esc(awLbl)}</span>${CLRX("aim",!!aw)}${ICON_CHEV}</button>
-    <button class="line" id="tTod"><label>Time of day</label><span class="val${twv?" set":""}">${esc(twLbl)}</span>${CLRX("tod",!!twv)}${ICON_CHEV}</button>
+    <button class="line" id="tAim"><label>Aim to do it</label><span class="val${(aw||twv)?" set":""}">${esc(awLbl)}</span>${CLRX("aim",!!(aw||twv))}${ICON_CHEV}</button>
+    <button class="line" id="tTimeframe"><label>Sometime</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>
     <button class="line" id="tFixed"><label>At a set time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")+(d.background?" ⟳":""):"None"}</span>${CLRX("fixed",!!d.fixedStart)}${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
-    <div class="fieldnote inline"><b>Due</b> means finished by then. The time next to the date is optional (blank means end of day). <b>Available from</b> keeps it out of the plan until it opens up, like an assignment that unlocks a week before it is due. <b>Aim to do it</b> is the stretch you want to work on it. Tap the small x to clear anything.</div>
+    <div class="fieldnote inline"><b>Due</b> means finished by then. The time next to the date is optional (blank means end of day). <b>Available from</b> keeps it out of the plan until it opens up, like an assignment that unlocks a week before it is due. <b>Aim to do it</b> is the day or stretch you want to work on it, and it can carry a start, after, or before time for that day. <b>Sometime</b> is a loose window with no real date yet, as wide as a few years; it stays off the daily plan. Tap the small x to clear anything.</div>
     <button class="line" id="tMoreWhen" style="color:var(--accent)">More timing choices ${d._moreWhen?"▴":"▾"}</button>
     ${d._moreWhen?`
-    ${d.timeframe?`<button class="line" id="tTimeframe"><label>Aimed period</label><span class="val set">${esc(tfLabel(d.timeframe))}</span>${CLRX("timeframe",!!d.timeframe)}${ICON_CHEV}</button>`:""}
+
     <div class="line"><label>Stops mattering after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
-    <div class="fieldnote inline">Past the stops mattering date, the task drops itself.${d.timeframe?" Aimed period is the older sometime in a month setting. Aim to do it above replaces it, so clearing this moves you to the new way.":""}</div>`:""}`
+    <div class="fieldnote inline">Past the stops mattering date, the task drops itself.</div>`:""}`
   :`
     <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):"Set the time"}</span>${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
@@ -3439,7 +3479,6 @@ function wireTaskSheet(){
   on("#tDlTime","blur",()=>setTimeout(redraw,80));
   on("#tAvail","click",()=>{ keepText(); openAvailSheet(d,()=>{ S("deadline"); Q(); }); });
   on("#tAim","click",()=>{ keepText(); openAimSheet(d,()=>{ S("deadline"); Q(); }); });
-  on("#tTod","click",()=>{ keepText(); openTodSheet(d,()=>{ Q(); }); });
   on("#tBg","click",()=>{ d.background=!d.background; Q(); redraw(); });
   on("#tEstMin","change",e=>{ S("dur");
     d.estMinMinutes=e.target.value===""?null:Number(e.target.value);
@@ -3479,8 +3518,7 @@ function wireTaskSheet(){
     const k=b.dataset.clearx;
     if(k==="deadline"){ d.deadline=null; d.deadlineHasTime=false; S("deadline"); }
     if(k==="avail") d.availableFrom=null;
-    if(k==="aim") d.aimWindow=null;
-    if(k==="tod") d.todWindow=null;
+    if(k==="aim"){ d.aimWindow=null; d.todWindow=null; }
     if(k==="dltime"){ if(d.deadline) d.deadline=new Date(dateInput(d.deadline)+"T17:00:00").toISOString(); d.deadlineHasTime=false; S("deadline"); }
     if(k==="est"){ d.estMinMinutes=null; d.estMaxMinutes=null; S("dur"); }
     if(k==="fixed"){ d.fixedStart=null; d.fixedEnd=null; d.background=false; d.durationMode=d.estMaxMinutes?"estimate":"none"; }
@@ -3523,6 +3561,14 @@ async function applyCapturePreset(d,k){
       d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); } }
   normalizeTiming(d);
   if(state.capWiz) drawWizard(); else drawTaskSheet();
+}
+function todLabel(t){
+  if(!t||(!t.start&&!t.after&&!t.before)) return "Any time";
+  const bits=[];
+  if(t.start) bits.push("at "+fmtHM(t.start));
+  if(t.after&&!t.start) bits.push("after "+fmtHM(t.after));
+  if(t.before) bits.push("before "+fmtHM(t.before));
+  return bits.join(", ");
 }
 function availLabel(af){
   const P=state.settings.plan;
@@ -3658,7 +3704,7 @@ function drawAimSheet(d,onChange){
     months.push({l:i===0?"Sometime this month":m0.toLocaleDateString(undefined,{month:"long"}),
       v:preset(i===0?today:startOfDay(m0),startOfDay(m1))});
   }
-  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const same=(a,b)=>{const c=x=>x?[x.start||"",x.after||"",x.before||""].join("|"):""; return c(a)===c(b);};
   showSheet("Aim to do it",
     `<div class="fieldnote" style="margin:0 20px 12px">The day or stretch of days you want to work on this. It pulls the task into that stretch in the ranking and the planned work. It is not a hard rule, so a real time crunch still wins.</div>
      <div class="group">${presets.map((p,i)=>`<button class="pickrow" data-ap="${i}"><span>${p.l}</span>${same(d.aimWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
@@ -3671,7 +3717,18 @@ function drawAimSheet(d,onChange){
        <div class="line"><label>From</label><input type="date" id="awStart" value="${dateInput(w.start)}"></div>
        <div class="line"><label>To</label><input type="date" id="awEnd" value="${dateInput(w.end)}"></div>
      </div>
-     <div class="fieldnote">Backwards dates get swapped for you.</div>`,null);
+     ${sec("Time on the day","<span>optional</span>")}
+     <div style="display:flex;gap:8px;margin:0 16px 10px">
+       <button class="navbtn" data-atp="m" style="flex:1">Morning</button>
+       <button class="navbtn" data-atp="a" style="flex:1">Afternoon</button>
+       <button class="navbtn" data-atp="e" style="flex:1">Evening</button>
+     </div>
+     <div class="field">
+       <div class="line"><label>Start at</label><input type="time" id="awAt" value="${(d.todWindow&&d.todWindow.start)||""}"></div>
+       <div class="line"><label>After</label><input type="time" id="awAfter" value="${(d.todWindow&&d.todWindow.after)||""}"></div>
+       <div class="line"><label>Before</label><input type="time" id="awBefore" value="${(d.todWindow&&d.todWindow.before)||""}"></div>
+     </div>
+     <div class="fieldnote">Start at aims the work at that exact time. After and Before fence it in. Backwards dates get swapped for you.</div>`,null);
   sheetBody.querySelectorAll("[data-ap]").forEach(b=>b.addEventListener("click",()=>{
     d.aimWindow=presets[Number(b.dataset.ap)].v?JSON.parse(JSON.stringify(presets[Number(b.dataset.ap)].v)):null;
     normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
@@ -3687,36 +3744,20 @@ function drawAimSheet(d,onChange){
     normalizeTiming(d); if(onChange) onChange(); };
   $("#awStart").addEventListener("change",upd);
   $("#awEnd").addEventListener("change",upd);
-}
-/* Time of day: after or before a clock time */
-function openTodSheet(d,onChange){ sheetPush(()=>drawTodSheet(d,onChange)); }
-function drawTodSheet(d,onChange){
-  const t=d.todWindow||{};
-  const presets=[
-    {l:"Any time",v:null},
-    {l:"Morning (before noon)",v:{after:null,before:"12:00"}},
-    {l:"Afternoon (after noon)",v:{after:"12:00",before:null}},
-    {l:"Evening (after 5pm)",v:{after:"17:00",before:null}}
-  ];
-  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-  showSheet("Time of day",
-    `<div class="fieldnote" style="margin:0 20px 12px">The part of the day this should land in. The schedule will not place it earlier than the after time, and it will not run it past the before time.</div>
-     <div class="group">${presets.map((p,i)=>`<button class="pickrow" data-tp="${i}"><span>${p.l}</span>${same(d.todWindow,p.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>
-     <div class="field" style="margin-top:14px">
-       <div class="line"><label>After</label><input type="time" id="twAfter" value="${t.after||""}"></div>
-       <div class="line"><label>Before</label><input type="time" id="twBefore" value="${t.before||""}"></div>
-     </div>
-     <div class="fieldnote">You can set either one or both. An empty box means no limit on that side.</div>`,null);
-  sheetBody.querySelectorAll("[data-tp]").forEach(b=>b.addEventListener("click",()=>{
-    d.todWindow=presets[Number(b.dataset.tp)].v?Object.assign({},presets[Number(b.dataset.tp)].v):null;
-    normalizeTiming(d); if(onChange) onChange(); drawTodSheet(d,onChange); }));
-  const upd=()=>{ const a=$("#twAfter").value||null, b2=$("#twBefore").value||null;
-    d.todWindow=(a||b2)?{after:a,before:b2}:null;
+  const tupd=()=>{
+    const at=$("#awAt").value||null, af=$("#awAfter").value||null, bf=$("#awBefore").value||null;
+    d.todWindow=(at||af||bf)?{start:at,after:af,before:bf}:null;
     normalizeTiming(d); if(onChange) onChange(); };
-  $("#twAfter").addEventListener("change",upd);
-  $("#twBefore").addEventListener("change",upd);
+  sheetBody.querySelectorAll("[data-atp]").forEach(b=>b.addEventListener("click",()=>{
+    const k2=b.dataset.atp;
+    d.todWindow=k2==="m"?{start:null,after:null,before:"12:00"}
+      :k2==="a"?{start:null,after:"12:00",before:null}
+      :{start:null,after:"17:00",before:null};
+    normalizeTiming(d); if(onChange) onChange(); drawAimSheet(d,onChange); }));
+  $("#awAt").addEventListener("change",()=>{ if($("#awAt").value) $("#awAfter").value=""; tupd(); });
+  $("#awAfter").addEventListener("change",()=>{ if($("#awAfter").value) $("#awAt").value=""; tupd(); });
+  $("#awBefore").addEventListener("change",tupd);
 }
-
 /* ===========================================================================
    TEMPLATES
    A template is a saved shape for a task: the fields it presets, plus dates
@@ -3881,35 +3922,99 @@ function openTimeframe(cur,cb){
 }
 function drawTimeframe(cfg){
   const cur=cfg.cur;
-  const now=new Date(), opts=[];
-  for(let i=0;i<12;i++){ const d=new Date(now.getFullYear(),now.getMonth()+i,1);
-    opts.push({v:"month|"+d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),
-      l:d.toLocaleDateString(undefined,{month:"long",year:"numeric"}),g:"Month"}); }
-  const seasons=["spring","summer","fall","winter"];
-  let sy=now.getFullYear(), si=Math.floor(((now.getMonth()+1)%12)/3);
-  for(let i=0;i<4;i++){ const s=seasons[(si+i)%4]; const y=sy+Math.floor((si+i)/4);
-    opts.push({v:"season|"+y+"-"+s,l:SEASON_LABEL[s]+" "+y,g:"Season"}); }
-  const q0=Math.floor(now.getMonth()/3);
-  for(let i=0;i<4;i++){ const q=(q0+i)%4, y=now.getFullYear()+Math.floor((q0+i)/4);
-    opts.push({v:"quarter|"+y+"-q"+(q+1),l:"Q"+(q+1)+" "+y,g:"Quarter"}); }
-  opts.push({v:"year|"+now.getFullYear(),l:String(now.getFullYear()),g:"Year"});
-  opts.push({v:"year|"+(now.getFullYear()+1),l:String(now.getFullYear()+1),g:"Year"});
+  cfg.drill=cfg.drill||{};
+  const now=new Date(), Y=now.getFullYear();
   const curV=cur?cur.type+"|"+cur.value:null;
-  let h=`<div class="fieldnote" style="margin:0 20px 12px">Sometime in a period, with no date yet. It shows on the month banner and the weekly review, never on a day, until you give it a real date.</div>
-    <div class="group"><button class="pickrow" data-tf=""><span>None</span>${!cur?'<span class="tick">✓</span>':""}</button></div>`;
-  let g="";
-  for(const o of opts){
-    if(o.g!==g){ h+=(g?`</div>`:"")+sec(o.g)+`<div class="group">`; g=o.g; }
-    h+=`<button class="pickrow" data-tf="${o.v}"><span>${esc(o.l)}</span>${o.v===curV?'<span class="tick">✓</span>':""}</button>`;
-  }
+  let h=`<div class="fieldnote" style="margin:0 20px 12px">A loose window for things with no real date yet, as wide as a stretch of years or as narrow as one day. It stays off the daily plan. It waits in the Sometime list and on the calendar months it covers until you give it a real date.</div>
+    <div class="group"><button class="pickrow" data-tf=""><span>None</span>${!cur?'<span class="tick">✓</span>':""}</button>
+    <button class="pickrow" data-tf="years|${Y}-${Y+3}"><span>Within a few years (${Y} to ${Y+3})</span>${curV==="years|"+Y+"-"+(Y+3)?'<span class="tick">✓</span>':""}</button></div>`;
+  h+=sec("A year","<span>tap one to narrow it down</span>")+`<div class="group">`;
+  for(let i=0;i<5;i++){ const y=Y+i;
+    h+=`<button class="pickrow" data-tfy="${y}"><span>${y}</span>${(cur&&cur.type==="year"&&+cur.value===y)?'<span class="tick">✓</span>':(cfg.drill.y===y?'<span style="color:var(--label3);font-size:13px">narrowing ▾</span>':"")}</button>`; }
   h+=`</div>`;
-  showSheet("Timeframe",h,null);
+  if(cfg.drill.y!=null){
+    const y=cfg.drill.y;
+    h+=sec("A month in "+y)+`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 16px">`;
+    for(let m=0;m<12;m++){ const v="month|"+y+"-"+String(m+1).padStart(2,"0");
+      const on=curV===v||cfg.drill.m===m;
+      h+=`<button class="navbtn" data-tfm="${m}" style="padding:9px 0;${on?"color:var(--accent);":""}">${new Date(y,m,1).toLocaleDateString(undefined,{month:"short"})}</button>`; }
+    h+=`</div>`;
+    if(cfg.drill.m!=null){
+      const m=cfg.drill.m, last=new Date(y,m+1,0);
+      h+=sec("A week in "+new Date(y,m,1).toLocaleDateString(undefined,{month:"long"}))+`<div class="group">`;
+      let ws=new Date(y,m,1); ws=addDays(ws,-((ws.getDay()+7)%7));
+      for(let w=0;w<6;w++){ const s0=addDays(ws,w*7);
+        if(s0>last) break;
+        if(addDays(s0,6).getMonth()!==m&&s0.getMonth()!==m) continue;
+        const v="week|"+dayKey(s0);
+        h+=`<button class="pickrow" data-tfw="${dayKey(s0)}"><span>Week of ${s0.toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>${curV===v?'<span class="tick">✓</span>':(cfg.drill.wk===dayKey(s0)?'<span style="color:var(--label3);font-size:13px">narrowing ▾</span>':"")}</button>`; }
+      h+=`</div>`;
+      if(cfg.drill.wk){
+        const s0=new Date(cfg.drill.wk+"T12:00:00");
+        h+=sec("A single day")+`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:0 16px">`;
+        for(let i2=0;i2<7;i2++){ const dd=addDays(s0,i2); const v="day|"+dayKey(dd);
+          h+=`<button class="navbtn" data-tf="${v}" style="padding:9px 0;${curV===v?"color:var(--accent);":""}">${dd.getDate()}</button>`; }
+        h+=`</div>`;
+      }
+    }
+  }
+  const seasons=["spring","summer","fall","winter"];
+  let si=Math.floor(((now.getMonth()+1)%12)/3);
+  h+=sec("Season")+`<div class="group">`;
+  for(let i=0;i<4;i++){ const s2=seasons[(si+i)%4]; const y2=Y+Math.floor((si+i)/4);
+    const v="season|"+y2+"-"+s2;
+    h+=`<button class="pickrow" data-tf="${v}"><span>${SEASON_LABEL[s2]} ${y2}</span>${curV===v?'<span class="tick">✓</span>':""}</button>`; }
+  h+=`</div>`+sec("Quarter")+`<div class="group">`;
+  const q0=Math.floor(now.getMonth()/3);
+  for(let i=0;i<4;i++){ const q=(q0+i)%4, y2=Y+Math.floor((q0+i)/4);
+    const v="quarter|"+y2+"-q"+(q+1);
+    h+=`<button class="pickrow" data-tf="${v}"><span>Q${q+1} ${y2}</span>${curV===v?'<span class="tick">✓</span>':""}</button>`; }
+  h+=`</div>`;
+  showSheet("Sometime",h,null);
+  const apply=v=>{ cfg.cur=v?{type:v.split("|")[0],value:v.split("|")[1]}:null; cfg.cb(cfg.cur); drawTimeframe(cfg); };
   sheetBody.querySelectorAll("[data-tf]").forEach(b=>b.addEventListener("click",()=>{
-    const v=b.dataset.tf;
-    cfg.cur=v?{type:v.split("|")[0],value:v.split("|")[1]}:null;
-    cfg.cb(cfg.cur);
-    drawTimeframe(cfg);
-  }));
+    if(!b.dataset.tf) cfg.drill={};
+    apply(b.dataset.tf); }));
+  sheetBody.querySelectorAll("[data-tfy]").forEach(b=>b.addEventListener("click",()=>{
+    const y=+b.dataset.tfy;
+    cfg.drill=cfg.drill.y===y?cfg.drill:{y};
+    cfg.drill.y=y;
+    apply("year|"+y); }));
+  sheetBody.querySelectorAll("[data-tfm]").forEach(b=>b.addEventListener("click",()=>{
+    const m=+b.dataset.tfm;
+    cfg.drill.m=m; cfg.drill.wk=null;
+    apply("month|"+cfg.drill.y+"-"+String(m+1).padStart(2,"0")); }));
+  sheetBody.querySelectorAll("[data-tfw]").forEach(b=>b.addEventListener("click",()=>{
+    cfg.drill.wk=b.dataset.tfw;
+    apply("week|"+b.dataset.tfw); }));
+}
+
+/* every Sometime plan in one place, by year */
+function drawSometimeList(){
+  const items=timeframeItems().slice().sort((a,b)=>{
+    const sa=tfStart(a.timeframe), sb=tfStart(b.timeframe);
+    const d1=(sa?+sa:9e15)-(sb?+sb:9e15); if(d1) return d1;
+    return ((+tfEnd(a.timeframe))||9e15)-((+tfEnd(b.timeframe))||9e15); });
+  let h=`<div class="fieldnote" style="margin:0 20px 12px">Everything aimed at a loose window instead of a real date, in the order the windows arrive. Each one also shows on the calendar months it covers. Set a date when you are ready and it joins the plan like everything else.</div>`;
+  if(!items.length) h+=`<div class="group"><div style="padding:16px;color:var(--label2);font-size:14px">Nothing here yet. When you add or edit a task, the Sometime choice gives it a loose window like a month, a year, or a few years, and it collects here.</div></div>`;
+  let g="";
+  for(const n of items){
+    const s0=tfStart(n.timeframe);
+    const yl=s0?String(s0.getFullYear()):"No window";
+    if(yl!==g){ h+=(g?`</div>`:"")+sec(yl)+`<div class="group">`; g=yl; }
+    h+=`<div class="row"><div class="rowin" data-sopen="${n.id}">
+      <span class="mark">${n.icon?`<span class="nodeicon">${esc(n.icon)}</span>`:'<span class="circle"></span>'}</span>
+      <div class="body"><div class="title">${esc(n.title||"Untitled")}${catInline(n)}</div>
+        <div class="sub"><span class="pill blue">${esc(tfLabel(n.timeframe))}</span></div></div>
+      <button class="trail" data-sdate="${n.id}" style="color:var(--accent);font-size:14px">Set date</button>
+    </div></div>`;
+  }
+  if(g) h+=`</div>`;
+  showSheet("Sometime",h,null);
+  sheetBody.querySelectorAll("[data-sopen]").forEach(b=>b.addEventListener("click",e=>{
+    if(e.target.closest("[data-sdate]")) return; openSheet(b.dataset.sopen); }));
+  sheetBody.querySelectorAll("[data-sdate]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation(); openNeedsDate(b.dataset.sdate); }));
 }
 
 /* one-tap "needs a date": convert a timeframe into a real deadline */
@@ -4591,16 +4696,17 @@ function drawWizard(){
     const af=d.availableFrom;
     const afLbl=availLabel(af);
     const aw=d.aimWindow;
-    const awLbl=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):"No aim";
     const twv=d.todWindow;
-    const twLbl=twv&&(twv.after||twv.before)?[twv.after?"after "+fmtHM(twv.after):"",twv.before?"before "+fmtHM(twv.before):""].filter(Boolean).join(", "):"Any time";
+    const awDay=aw&&(aw.start||aw.end)?[aw.start?fmtDate(aw.start):"any time",aw.end?fmtDate(aw.end):"onward"].join(" to "):null;
+    const awTod=twv?todLabel(twv):null;
+    const awLbl=(awDay||awTod)?[awDay,(awTod&&awTod!=="Any time")?awTod:null].filter(Boolean).join(" · "):"No aim";
     h=q("When can you work on it?","All three are optional. Skip and it competes from today onward.")+
       `<div class="field">
         <button class="line" id="wAvail"><label>Available from</label><span class="val${af?" set":""}">${esc(afLbl)}</span>${ICON_CHEV}</button>
-        <button class="line" id="wAim"><label>Aim to do it</label><span class="val${aw?" set":""}">${esc(awLbl)}</span>${ICON_CHEV}</button>
-        <button class="line" id="wTod"><label>Time of day</label><span class="val${twv?" set":""}">${esc(twLbl)}</span>${ICON_CHEV}</button>
+        <button class="line" id="wAim"><label>Aim to do it</label><span class="val${(aw||twv)?" set":""}">${esc(awLbl)}</span>${ICON_CHEV}</button>
+        <button class="line" id="wTf"><label>Sometime</label><span class="val${d.timeframe?" set":""}">${d.timeframe?esc(tfLabel(d.timeframe)):"None"}</span>${ICON_CHEV}</button>
       </div>
-      <div class="fieldnote">Available from keeps it hidden until it opens, like an assignment that unlocks a week before it is due. Aim is the day or stretch you want it in. Time of day keeps it after or before a clock time.</div>`;
+      <div class="fieldnote">Available from keeps it hidden until it opens, like an assignment that unlocks a week before it is due. Aim is the day or stretch you want it in, plus a time of day if you want one. Sometime is a loose window for things with no real date yet, as wide as a few years, and it stays off the daily plan.</div>`;
   }
   if(key==="time"){
     title=d.preset==="event"?"Event time":"Block time";
@@ -4657,8 +4763,11 @@ function drawWizard(){
       row("due","Due",d.deadline?esc(relDay(d.deadline))+(d.deadlineHasTime?" "+esc(fmtTime(d.deadline)):""):"None");
       const af=d.availableFrom;
       if(af) row("window","Available from",esc(availLabel(af)));
-      if(d.aimWindow) row("window","Aim",[d.aimWindow.start?esc(fmtDate(d.aimWindow.start)):"any",d.aimWindow.end?esc(fmtDate(d.aimWindow.end)):"onward"].join(" to "));
-      if(d.todWindow) row("window","Time of day",[d.todWindow.after?"after "+esc(fmtHM(d.todWindow.after)):"",d.todWindow.before?"before "+esc(fmtHM(d.todWindow.before)):""].filter(Boolean).join(", "));
+      if(d.aimWindow||d.todWindow){ const parts=[];
+        if(d.aimWindow) parts.push([d.aimWindow.start?esc(fmtDate(d.aimWindow.start)):"any",d.aimWindow.end?esc(fmtDate(d.aimWindow.end)):"onward"].join(" to "));
+        if(d.todWindow) parts.push(esc(todLabel(d.todWindow)));
+        row("window","Aim",parts.join(" · ")); }
+      if(d.timeframe) row("window","Sometime",esc(tfLabel(d.timeframe)));
       row("effort","Takes about",d.estMaxMinutes?esc(mins(d.estMaxMinutes)):"about "+(P.guessMin||30)+"m");
       if(d.energy) row("effort","Energy",d.energy==="deep"?"Deep focus":"Shallow");
       if(d.stakesOverridden) row("shape","Stakes",STAKES_LABEL[d.stakes||"normal"]);
@@ -4754,7 +4863,7 @@ function wireWizard(key){
   if(key==="window"){
     on("#wAvail","click",()=>openAvailSheet(d,null));
     on("#wAim","click",()=>openAimSheet(d,null));
-    on("#wTod","click",()=>openTodSheet(d,null));
+    on("#wTf","click",()=>openTimeframe(d.timeframe,tf=>{ d.timeframe=tf; }));
   }
   if(key==="time"){
     const upd=()=>{ const day=$("#wDay").value, st=$("#wStart").value, en=$("#wEnd").value;
@@ -4977,6 +5086,7 @@ function renderSettings(){
       <button class="line" data-s="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
       <button class="line" data-s="log"><label>Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
       <button class="line" data-s="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
+      <button class="line" data-s="sometime"><label>Sometime</label><span class="val">${timeframeItems().length||""}</span>${ICON_CHEV}</button>
      </div>
      <div class="fieldnote">Changes below save as you make them.</div>
      ${secBig("Schedule")}
@@ -5068,6 +5178,7 @@ function renderSettings(){
     if(k==="lists") return sheetRoot(drawListsManager);
     if(k==="log"){ state.tab="log"; scrollEl.scrollTop=0; render(); return; }
     if(k==="templates") return sheetRoot(drawTemplates);
+    if(k==="sometime") return sheetRoot(drawSometimeList);
     if(k==="sleep") sheetRoot(drawSleep);
     if(k==="filters") sheetRoot(drawFilters);
     if(k==="appearance") sheetRoot(drawAppearance);
@@ -5602,7 +5713,7 @@ function toCSV(){
       if(c==="effectiveStakes") return q(effStakes(n));
       if(c==="availableFrom") return q(n.availableFrom?(n.availableFrom.mode==="beforeDue"?(n.availableFrom.leadDays!=null?n.availableFrom.leadDays:state.settings.plan.leadDays)+" days before due":dateInput(n.availableFrom.at)):"");
       if(c==="aimWindow") return q(n.aimWindow?[dateInput(n.aimWindow.start),dateInput(n.aimWindow.end)].filter(Boolean).join(" to "):"");
-      if(c==="todWindow") return q(n.todWindow?[n.todWindow.after?"after "+n.todWindow.after:"",n.todWindow.before?"before "+n.todWindow.before:""].filter(Boolean).join(" "):"");
+      if(c==="todWindow") return q(n.todWindow?[n.todWindow.start?"at "+n.todWindow.start:"",n.todWindow.after?"after "+n.todWindow.after:"",n.todWindow.before?"before "+n.todWindow.before:""].filter(Boolean).join(" "):"");
       if(c==="timeframe") return q(n.timeframe?tfLabel(n.timeframe):"");
       if(c==="dependsOn") return q((n.dependsOn||[]).map(x=>byId(x)?byId(x).title:x).join("; "));
       return q(n[c]);
