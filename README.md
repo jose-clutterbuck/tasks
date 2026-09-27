@@ -2,7 +2,7 @@
 
 A personal task planner built as a single offline web app, made to be installed on an iPhone home screen from GitHub Pages. One person, one device, no account, no server. Everything you enter lives in your browser's local database and never leaves the phone.
 
-Current version: 3.9
+Current version: 3.10
 
 ## What it does
 

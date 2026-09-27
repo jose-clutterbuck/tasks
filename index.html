@@ -1161,6 +1161,13 @@ function tfStart(tf){ const r=tfRange(tf); return r?r.s:null; }
 function tfEnd(tf){ const r=tfRange(tf); return r?r.e:null; }
 function tfInMonth(tf,y,m){ const r=tfRange(tf); if(!r) return false;
   return r.s<=new Date(y,m+1,0,23,59)&&r.e>=new Date(y,m,1); }
+function tfPhrase(tf){
+  if(!tf) return "";
+  if(tf.type==="years"){ const [a,b]=tf.value.split("-"); return "sometime from "+a+" to "+b; }
+  if(tf.type==="day") return "sometime on "+tfLabel(tf);
+  if(tf.type==="week") return "sometime in the week of "+tfLabel(tf).replace("Week of ","");
+  return "sometime in "+tfLabel(tf);
+}
 function timeframeItems(){ return Array.from(state.nodes.values())
   .filter(n=>n.timeframe&&!n.deadline&&n.status!=="done"&&n.status!=="dropped"); }
 
@@ -1691,8 +1698,7 @@ function render(){
   if(state.tab==="today") renderToday();
   else if(state.tab==="calendar") renderCalendar();
   else if(state.tab==="browse") renderBrowse();
-  else if(state.tab==="settings") renderSettings();
-  else renderLog();
+  else renderSettings();
   if(render._vk!==undefined&&render._vk!==viewKey){
     content.classList.remove("anim"); void content.offsetWidth; content.classList.add("anim"); }
   render._vk=viewKey;
@@ -2133,9 +2139,11 @@ function monthHTML(proj){
   const cur=state.calCursor;
   const first=new Date(cur.getFullYear(),cur.getMonth(),1);
   const lead=(first.getDay()+7)%7;
+  const dim=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate();
+  const cellCount=Math.ceil((lead+dim)/7)*7;
   const dows=["S","M","T","W","T","F","S"];
   let cells="";
-  for(let i=0;i<42;i++){
+  for(let i=0;i<cellCount;i++){
     const d=new Date(cur.getFullYear(),cur.getMonth(),1-lead+i,12,0,0);
     const out=d.getMonth()!==cur.getMonth();
     const k=dayKey(d);
@@ -2153,12 +2161,7 @@ function monthHTML(proj){
       data-day="${k}" style="background:${tint}">
       <span class="num tnum">${d.getDate()}</span><span class="marks">${marks}</span></button>`;
   }
-  /* timeframe banner: fuzzy commitments aimed at this month, never at a day */
-  const tfs=timeframeItems().filter(n=>tfInMonth(n.timeframe,cur.getFullYear(),cur.getMonth()));
-  const banner=tfs.length?`<div class="tfbanner"><div class="t" style="display:flex;justify-content:space-between;align-items:center">Sometime this month<button class="needs" data-sdlist>All</button></div>${
-    tfs.map(n=>`<div class="tfitem"><span data-open="${n.id}" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</span>
-      <button class="needs" data-needsdate="${n.id}">Needs a date</button></div>`).join("")}</div>`:"";
-  return calNav()+banner+`<div class="calhead">${dows.map(x=>`<div>${x}</div>`).join("")}</div>
+  return calNav()+`<div class="calhead">${dows.map(x=>`<div>${x}</div>`).join("")}</div>
     <div class="calgrid">${cells}</div>`+daySummaryHTML(state.calSel,proj);
 }
 
@@ -2216,13 +2219,13 @@ function monthOverviewHTML(proj){
   let html=secBig("Month overview")+`<div class="statcard">
     <div class="statrow"><span>Deadlines</span><span class="v tnum">${dls.length}</span></div>
     <div class="statrow"><span>Fixed blocks</span><span class="v tnum">${fx.length}</span></div>
-    <div class="statrow"><span>Timeframe items</span><span class="v tnum">${tfs.length}</span></div>
+    <div class="statrow"><span>Sometime plans</span><span class="v tnum">${tfs.length}</span></div>
     <div class="statrow"><span>Projected load</span><span class="v tnum">${mins(Math.round(load))} of ${Math.round(cap/60)}h</span></div></div>`;
-  if(tfs.length) html+=sec("Sometime this month, needs a date")+`<div class="group">${tfs.map(n=>
+  if(tfs.length) html+=sec("Sometime plans touching this month",`<button class="needs" data-sdlist>All</button>`)+`<div class="group">${tfs.map(n=>
     `<div class="row" data-row="${n.id}"><div class="rowin" data-open="${n.id}">
       <span class="mark">${n.icon?`<span class="nodeicon">${esc(n.icon)}</span>`:'<span class="circle"></span>'}</span>
-      <div class="body"><div class="title">${esc(n.title||"Untitled")}</div>
-        <div class="sub"><span class="pill blue">${esc(tfLabel(n.timeframe))}</span></div></div>
+      <div class="body"><div class="title">${esc(n.title||"Untitled")}${catInline(n)}</div>
+        <div class="sub"><span class="pill blue">${esc(tfPhrase(n.timeframe))}</span></div></div>
       <button class="trail" data-needsdate="${n.id}" style="color:var(--accent);font-size:14px">Set date</button>
     </div></div>`).join("")}</div>`;
   if(dls.length) html+=sec("Deadlines this month")+listHTML(dls.slice(0,12),{hideNotes:true,showPath:true});
@@ -2370,13 +2373,21 @@ function dayViewHTML(d,proj){
    =========================================================================== */
 function matchFilter(n,f){
   if(!f) return true;
-  if(f.category&&n.category!==f.category) return false;
-  if(f.deliverable&&n.deliverable!==f.deliverable) return false;
-  if(f.context&&n.context!==f.context) return false;
-  if(f.energy&&n.energy!==f.energy) return false;
-  if(f.stakes&&effStakes(n)!==f.stakes) return false;
-  if(f.status&&effStatus(n)!==f.status) return false;
+  const miss=(fv,val)=>{ if(fv==null||fv==="") return false;
+    if(Array.isArray(fv)) return fv.length>0&&!fv.includes(val);
+    return fv!==val; };
+  if(miss(f.category,n.category)) return false;
+  if(miss(f.deliverable,n.deliverable)) return false;
+  if(miss(f.context,n.context)) return false;
+  if(miss(f.energy,n.energy)) return false;
+  if(miss(f.stakes,effStakes(n))) return false;
+  if(miss(f.status,effStatus(n))) return false;
   return true;
+}
+function filterValLabel(k,v){
+  const one=x=>k==="stakes"?STAKES_LABEL[x]:(k==="status"?statusLabel(x):x);
+  if(v==null||v===""||(Array.isArray(v)&&!v.length)) return null;
+  return (Array.isArray(v)?v:[v]).map(one).join(", ");
 }
 function matchSearch(n,q){
   if(!q) return true;
@@ -2387,7 +2398,7 @@ function selbarHTML(){
   const modes=[["all","All"],["foryou","Attention"],["groups","Groups"],["cats","Categories"],
     ["contexts","Contexts"],["flagged","Flagged"],["someday","Someday"],["ranked","Ranked"],["completed","Completed"]];
   const f=state.activeFilter;
-  const fLbl=f?Object.entries(f).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k==="stakes"?STAKES_LABEL[v]:(k==="status"?statusLabel(v):v)).join(" · "):"";
+  const fLbl=f?Object.entries(f).filter(([k,v])=>k!=="name"&&v&&!(Array.isArray(v)&&!v.length)).map(([k,v])=>filterValLabel(k,v)).join(" · "):"";
   let h=`<div class="selbar"><button data-bmode="custom"${state.browseMode==="custom"?' class="on"':""}
     style="display:inline-flex;align-items:center;gap:5px">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4h13M4 8h8M6.5 12h3"/></svg>${fLbl?esc(fLbl.slice(0,28)):"Filter"}</button>`;
@@ -2470,7 +2481,7 @@ function renderBrowse(){
     }
     items=items.filter(n=>matchFilter(n,state.activeFilter));
     html+=`<div class="fieldnote" style="margin:0 20px 10px">Filtering by ${
-      Object.entries(state.activeFilter).filter(([k,v])=>k!=="name"&&v).map(([k,v])=>k+" = "+(k==="stakes"?STAKES_LABEL[v]:v)).join(", ")
+      Object.entries(state.activeFilter).filter(([k,v])=>k!=="name"&&v&&!(Array.isArray(v)&&!v.length)).map(([k,v])=>k+" = "+esc(filterValLabel(k,v))).join(", ")
       } · <button data-act="editfilter" style="color:var(--accent)">change</button></div>`;
   }
   if(mode.startsWith("filter:")){ const f=state.filters[+mode.slice(7)];
@@ -2607,15 +2618,22 @@ function wireSearch(){
 /* ===========================================================================
    LOG — Activity · Weekly review · Monthly review
    =========================================================================== */
-function renderLog(){
-  setTitles("Log","Log",null);
-  $("#navExtra").innerHTML=`<div class="seg mini">
-    <button data-lmode="activity"${state.logMode==="activity"?' class="on"':""}>Activity</button>
-    <button data-lmode="weekly"${state.logMode==="weekly"?' class="on"':""}>Weekly</button>
-    <button data-lmode="monthly"${state.logMode==="monthly"?' class="on"':""}>Monthly</button></div>`;
-  if(state.logMode==="weekly") content.innerHTML=weeklyReviewHTML();
-  else if(state.logMode==="monthly") content.innerHTML=monthlyReviewHTML();
-  else content.innerHTML=activityHTML();
+function drawLogSheet(){
+  const seg=`<div class="seg mini" style="margin:0 16px 12px">
+    <button data-lgm="activity"${state.logMode==="activity"?' class="on"':""}>Activity</button>
+    <button data-lgm="weekly"${state.logMode==="weekly"?' class="on"':""}>Weekly</button>
+    <button data-lgm="monthly"${state.logMode==="monthly"?' class="on"':""}>Monthly</button></div>`;
+  const body=state.logMode==="weekly"?weeklyReviewHTML():(state.logMode==="monthly"?monthlyReviewHTML():activityHTML());
+  showSheet("Completion Log",seg+body,null);
+  sheetBody.querySelectorAll("[data-lgm]").forEach(b=>b.addEventListener("click",()=>{
+    state.logMode=b.dataset.lgm; drawLogSheet(); }));
+  sheetBody.querySelectorAll("[data-lm-move]").forEach(b=>b.addEventListener("click",()=>{
+    state.logMonth=new Date(state.logMonth.getFullYear(),state.logMonth.getMonth()+Number(b.dataset.lmMove),1);
+    drawLogSheet(); }));
+  sheetBody.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",e=>{
+    if(e.target.closest("[data-needsdate]")) return; openSheet(b.dataset.open,true); }));
+  sheetBody.querySelectorAll("[data-needsdate]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation(); openNeedsDate(b.dataset.needsdate); }));
 }
 function activityHTML(){
   const items=Array.from(state.nodes.values())
@@ -2652,7 +2670,7 @@ function weeklyReviewHTML(){
     `<div class="row"><div class="rowin" data-open="${n.id}">
       <span class="mark"><span class="circle"></span></span>
       <div class="body"><div class="title">${esc(n.title||"Untitled")}</div>
-      <div class="sub"><span class="pill blue">${esc(tfLabel(n.timeframe))}</span></div></div>
+      <div class="sub"><span class="pill blue">${esc(tfPhrase(n.timeframe))}</span></div></div>
       <button class="trail" data-needsdate="${n.id}" style="color:var(--accent);font-size:14px">Set date</button></div></div>`).join("")}</div>`:"";
   const body=sect("Timeframes to pin down",tfSoon,"Their window is under three weeks away. Give each a real date or push the window.",tfList)+
     sect("Stalled groups",stalled,"Nothing inside these can be acted on. Add a next step or mark one unblocked.")+
@@ -4030,14 +4048,14 @@ function drawSometimeList(){
     h+=`<div class="row"><div class="rowin" data-sopen="${n.id}">
       <span class="mark">${n.icon?`<span class="nodeicon">${esc(n.icon)}</span>`:'<span class="circle"></span>'}</span>
       <div class="body"><div class="title">${esc(n.title||"Untitled")}${catInline(n)}</div>
-        <div class="sub"><span class="pill blue">${esc(tfLabel(n.timeframe))}</span></div></div>
+        <div class="sub"><span class="pill blue">${esc(tfPhrase(n.timeframe))}</span></div></div>
       <button class="trail" data-sdate="${n.id}" style="color:var(--accent);font-size:14px">Set date</button>
     </div></div>`;
   }
   if(g) h+=`</div>`;
-  showSheet("Sometime",h,null);
+  showSheet("Sometime Collection",h,null);
   sheetBody.querySelectorAll("[data-sopen]").forEach(b=>b.addEventListener("click",e=>{
-    if(e.target.closest("[data-sdate]")) return; openSheet(b.dataset.sopen); }));
+    if(e.target.closest("[data-sdate]")) return; openSheet(b.dataset.sopen,true); }));
   sheetBody.querySelectorAll("[data-sdate]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation(); openNeedsDate(b.dataset.sdate); }));
 }
@@ -4217,13 +4235,17 @@ function drawRepeatEditor(d,cfg,onChange){
     current:String(cfg.nth),onPick:v=>{ cfg.nth=Number(v); }}));
   const ev=$("#rpEvery"); if(ev) ev.addEventListener("input",e=>{ cfg.every=clamp(Number(e.target.value)||1,1,365); });
   const dom=$("#rpDom"); if(dom) dom.addEventListener("input",e=>{ cfg.dayOfMonth=clamp(Number(e.target.value)||1,1,31); });
+  const reEnds=()=>{ if(!d.recurrence) return;
+    const c=Object.assign({},d.recurrence); delete c.until; delete c.count; delete c.left;
+    set(withEnds(c)); };
   $$("#rpEnds button").forEach(b=>b.addEventListener("click",()=>{
     cfg.ends=b.dataset.en;
     if(cfg.ends==="until"&&!cfg.until) cfg.until=startOfDay(addDays(new Date(),90)).toISOString();
+    reEnds();
     drawRepeatEditor(d,cfg,onChange); }));
   const un=$("#rpUntil"); if(un) un.addEventListener("change",e=>{
-    cfg.until=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; });
-  const ct=$("#rpCount"); if(ct) ct.addEventListener("input",e=>{ cfg.count=clamp(Number(e.target.value)||1,1,200); });
+    cfg.until=e.target.value?new Date(e.target.value+"T23:59:00").toISOString():null; reEnds(); });
+  const ct=$("#rpCount"); if(ct) ct.addEventListener("input",e=>{ cfg.count=clamp(Number(e.target.value)||1,1,200); reEnds(); });
   $("#rpApply").addEventListener("click",()=>{
     let v=null;
     if(cfg.mode==="week"){
@@ -5057,15 +5079,16 @@ async function commitCapture(again){
 /* ---------- filters (saved filters appear as Browse chips) ---------- */
 function drawFilters(){
   const f=state.activeFilter||{};
-  const row=(k,label,val)=>`<button class="line" data-f="${k}"><label>${label}</label><span class="val">${esc(val||"Any")}</span>${ICON_CHEV}</button>`;
+  const row=(k,label)=>`<button class="line" data-f="${k}"><label>${label}</label><span class="val">${esc(filterValLabel(k,f[k])||"Any")}</span>${ICON_CHEV}</button>`;
   showSheet("Filters",
-    `<div class="field">
-      ${row("category","Category",f.category)}
-      ${row("deliverable","Deliverable",f.deliverable)}
-      ${row("context","Context",f.context)}
-      ${row("energy","Energy",f.energy)}
-      ${row("stakes","Stakes",f.stakes&&STAKES_LABEL[f.stakes])}
-      ${row("status","State",f.status&&statusLabel(f.status))}
+    `<div class="fieldnote" style="margin:0 20px 12px">Each part can hold more than one choice. A task passes a part when it matches any choice in it.</div>
+     <div class="field">
+      ${row("category","Category")}
+      ${row("deliverable","Deliverable")}
+      ${row("context","Context")}
+      ${row("energy","Energy")}
+      ${row("stakes","Stakes")}
+      ${row("status","State")}
      </div>
      <div class="field"><button class="line accent" id="fClear">Clear filter</button></div>
      <div class="field"><button class="line" id="fShowDone"><label>Show completed in lists</label><span class="val"></span><span class="toggle${state.showDone?" on":""}"></span></button></div>
@@ -5076,17 +5099,9 @@ function drawFilters(){
         <input class="big" id="fName" placeholder="Name this filter…"></div>
         <button class="line accent" id="fSave">Save filter</button></div>
      <div class="fieldnote">Saved filters appear as chips on the Browse tab.</div>`,
-    ()=>{ closeSheet(); state.tab="browse"; state.browseMode="all"; render(); },"View");
+    ()=>{ closeSheet(); state.tab="browse"; state.browseMode=state.activeFilter?"custom":"all"; render(); },"View");
   sheetBody.querySelectorAll("[data-f]").forEach(b=>b.addEventListener("click",()=>{
-    const k=b.dataset.f;
-    const opts={category:state.settings.categories.map(c=>c.name),deliverable:state.settings.deliverables,
-      context:state.settings.contexts,energy:[{v:"deep",l:"Deep focus"},{v:"shallow",l:"Shallow"}],
-      stakes:[{v:"protect",l:"Protect"},{v:"normal",l:"Normal"},{v:"flexible",l:"Flexible"}],
-      status:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on"},{v:"blocked",l:"Blocked"},
-              {v:"deferred",l:"Deferred"},{v:"someday",l:"Someday"}]}[k];
-    openOptions({title:"Filter",options:opts,current:(state.activeFilter||{})[k],allowNone:true,
-      onPick:v=>{ state.activeFilter=Object.assign({name:"Filter"},state.activeFilter||{},{[k]:v}); }});
-  }));
+    sheetPush(()=>drawFilterPick(b.dataset.f)); }));
   $("#fClear").addEventListener("click",()=>{ state.activeFilter=null; drawFilters(); });
   $("#fShowDone").addEventListener("click",()=>{ state.showDone=!state.showDone; drawFilters(); });
   $("#fSave").addEventListener("click",async()=>{
@@ -5096,6 +5111,27 @@ function drawFilters(){
     e.stopPropagation(); state.filters.splice(Number(b.dataset.delsaved),1); await saveSettings(); drawFilters(); }));
   sheetBody.querySelectorAll("[data-saved]").forEach(b=>b.addEventListener("click",()=>{
     state.browseMode="filter:"+b.dataset.saved; closeSheet(); state.tab="browse"; render(); }));
+}
+function drawFilterPick(k){
+  const defs={
+    category:{t:"Category",opts:state.settings.categories.map(c=>({v:c.name,l:c.name}))},
+    deliverable:{t:"Deliverable",opts:(state.settings.deliverables||[]).map(x=>({v:x,l:x}))},
+    context:{t:"Context",opts:(state.settings.contexts||[]).map(x=>({v:x,l:x}))},
+    energy:{t:"Energy",opts:[{v:"deep",l:"Deep focus"},{v:"shallow",l:"Shallow"}]},
+    stakes:{t:"Stakes",opts:[{v:"protect",l:"Protect"},{v:"normal",l:"Normal"},{v:"flexible",l:"Flexible"}]},
+    status:{t:"State",opts:[{v:"available",l:"Available"},{v:"waiting",l:"Waiting on"},{v:"blocked",l:"Blocked"},
+            {v:"deferred",l:"Deferred"},{v:"someday",l:"Someday"}]}}[k];
+  const v0=(state.activeFilter||{})[k];
+  const cur=Array.isArray(v0)?v0.slice():(v0?[v0]:[]);
+  showSheet(defs.t,
+    `<div class="fieldnote" style="margin:0 20px 12px">Pick as many as you want. A task passes when it matches any of them. Any means this part is ignored.</div>
+     <div class="group"><button class="pickrow" data-fv=""><span>Any</span>${!cur.length?'<span class="tick">✓</span>':""}</button>
+     ${defs.opts.map(o=>`<button class="pickrow" data-fv="${esc(o.v)}"><span>${esc(o.l)}</span>${cur.includes(o.v)?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`,null);
+  sheetBody.querySelectorAll("[data-fv]").forEach(b=>b.addEventListener("click",()=>{
+    const v=b.dataset.fv;
+    const next=!v?[]:(cur.includes(v)?cur.filter(x=>x!==v):cur.concat(v));
+    state.activeFilter=Object.assign({name:"Filter"},state.activeFilter||{},{[k]:next.length?next:null});
+    drawFilterPick(k); }));
 }
 
 /* ===========================================================================
@@ -5110,9 +5146,9 @@ function renderSettings(){
      ${secBig("Manage")}
      <div class="field">
       <button class="line" data-s="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
-      <button class="line" data-s="log"><label>Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
+      <button class="line" data-s="log"><label>Completion Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
       <button class="line" data-s="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
-      <button class="line" data-s="sometime"><label>Sometime</label><span class="val">${timeframeItems().length||""}</span>${ICON_CHEV}</button>
+      <button class="line" data-s="sometime"><label>Sometime Collection</label><span class="val">${timeframeItems().length||""}</span>${ICON_CHEV}</button>
      </div>
      <div class="fieldnote">Changes below save as you make them.</div>
      ${secBig("Schedule")}
@@ -5202,7 +5238,7 @@ function renderSettings(){
   content.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.s;
     if(k==="lists") return sheetRoot(drawListsManager);
-    if(k==="log"){ state.tab="log"; scrollEl.scrollTop=0; render(); return; }
+    if(k==="log") return sheetRoot(drawLogSheet);
     if(k==="templates") return sheetRoot(drawTemplates);
     if(k==="sometime") return sheetRoot(drawSometimeList);
     if(k==="sleep") sheetRoot(drawSleep);
