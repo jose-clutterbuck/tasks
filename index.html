@@ -513,6 +513,19 @@ body.hasbg::before{background:transparent}
   white-space:normal;line-height:1.35;color:var(--label2)}
 .planrow .title{line-height:1.25;font-size:15px}
 .plan .plannote{padding:8px 14px}
+.winwrap{margin:7px 0;border-radius:14px;padding:5px 7px 7px;
+  border:1.5px solid rgba(var(--accent-rgb),.4);background:rgba(var(--accent-rgb),.08)}
+.winhead{display:flex;align-items:center;gap:7px;padding:5px 5px 7px;font-size:13px}
+.winhead .wdot{width:9px;height:9px;border-radius:5px;flex:0 0 auto}
+.winhead .wt{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.winhead .wm{margin-left:auto;color:var(--label2);font-size:11px;flex:0 0 auto;text-align:right}
+.winempty{padding:6px 8px 4px;color:var(--label3);font-size:13px}
+.winwrap .planrow{background:transparent}
+.awakebtn{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;
+  padding:38px 20px;border-radius:22px;color:#fff;text-align:center;
+  background:linear-gradient(135deg,var(--accent),rgba(var(--accent-rgb),.65));
+  box-shadow:0 10px 30px rgba(var(--accent-rgb),.35)}
+.awakebtn:active{transform:scale(.98)}
 .draghandle{flex:0 0 30px;align-self:stretch;display:flex;align-items:center;justify-content:center;
   color:var(--label3);font-size:19px;touch-action:none}
 .planrow.dragging{opacity:.6;background:var(--fill)}
@@ -704,7 +717,7 @@ function newNode(p={}){ return Object.assign({
   flagged:false, bumpCount:0, recurrence:null, links:[],
   dependsOn:[], dependencyMode:"none",
   timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false, background:false,
-  windowScope:null, pendingDay:null,
+  windowScope:null, pendingDay:null, floating:false, winDuration:null,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=[
@@ -735,7 +748,7 @@ const DEFAULTS={
   unavailable:[], deepWindows:[],
   plan:{leadDays:7,splitMin:0,focusCapMin:0,switchBufMin:10,guessMin:30},
   layers:{fixed:true,deadline:true,projected:true},
-  sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false},
+  sleep:{bed:"23:00",wake:"07:00",perDay:{},ics:false,manualWake:false,wakeReset:"03:30"},
   theme:{id:"system",mode:"auto",hideTaskIcons:false,bgDim:.35,hasBg:false},
   notif:{master:true,offsets:[60],atTime:"09:00",
     quiet:{useSleep:true,from:"22:00",to:"08:00"},
@@ -774,6 +787,7 @@ const state={
   editing:null, draft:null, pressTimer:null,
   calMode:"month", calCursor:startOfDay(new Date()), calSel:startOfDay(new Date()),
   todayView:"schedule", todayOrder:null, planRange:"today", templates:[],
+  awake:null,
   activeFilter:null, browseMode:"all", browseCat:null, browseCtx:null, search:"",
   logMode:"activity", logMonth:startOfDay(new Date()),
   capDraft:null, capSubs:[], snaps:[], lastBannerCheck:Date.now(), sheetStack:[]
@@ -837,6 +851,7 @@ async function migrateToStakes(){
     if(n.deferUntil&&!n.availableFrom) n.availableFrom={mode:"absolute",at:n.deferUntil,leadDays:null};
     n.availableFrom=n.availableFrom||null; n.aimWindow=n.aimWindow||null; n.todWindow=n.todWindow||null;
     n.windowScope=n.windowScope||null; n.pendingDay=n.pendingDay||null;
+    n.floating=!!n.floating; n.winDuration=n.winDuration||null;
     delete n.importance; delete n.importanceOverridden; delete n.deadlineType;
     if(over&&st==="protect") report.protect.push(n.id);
     if(over&&st==="flexible") report.flexible.push(n.id);
@@ -1404,6 +1419,10 @@ function planFor(day,proj){
     .sort((a,b)=>a.start-b.start);
   for(const f of fixed) f.minutes=Math.round((f.end-f.start)/MIN);
 
+  /* floating windows hold time from the start of the day, not a clock slot */
+  const floatWins=fixed.filter(f=>f.win&&f.node.floating);
+  if(floatWins.length) fixed=fixed.filter(f=>!(f.win&&f.node.floating));
+
   /* dedicated windows: their full span blocks unrelated work */
   const winSpans=fixed.filter(f=>f.win).map(f=>({start:f.start,end:f.end,node:f.node,win:true,minutes:f.minutes}));
   if(winSpans.length){
@@ -1413,7 +1432,7 @@ function planFor(day,proj){
     for(const f of fixed){
       if(!f.win){ drawn.push(f); continue; }
       const mine=evs.filter(ev=>ev.start<f.end&&ev.end>f.start&&winMatches(ev.node,f.node));
-      for(const ev of mine) ev.inWin=f.node.title||"window";
+      for(const ev of mine){ ev.inWin=f.node.title||"window"; ev.inWinId=f.node.id; }
       let segs=[[+f.start,+f.end]];
       for(const ev of mine){
         const out=[];
@@ -1436,6 +1455,26 @@ function planFor(day,proj){
 
   let cursor=new Date(d0.getTime()+wake*MIN);
   if(isToday&&cursor<new Date()) cursor=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
+  if(isToday&&state.settings.sleep.manualWake){
+    const aw=awakeAt(); if(aw&&aw>cursor) cursor=new Date(aw);
+  }
+  if(floatWins.length){
+    let fc=new Date(cursor);
+    for(const f of floatWins.sort((a,b)=>a.start-b.start)){
+      const dur=(f.node.winDuration||60)*MIN;
+      let st=new Date(fc), guard=0;
+      while(guard++<48){ const hit=busy.find(b2=>st<b2.end&&new Date(+st+dur)>b2.start);
+        if(hit){ st=new Date(+hit.end+5*MIN); continue; } break; }
+      let en=new Date(+st+dur); if(en>end) en=new Date(+end);
+      if(en>st){
+        const blk={node:f.node,start:st,end:en,minutes:Math.round((en-st)/MIN),fixed:true,bg:false,win:true,floating:true};
+        fixed.push(blk); winSpans.push({start:st,end:en,node:f.node,win:true,minutes:blk.minutes});
+        busy.push(blk);
+        fc=new Date(+en+5*MIN);
+      }
+    }
+    fixed.sort((a,b)=>a.start-b.start); busy.sort((a,b)=>a.start-b.start);
+  }
 
   let items=[];
   if(isToday){
@@ -1586,6 +1625,23 @@ function layoutLanes(list){
   return bs;
 }
 
+/* manual wake: the day starts when you say so */
+function wakeKey(){ const rm=hmToMin((state.settings.sleep&&state.settings.sleep.wakeReset)||"03:30");
+  return dayKey(new Date(Date.now()-rm*MIN)); }
+function awakeAt(){ return (state.awake&&state.awake.k===wakeKey())?new Date(state.awake.at):null; }
+function awakeGateHTML(){
+  const fx=fixedOn(new Date()).filter(n=>n.status!=="done"&&!n.background&&n.preset!=="window");
+  return `<div style="padding:9vh 4px 10px">
+    <button id="awakeBtn" class="awakebtn">
+      <span style="font-size:26px;font-weight:700">I am awake</span>
+      <span style="font-size:13px;opacity:.85;margin-top:6px">Tap to start the day. The plan is built from this moment.</span>
+    </button></div>`
+    +(fx.length?sec("While you decide, today holds")+`<div class="tl">`+fx.slice(0,6).map(n=>
+      `<div class="tlrow" data-open="${n.id}"><div class="tltime tnum">${esc(fmtTime(n.fixedStart))}</div>
+        <div class="tlbar"></div><div class="body"><div class="title" style="font-size:15px">${esc(n.title)}${catInline(n)}</div></div></div>`).join("")+`</div>`:"")
+    +`<div class="fieldnote" style="margin-top:14px">The button comes back every day at ${esc(fmtHM((state.settings.sleep&&state.settings.sleep.wakeReset)||"03:30"))}. Turn this off in Settings, then Sleep.</div>`;
+}
+
 /* events that know their day but not their clock time yet */
 function pendingOn(day){ return Array.from(state.nodes.values())
   .filter(n=>n.pendingDay&&!n.fixedStart&&sameDay(n.pendingDay,day)&&n.status!=="done"&&n.status!=="dropped"); }
@@ -1622,6 +1678,73 @@ function winScopeLabel(wNode){
   const sc=wNode&&wNode.windowScope; if(!sc) return "";
   if(sc.type==="category") return sc.value;
   const g=byId(sc.value); return g?(g.title||"group"):"group"; }
+function winColor(wNode){
+  const sc=wNode&&wNode.windowScope;
+  if(sc){ if(sc.type==="category"){ const c=catByName(sc.value); if(c&&c.color) return c.color; }
+    if(sc.type==="group"){ const g=byId(sc.value); if(g&&g.color) return g.color; } }
+  return (wNode&&wNode.color)||null; }
+/* split a day's blocks into window containers and loose blocks */
+function partitionWins(blocks){
+  const wins=new Map(), rest=[];
+  for(const bk of blocks){
+    if(bk.unavail){ rest.push(bk); continue; }
+    if(bk.win){ const id=bk.node.id;
+      if(!wins.has(id)) wins.set(id,{node:bk.node,frags:[],inner:[]});
+      wins.get(id).frags.push(bk); continue; }
+    const wid=bk.inWinOf?bk.inWinOf.id:(bk.inWinId||null);
+    if(wid){ if(!wins.has(wid)){ const wn=bk.inWinOf||byId(wid)||{id:wid,title:bk.inWin||"Window"};
+        wins.set(wid,{node:wn,frags:[],inner:[]}); }
+      wins.get(wid).inner.push(bk); continue; }
+    rest.push(bk);
+  }
+  for(const g of wins.values()) g.inner.sort((a,b)=>a.start-b.start);
+  return {wins,rest};
+}
+function winWrapHTML(g,rowsHtml){
+  const col=winColor(g.node);
+  const h6=col&&/^#[0-9a-fA-F]{6}$/.test(col)?col:null;
+  const styl=h6?` style="background:${h6}1C;border-color:${h6}66"`:"";
+  const dot=h6?` style="background:${h6}"`:` style="background:var(--accent)"`;
+  const all=[...g.frags,...g.inner];
+  const s0=all.length?new Date(Math.min(...all.map(b=>+b.start))):null;
+  const e0=all.length?new Date(Math.max(...all.map(b=>+b.end))):null;
+  const range=s0?esc(fmtTime(s0.toISOString()))+" to "+esc(fmtTime(e0.toISOString())):"";
+  return `<div class="winwrap"${styl}>
+    <div class="winhead" data-open="${g.node.id}"><span class="wdot"${dot}></span>
+      <span class="wt">${g.node.icon?esc(g.node.icon)+" ":""}${esc(g.node.title||"Window")}</span>
+      <span class="wm">${esc(winScopeLabel(g.node))}${range?" · "+range:""}</span></div>
+    ${rowsHtml||`<div class="winempty">nothing planned in here yet</div>`}
+  </div>`;
+}
+/* one day of planned work as a list: windows as containers, events with
+   their times, to-dos with just their length */
+function dayFlowHTML(day,proj){
+  const pl=planFor(day,proj);
+  const dues=dueOn(day), pend=pendingOn(day);
+  const {wins,rest}=partitionWins(pl.blocks);
+  const loose=rest.filter(b=>!b.unavail);
+  if(!loose.length&&!wins.size&&!dues.length&&!pend.length) return "";
+  const mkRow=(bk,inWin)=>{
+    const n=bk.node,col=nodeColor(n);
+    const pt=bk.fixed?`<b>${esc(fmtTime(bk.start.toISOString()))}</b>${bk.minutes?mins(bk.minutes):""}`
+      :`<b>${esc(mins(bk.minutes))}</b>`;
+    let bits=taskBits(n,{block:bk});
+    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+    return `<div class="planrow${bk.fixed?"":" ghost"}${bk.fuzzy?" fuzzy":""}" data-open="${n.id}">
+      <div class="pt tnum">${pt}</div>
+      <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+      <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`;
+  };
+  const entries=[];
+  for(const bk of loose) entries.push({t:+bk.start,h:mkRow(bk)});
+  for(const g of wins.values()){ const all=[...g.frags,...g.inner]; if(!all.length) continue;
+    entries.push({t:Math.min(...all.map(b=>+b.start)),h:winWrapHTML(g,g.inner.map(b=>mkRow(b,true)).join(""))}); }
+  for(const n of dues) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+  for(const n of pend) entries.push({t:0,h:pendingRowHTML(n)});
+  entries.sort((a,b)=>a.t-b.t);
+  return `<div class="plan">${entries.map(e=>e.h).join("")}</div>`;
+}
 
 /* ===========================================================================
    NOTIFICATIONS
@@ -1931,7 +2054,16 @@ function renderToday(){
     <div class="seg mini" id="todaySeg">
       <button data-tview="schedule"${state.todayView!=="list"?' class="on"':""}>Schedule</button>
       <button data-tview="list"${state.todayView==="list"?' class="on"':""}>List</button></div>`;
-  if(range==="today"){ content.innerHTML=todayHTML(d); wireTodayList(); }
+  if(range==="today"&&state.settings.sleep.manualWake&&!awakeAt()){
+    content.innerHTML=awakeGateHTML();
+    const ab=$("#awakeBtn");
+    if(ab) ab.addEventListener("click",async()=>{
+      state.awake={k:wakeKey(),at:new Date().toISOString()};
+      try{ await putMeta("awakeDay",state.awake); }catch(e){}
+      bumpRev(); render(); toast("Good morning. The day is planned from now");
+    });
+  }
+  else if(range==="today"){ content.innerHTML=todayHTML(d); wireTodayList(); }
   else if(range==="tomorrow") content.innerHTML=otherDayHTML(d);
   else content.innerHTML=weekPlanHTML();
 }
@@ -1962,10 +2094,23 @@ function dueOn(day){
 /* one day's schedule as plan rows, used by Tomorrow and the Week */
 function dayPlanListHTML(day,proj){
   const pl=planFor(day,proj);
-  const dues=dueOn(day);
-  if(!pl.blocks.length&&!pl.unplaced.length&&!dues.length) return "";
+  const dues=dueOn(day), pend=pendingOn(day);
+  if(!pl.blocks.length&&!dues.length&&!pend.length) return "";
+  const {wins,rest}=partitionWins(pl.blocks);
+  const mkRow=(bk,inWin)=>{
+    const n=bk.node;
+    const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
+    const col=nodeColor(n);
+    let bits=taskBits(n,{block:bk});
+    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+    return `<div class="planrow ${cls}" data-open="${n.id}">
+      <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+      <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+      <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`;
+  };
   const entries=[];
-  for(const bk of pl.blocks){
+  for(const bk of rest){
     if(bk.unavail){
       entries.push({t:+bk.start,h:`<div class="planrow unavail">
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
@@ -1974,23 +2119,14 @@ function dayPlanListHTML(day,proj){
           <div class="why">unavailable</div></div></div>`});
       continue;
     }
-    const n=bk.node;
-    const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
-    const col=nodeColor(n);
-    const bits=taskBits(n,{block:bk});
-    entries.push({t:+bk.start,h:`<div class="planrow ${cls}" data-open="${n.id}">
-      <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
-      <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-      <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
-        ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div></div>`});
+    entries.push({t:+bk.start,h:mkRow(bk)});
   }
+  for(const g of wins.values()){ const all=[...g.frags,...g.inner]; if(!all.length) continue;
+    entries.push({t:Math.min(...all.map(b=>+b.start)),h:winWrapHTML(g,g.inner.map(b=>mkRow(b,true)).join(""))}); }
   for(const n of dues) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+  for(const n of pend) entries.push({t:0,h:pendingRowHTML(n)});
   entries.sort((a,b)=>a.t-b.t);
-  let h=`<div class="plan">`+entries.map(e=>e.h).join("");
-  if(pl.unplaced.length) h+=`<div class="plannote">${pl.unplaced.length} more did not fit this day: ${
-    esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}</div>`;
-  h+=`</div>`;
-  return h;
+  return `<div class="plan">`+entries.map(e=>e.h).join("")+`</div>`;
 }
 
 /* Tomorrow, in both looks */
@@ -2005,25 +2141,8 @@ function otherDayHTML(day){
   let html="";
   const dls=dueOn(day);
   if(state.todayView==="list"){
-    const fx=fixedOn(day).filter(n=>n.status!=="done");
-    const pj=proj[k]||[];
-    const entries=[];
-    for(const n of fx){ const col=nodeColor(n);
-      entries.push({t:+new Date(n.fixedStart),h:`<div class="planrow" data-open="${n.id}">
-        <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b>${n.fixedEnd?mins((new Date(n.fixedEnd)-new Date(n.fixedStart))/MIN):""}</div>
-        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
-          ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`}); }
-    for(const n of dls) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
-    for(const p of pj){ const col=nodeColor(p.node);
-      entries.push({t:Infinity,h:`<div class="planrow ghost" data-open="${p.node.id}">
-        <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div>
-        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-        <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
-          <div class="why">${p.over?"no room before it is due":"due "+esc(relDay(p.node.deadline))}</div></div></div>`}); }
-    entries.sort((a,b)=>a.t-b.t);
-    if(entries.length) html+=sec("Tomorrow","<span>in time order · work without a slot listed last</span>")
-      +`<div class="plan">${entries.map(e=>e.h).join("")}</div>`;
+    const body=dayFlowHTML(day,proj);
+    if(body) html+=sec("Tomorrow","<span>windows hold their own work</span>")+body;
     else html+=emptyHTML("A clear day","Nothing due, nothing pinned, nothing planned for tomorrow yet.",null);
   }else{
     const body=dayPlanListHTML(day,proj);
@@ -2047,38 +2166,8 @@ function weekPlanHTML(){
     html+=secBig(lbl,`<span>${esc(right)}</span>`);
     const dls=dueOn(day);
     if(state.todayView==="list"){
-      const entries=[];
-      for(const n of dls) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
-      if(i===0){
-        /* Today in the week shows the same plan Today itself computes */
-        for(const bk of planFor(day,proj).blocks){
-          if(bk.unavail) continue;
-          const n=bk.node, col=nodeColor(n);
-          entries.push({t:+bk.start,h:`<div class="planrow${bk.fixed?"":" ghost"}" data-open="${n.id}">
-            <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
-            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-            <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
-              ${bk.bg?`<div class="why">runs alongside</div>`:""}</div></div>`});
-        }
-      } else {
-        const fx=fixedOn(day).filter(n=>n.status!=="done");
-        const pj=proj[k]||[];
-        for(const n of fx){ const col=nodeColor(n);
-          entries.push({t:+new Date(n.fixedStart),h:`<div class="planrow" data-open="${n.id}">
-            <div class="pt tnum"><b>${esc(fmtTime(n.fixedStart))}</b></div>
-            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-            <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div>
-              ${n.background?`<div class="why">runs alongside</div>`:""}</div></div>`}); }
-        for(const p of pj){ const col=nodeColor(p.node);
-          entries.push({t:Infinity,h:`<div class="planrow ghost" data-open="${p.node.id}">
-            <div class="pt tnum"><b>${esc(mins(p.minutes))}</b></div>
-            <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-            <div class="body"><div class="title" style="font-size:15px">${esc(p.node.title||"Untitled")}${catInline(p.node)}</div>
-              <div class="why">${p.over?"no room before it is due":"work toward "+esc(relDay(p.node.deadline))}</div></div></div>`}); }
-      }
-      entries.sort((a,b)=>a.t-b.t);
-      html+= entries.length?`<div class="plan">${entries.map(e=>e.h).join("")}</div>`
-        :`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
+      const body=dayFlowHTML(day,proj);
+      html+= body||`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
     }else{
       const body=dayPlanListHTML(day,proj);
       html+= body||`<div class="plan"><div class="plannote">Nothing lands on this day.</div></div>`;
@@ -2148,19 +2237,30 @@ function todayHTML(d){
     const byIdBlock={}; taskBlocks.forEach(b2=>{ if(!byIdBlock[b2.node.id]) byIdBlock[b2.node.id]=b2; });
     let lh=sec("Today's tasks","<span>hold ≡ to reorder</span>")+`<div class="plan" id="todayList">`;
     const lentries=[];
-    for(const id of ids){
-      const bk=byIdBlock[id]; if(!bk) continue;
+    const mkListRow=(bk,inWin)=>{
       const n=bk.node, col=nodeColor(n);
-      const bits=taskBits(n,{block:bk});
+      let bits=taskBits(n,{block:bk});
+      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
       const lockAttrs=bk.fixed?` data-lock="1" data-fs="${+bk.start}" data-fe="${+bk.end}"`:` data-min="${bk.minutes||30}"`;
-      lentries.push({t:+bk.start,h:`<div class="planrow" data-open="${n.id}"${lockAttrs}>
+      const handle=inWin?"":(bk.fixed?`<span class="draghandle" style="color:var(--label3);font-size:13px">🔒</span>`:`<span class="draghandle" data-drag>≡</span>`);
+      return `<div class="planrow" data-open="${n.id}"${lockAttrs}>
         ${markHTML(n)}
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
-        ${bk.fixed?`<span class="draghandle" style="color:var(--label3);font-size:13px">🔒</span>`:`<span class="draghandle" data-drag>≡</span>`}
-      </div>`});
+        ${handle}
+      </div>`;
+    };
+    const {wins:listWins}=partitionWins(taskBlocks);
+    const inWinIds=new Set();
+    for(const g of listWins.values()){ inWinIds.add(g.node.id); for(const b2 of g.inner) inWinIds.add(b2.node.id); }
+    for(const id of ids){
+      if(inWinIds.has(id)) continue;
+      const bk=byIdBlock[id]; if(!bk) continue;
+      lentries.push({t:+bk.start,h:mkListRow(bk)});
     }
+    for(const g of listWins.values()){ const all=[...g.frags,...g.inner]; if(!all.length) continue;
+      lentries.push({t:Math.min(...all.map(b2=>+b2.start)),h:winWrapHTML(g,g.inner.map(b2=>mkListRow(b2,true)).join(""))}); }
     for(const n of dueToday) lentries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
     for(const n of pendingOn(d)) lentries.push({t:0,h:pendingRowHTML(n)});
     lentries.sort((a,b)=>a.t-b.t);
@@ -2176,7 +2276,22 @@ function todayHTML(d){
   if(pl.blocks.length||dueToday.length){
     html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
     const entries=[];
-    for(const bk of pl.blocks){
+    const mkSchedRow=(bk,inWin)=>{
+      const n=bk.node, past=bk.end.getTime()<now;
+      const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
+      const col=nodeColor(n);
+      let bits=taskBits(n,{block:bk});
+      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+      return `<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
+        ${markHTML(n)}
+        <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
+        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
+        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
+          ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
+      </div>`;
+    };
+    const {wins:schedWins,rest:schedRest}=partitionWins(pl.blocks);
+    for(const bk of schedRest){
       if(bk.unavail){
         entries.push({t:+bk.start,h:`<div class="planrow unavail">
           <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
@@ -2185,18 +2300,10 @@ function todayHTML(d){
             <div class="why">unavailable</div></div></div>`});
         continue;
       }
-      const n=bk.node, past=bk.end.getTime()<now;
-      const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
-      const col=nodeColor(n);
-      const bits=taskBits(n,{block:bk});
-      entries.push({t:+bk.start,h:`<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
-        ${markHTML(n)}
-        <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
-        <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
-        <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
-          ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
-      </div>`});
+      entries.push({t:+bk.start,h:mkSchedRow(bk)});
     }
+    for(const g of schedWins.values()){ const all=[...g.frags,...g.inner]; if(!all.length) continue;
+      entries.push({t:Math.min(...all.map(b=>+b.start)),h:winWrapHTML(g,g.inner.map(b=>mkSchedRow(b,true)).join(""))}); }
     for(const n of dueToday) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
     for(const n of pendingOn(d)) entries.push({t:0,h:pendingRowHTML(n)});
     entries.sort((a,b)=>a.t-b.t);
@@ -3496,7 +3603,7 @@ function applyDraft(){
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
     flagged:d.flagged,bumpCount:d.bumpCount,recurrence:d.recurrence,links:d.links,
     dependsOn:d.dependsOn||[],dependencyMode:d.dependencyMode||"none",
-    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null});
+    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null,floating:!!d.floating,winDuration:d.winDuration||null});
   return n;
 }
 function todayRank(id){
@@ -4930,12 +5037,12 @@ function drawWizard(){
   if(key==="type"){
     title="New";
     const opts=[
-      ["todo","To do","Something you do and finish. Most things."],
-      ["event","Event","You attend it at its time. A class, a visit, a meeting."],
-      ["block","Time block","Walls off time. Commute, gym, quiet hours."],
-      ["window","Dedicated window","Carves out repeating time for one kind of work. Its own tasks and events get planned inside it."],
-      ["bgp","Background thing","Runs by itself while you do other work. Laundry."],
-      ["project","Project","A group that holds steps inside it."],
+      ["todo","To do","Something you do and finish. The planner picks when it happens."],
+      ["event","Event","You attend it at its time. A class, a meeting, an exam. It can hold just a day while the clock time is still open."],
+      ["block","Busy time","Time not available for any task. Commute, meals, quiet hours. A switch inside lets it run alongside instead, like laundry."],
+      ["window","Dedicated window","Repeating time reserved for one kind of work. Its group or category is planned inside it, everything else stays out."],
+      ["group","New group","A container in Browse that holds related work, like a project and its steps."],
+      ["category","New category","A colored label that cuts across groups, like School or Health."],
       ["template","From a template","Start from a saved shape."]
     ];
     const cur=state.capWiz.launch||(d.actionable===false
@@ -4947,7 +5054,7 @@ function drawWizard(){
   }
   if(key==="title"){
     const isTodo=d.actionable!==false;
-    title=isTodo?"To do":(d.preset==="event"?"Event":(d.preset==="window"?"Dedicated window":"Time block"));
+    title=isTodo?"To do":(d.preset==="event"?"Event":(d.preset==="window"?"Dedicated window":"Busy time"));
     h=q(isTodo?"What needs doing?":"What is it called?",
         isTodo?'Shorthand works: "essay draft friday 4pm ~1h #School @computer". It turns into chips you can dismiss.':"")+
       `<div class="field">
@@ -5000,8 +5107,27 @@ function drawWizard(){
       </div>
       <div class="fieldnote">Available from keeps it hidden until it opens, like an assignment that unlocks a week before it is due. Aim is the day or stretch you want it in, plus a time of day if you want one. Sometime is a loose window for things with no real date yet, as wide as a few years, and it stays off the daily plan.</div>`;
   }
-  if(key==="time"){
-    title=d.preset==="event"?"Event time":"Block time";
+  if(key==="time"&&d.preset==="window"){
+    title="Window time";
+    h=q("When does this window hold time?","Set times pin it to the clock. First thing makes it start whenever your day starts, on the days it repeats.")+
+      `<div class="seg" id="wWinMode" style="margin:0 16px 12px">
+        <button data-wm="set"${!d.floating?' class="on"':""}>At set times</button>
+        <button data-wm="float"${d.floating?' class="on"':""}>First thing in the day</button></div>`+
+      (d.floating
+        ?`<div class="field">
+            <div class="line"><label>Holds</label><input type="number" inputmode="numeric" min="15" max="600" id="wWinDur" value="${d.winDuration||60}"><span class="unit">minutes</span></div>
+            <div class="line"><label>First day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+          </div>
+          <div class="fieldnote">It opens at the start of your day and holds that much time for its work. With the manual wake button on, the day starts when you press Awake. Pick the days it repeats on the next page.</div>`
+        :`<div class="field">
+            <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+            <div class="line"><label>Start</label><input type="time" id="wStart" value="${timeInput(d.fixedStart)}"></div>
+            <div class="line"><label>End</label><input type="time" id="wEnd" value="${timeInput(d.fixedEnd)}"></div>
+          </div>
+          <div class="fieldnote">Repeats are set on the next page.</div>`);
+  }
+  else if(key==="time"){
+    title=d.preset==="event"?"Event time":"Busy time";
     h=q("When does it happen?",d.preset==="Sleep"?"Filled in from your sleep schedule. Adjust if this night differs.":"")+
       `<div class="field">
         <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
@@ -5066,7 +5192,8 @@ function drawWizard(){
       if(d.stakesOverridden) row("shape","Stakes",STAKES_LABEL[d.stakes||"normal"]);
     } else {
       if(d.preset==="window") row("wscope","Belongs to",d.windowScope?esc(winScopeLabel(d)):'<span style="color:var(--red)">pick a group or category</span>');
-      row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")
+      if(d.preset==="window"&&d.floating) row("time","Time","first thing in the day · holds "+(d.winDuration||60)+"m");
+      else row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")
         :(d.pendingDay?esc(fmtDate(d.pendingDay))+' · <span style="color:#FF9500">time still open</span>':'<span style="color:var(--red)">needs a time</span>'));
       if(d.background) row("time","Background","Yes");
     }
@@ -5101,7 +5228,8 @@ function wireWizard(key){
   on("#wzSkip","click",()=>{ wizKeep(); if(state.capWiz) state.capWiz.launch=null; wizGo(state.capWiz.i+1); });
   on("#wzNext","click",async()=>{
     wizKeep();
-    if(key==="type"&&state.capWiz.launch==="project"){ await closeSheet(); openGroupSheet(null); return; }
+    if(key==="type"&&state.capWiz.launch==="group"){ await closeSheet(); openGroupSheet(null); return; }
+    if(key==="type"&&state.capWiz.launch==="category"){ await closeSheet(); sheetRoot(drawCategories); return; }
     if(key==="type"&&state.capWiz.launch==="template"){ state.capWiz.launch=null; openTemplatePicker(); return; }
     if(key==="time"&&!d.fixedStart){ toast("Set the day and start time first"); return; }
     wizGo(state.capWiz.i+1); });
@@ -5112,16 +5240,12 @@ function wireWizard(key){
   if(key==="type"){
     sheetBody.querySelectorAll("[data-wpre]").forEach(b=>b.addEventListener("click",async()=>{
       const k=b.dataset.wpre;
-      if(k==="project"||k==="template"){ state.capWiz.launch=k; drawWizard(); return; }
+      if(k==="group"||k==="category"||k==="template"){ state.capWiz.launch=k; drawWizard(); return; }
       state.capWiz.launch=null;
       if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
       if(k==="event") applyTaskType(d,"event");
       if(k==="block"){ applyTaskType(d,"block"); d.background=false; if(d.preset==="window") d.preset="block"; }
       if(k==="window"){ applyTaskType(d,"block"); d.background=false; d.preset="window"; }
-      if(k==="bgp"){ applyTaskType(d,"block");
-        if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
-          d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); }
-        d.background=true; }
       normalizeTiming(d);
       drawWizard();       /* the check mark moves; Next moves you on */
     }));
@@ -5169,7 +5293,9 @@ function wireWizard(key){
       if(tf){ d.aimWindow=null; d.todWindow=null; } }));
   }
   if(key==="time"){
-    const upd=()=>{ const day=$("#wDay").value, st=$("#wStart").value, en=$("#wEnd").value;
+    const upd=()=>{ const day=$("#wDay")?$("#wDay").value:"", st=$("#wStart")?$("#wStart").value:"", en=$("#wEnd")?$("#wEnd").value:"";
+      if(d.preset==="window"&&d.floating){
+        if(day){ d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; } return; }
       if(day&&st){ d.fixedStart=new Date(day+"T"+st+":00").toISOString();
         d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); }
       else if(day&&!st&&d.preset==="event"){ d.fixedStart=null; d.fixedEnd=null;
@@ -5177,6 +5303,13 @@ function wireWizard(key){
       else if(!st){ d.fixedStart=null; d.fixedEnd=null; d.pendingDay=null; } };
     ["#wDay","#wStart","#wEnd"].forEach(sel=>on(sel,"change",upd));
     on("#wBg","click",()=>{ d.background=!d.background; drawWizard(); });
+    sheetBody.querySelectorAll("#wWinMode button").forEach(b=>b.addEventListener("click",()=>{
+      d.floating=b.dataset.wm==="float";
+      if(d.floating){ d.winDuration=d.winDuration||60;
+        const day=($("#wDay")&&$("#wDay").value)||dayKey(new Date());
+        d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; }
+      drawWizard(); }));
+    on("#wWinDur","input",e=>{ d.winDuration=clamp(Number(e.target.value)||60,15,600); });
   }
   if(key==="repeat"){
     on("#wRepeat","click",()=>openRepeatEditor(d,null));
@@ -5717,6 +5850,12 @@ function drawSleep(){
           <input type="time" data-slb="${i}" value="${o.bed||""}" style="flex:1">
           <input type="time" data-slw="${i}" value="${o.wake||""}" style="flex:1">${CLRX("sl"+i,!!(o.bed||o.wake))}</div>`;}).join("")}</div>
      <div class="fieldnote">Blank uses the default above. Left box bedtime, right box wake; ✕ clears that day.</div>
+     ${sec("Manual wake","<span>you start the day</span>")}
+     <div class="field">
+       <button class="line" id="slManual"><label>Awake button on the Direction tab</label><span class="val"></span><span class="toggle${s.manualWake?" on":""}"></span></button>
+       ${s.manualWake?`<div class="line"><label>Button comes back at</label><input type="time" id="slReset" value="${s.wakeReset||"03:30"}"></div>`:""}
+     </div>
+     <div class="fieldnote">For days that do not start at the same time. The Direction tab shows one big button; the plan and any first thing windows start the moment you press it. No sleep button needed at night.</div>
      <div class="field"><button class="line" id="slIcs"><label>Include sleep in calendar export</label><span class="val"></span><span class="toggle${s.ics?" on":""}"></span></button></div>
      <div class="fieldnote">Adds a daily repeating Sleep event to the .ics from Settings › Notifications, so Apple Calendar shows the same protected block.</div>`,null);
   const per=()=>{ const out={};
@@ -5724,6 +5863,8 @@ function drawSleep(){
       if((b&&b.value)||(w&&w.value)) out[i]={bed:(b&&b.value)||undefined,wake:(w&&w.value)||undefined}; }
     s.perDay=out; };
   $("#slBed").addEventListener("change",e=>{ s.bed=e.target.value||"23:00"; setSave(); });
+  $("#slManual").addEventListener("click",()=>{ s.manualWake=!s.manualWake; saveSettings(); drawSleep(); });
+  { const sr=$("#slReset"); if(sr) sr.addEventListener("change",e=>{ s.wakeReset=e.target.value||"03:30"; saveSettings(); }); }
   $("#slWake").addEventListener("change",e=>{ s.wake=e.target.value||"07:00"; setSave(); });
   for(let i=0;i<7;i++){
     $(`[data-slb="${i}"]`).addEventListener("change",()=>{ per(); setSave(); });
@@ -6235,6 +6376,7 @@ async function seed(){
     if(m.key==="filters") state.filters=m.value||[];
     if(m.key==="lastTab"&&m.value) state.tab=m.value;
     if(m.key==="todayOrder"&&m.value&&m.value.day===dayKey(new Date())) state.todayOrder=m.value;
+    if(m.key==="awakeDay"&&m.value) state.awake=m.value;
   }
   await ensureInbox();
   const u=byId(UNSORTED); if(u.title!=="Unsorted"){ u.title="Unsorted"; await putNode(u); }
