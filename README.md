@@ -2,7 +2,7 @@
 
 A personal task planner built as a single offline web app, made to be installed on an iPhone home screen from GitHub Pages. One person, one device, no account, no server. Everything you enter lives in your browser's local database and never leaves the phone.
 
-Current version: 4.2
+Current version: 4.3
 
 ## What it does
 
@@ -12,7 +12,7 @@ Current version: 4.2
 
 **Timing that matches real life.** A task can have a due date, a day or stretch you aim to do it in with an optional start, after, or before time on that day, a date it opens up (like an assignment that unlocks a week before it is due), and a loose Sometime window for things with no real date yet, as wide as a stretch of years. Sometime plans stay off the daily schedule; they collect in their own list and show on the calendar months they cover until you give them a real date. Events and blocks can repeat on chosen weekdays, on a day of the month, on something like the second Tuesday, or yearly, and can end on a date or after a set number of times. Sleep and unavailable time are subtracted automatically.
 
-**Dedicated windows.** A window carves out repeating time for one kind of work: your business three evenings a week, schoolwork daily, the gym. Tasks and events from the window's group or category get planned inside it, everything else stays out, and an event at the same time as its window, like an exam during class time, absorbs the window into one row. A window is named after what it holds (a category, or one of its groups) and can run at set times, first or last thing in the day, in the morning, afternoon, or evening, or before or after another window, holding a chosen amount of time. On the Direction views windows draw as shaded containers in the color of their group or category, with their work inside. An optional manual wake button starts the day by hand: press Awake once in the morning and the plan and any first thing windows begin from that moment.
+**Dedicated windows.** A window carves out repeating time for one kind of work: your business three evenings a week, schoolwork daily, the gym. Tasks and events from the window's group or category get planned inside it, everything else stays out, and an event at the same time as its window, like an exam during class time, absorbs the window into one row. A window is named after what it holds (a category, or one of its groups) and can run at set times, first or last thing in the day, in the morning, afternoon, or evening, or before or after another window, holding a chosen amount of time, including after or before any clock time. Each window sets its own firmness: flexible windows shrink or slide around events down to 15 minutes, fixed windows keep their full span, and a window can name categories or groups whose due-today work may borrow it when nothing else fits. An empty window either holds its time (the default, for routines like exercise) or releases it back to the day. On the Direction views windows draw as shaded containers in the color of their group or category, with their work inside. An optional manual wake button starts the day by hand: press Awake once in the morning and the plan and any first thing windows begin from that moment.
 
 **Work Efficiency.** A score built like W equals F times d: effort only counts when something lands. It weighs how much resolved work got done instead of dropped or left overdue, finishes before the deadline, estimate honesty, and push drag, with the full completion log behind it.
 

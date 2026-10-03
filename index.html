@@ -720,6 +720,7 @@ function newNode(p={}){ return Object.assign({
   dependsOn:[], dependencyMode:"none",
   timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false, background:false,
   windowScope:null, pendingDay:null, floating:false, winDuration:null, winPlace:null,
+  winFirm:"flex", winHoldEmpty:true, winGivesWay:null,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=[
@@ -854,6 +855,8 @@ async function migrateToStakes(){
     n.availableFrom=n.availableFrom||null; n.aimWindow=n.aimWindow||null; n.todWindow=n.todWindow||null;
     n.windowScope=n.windowScope||null; n.pendingDay=n.pendingDay||null;
     n.floating=!!n.floating; n.winDuration=n.winDuration||null; n.winPlace=n.winPlace||null;
+    n.winFirm=n.winFirm||"flex"; if(n.winHoldEmpty===undefined) n.winHoldEmpty=true;
+    n.winGivesWay=n.winGivesWay||null;
     delete n.importance; delete n.importanceOverridden; delete n.deadlineType;
     if(over&&st==="protect") report.protect.push(n.id);
     if(over&&st==="flexible") report.flexible.push(n.id);
@@ -1285,8 +1288,20 @@ function todayBands(){
     budget+=Math.min(span,matchMin);
   }
   for(const n of must) budget-=(n.estMaxMinutes||P.guessMin);
-  const should=[], laterAll=[];
+  const winsT=fixed.filter(f=>f.preset==="window").map(f=>{
+    let rem=0;
+    if(winPlaceMode(f)!=="set") rem=f.winDuration||60;
+    else if(f.fixedEnd){ const e=new Date(f.fixedEnd); rem=e>now?(e-Math.max(new Date(f.fixedStart),now))/MIN:0; }
+    return {f,rem}; }).filter(x=>x.rem>0);
+  const should=[], laterAll=[], seated=new Set();
+  /* window work is seated first, up to its window's remaining room */
   for(const n of rest){
+    const m2=n.estMaxMinutes||P.guessMin;
+    const slot=winsT.find(x=>x.rem>=Math.min(m2,15)&&winMatches(n,x.f));
+    if(slot){ should.push(n); seated.add(n.id); slot.rem-=m2; budget-=m2; }
+  }
+  for(const n of rest){
+    if(seated.has(n.id)) continue;
     const m=n.estMaxMinutes||P.guessMin;
     if(budget>0){ should.push(n); budget-=m; }
     else laterAll.push(n);
@@ -1315,7 +1330,7 @@ function projection(){
      length. The day chosen is the earliest one between when the task opens
      and when it is due that still has room, preferring the aim window.
      Room accounts for pinned blocks and for work already placed. */
-  const map={}, used={}, fixedMemo={};
+  const map={}, used={}, fixedMemo={}, winDayMemo={};
   const fixedMin=k=>{
     if(fixedMemo[k]!=null) return fixedMemo[k];
     let m2=0;
@@ -1361,8 +1376,18 @@ function projection(){
       for(let d=new Date(from); d<=to; d=addDays(d,1)) if(freeOn(d)>=need) return new Date(d);
       return null;
     };
+    /* a task with a dedicated window lands on a day its window occurs, when it can */
+    const winFit=(from,to)=>{
+      for(let d=new Date(from); d<=to; d=addDays(d,1)){
+        const k2=dayKey(d);
+        if(winDayMemo[k2]===undefined)
+          winDayMemo[k2]=fixedOn(d).filter(x=>x.preset==="window"&&x.status!=="done");
+        if(winDayMemo[k2].some(w=>winMatches(n,w))&&freeOn(d)>=need) return new Date(d);
+      }
+      return null;
+    };
     const hasAim=!!(n.aimWindow&&(n.aimWindow.start||n.aimWindow.end));
-    let day=firstFit(a0,a1), over=false;
+    let day=winFit(a0,a1)||firstFit(a0,a1), over=false;
     if(!day){
       /* no day has full room: take the roomiest day, and an aim never
          gets abandoned for another day */
@@ -1425,18 +1450,22 @@ function planFor(day,proj){
   const floatWins=fixed.filter(f=>f.win&&f.node.floating);
   if(floatWins.length) fixed=fixed.filter(f=>!(f.win&&f.node.floating));
 
-  /* dedicated windows: their full span blocks unrelated work */
-  const winSpans=fixed.filter(f=>f.win).map(f=>({start:f.start,end:f.end,node:f.node,win:true,minutes:f.minutes}));
-  if(winSpans.length){
-    /* a same-scope event at the same time absorbs the window: one row, not two */
+  /* dedicated windows: a same-scope event absorbs the window into one row,
+     and a flexible window also shrinks around every other event in its way */
+  const winSpans=[];
+  if(fixed.some(f=>f.win)){
     const evs=fixed.filter(f=>!f.win&&!f.bg);
     const drawn=[];
     for(const f of fixed){
       if(!f.win){ drawn.push(f); continue; }
+      const flex=f.node.winFirm!=="fixed";
       const mine=evs.filter(ev=>ev.start<f.end&&ev.end>f.start&&winMatches(ev.node,f.node));
       for(const ev of mine){ ev.inWin=f.node.title||"window"; ev.inWinId=f.node.id; }
+      const cutters=flex
+        ?[...evs.filter(ev=>ev.start<f.end&&ev.end>f.start),...unavail.filter(u=>u.start<f.end&&u.end>f.start)]
+        :mine;
       let segs=[[+f.start,+f.end]];
-      for(const ev of mine){
+      for(const ev of cutters){
         const out=[];
         for(const [a,b] of segs){
           if(+ev.end<=a||+ev.start>=b){ out.push([a,b]); continue; }
@@ -1445,10 +1474,12 @@ function planFor(day,proj){
         }
         segs=out;
       }
-      for(const [a,b] of segs){
-        if((b-a)/MIN<15) continue;
+      const kept=segs.filter(([a,b])=>(b-a)/MIN>=15);
+      for(const [a,b] of kept)
         drawn.push({node:f.node,start:new Date(a),end:new Date(b),minutes:Math.round((b-a)/MIN),fixed:true,bg:false,win:true});
-      }
+      if(flex) for(const [a,b] of kept)
+        winSpans.push({start:new Date(a),end:new Date(b),node:f.node,win:true,minutes:Math.round((b-a)/MIN)});
+      else winSpans.push({start:f.start,end:f.end,node:f.node,win:true,minutes:f.minutes});
     }
     fixed=drawn.sort((a,b)=>a.start-b.start);
   }
@@ -1478,19 +1509,38 @@ function planFor(day,proj){
     const addSpan=(f,got)=>{ const blk={node:f.node,start:got.st,end:got.en,minutes:Math.round((got.en-got.st)/MIN),fixed:true,bg:false,win:true,floating:true};
       fixed.push(blk); winSpans.push({start:got.st,end:got.en,node:f.node,win:true,minutes:blk.minutes});
       busy.push(blk); spanOf.set(f.node.id,blk); };
+    const bestGap=(floor,ceil)=>{
+      const lo=Math.max(+floor,+cursor), hi=Math.min(+ceil,+end);
+      if(hi<=lo) return null;
+      const obs=busy.filter(b2=>+b2.end>lo&&+b2.start<hi).sort((a,b)=>+a.start-+b.start);
+      let cur=lo,best=null;
+      for(const o of obs){
+        if(+o.start>cur){ const g={s:cur,e:Math.min(+o.start,hi)}; if(!best||g.e-g.s>best.e-best.s) best=g; }
+        cur=Math.max(cur,+o.end); }
+      if(cur<hi){ const g={s:cur,e:hi}; if(!best||g.e-g.s>best.e-best.s) best=g; }
+      return best&&(best.e-best.s)/MIN>=15?best:null; };
     const place1=f=>{
       const m=winPlaceMode(f.node), dur=(f.node.winDuration||60)*MIN;
+      const wp=f.node.winPlace||{};
       const noonT=new Date(d0.getTime()+12*60*MIN), eveT=new Date(d0.getTime()+17*60*MIN);
+      const atT=wp.at?new Date(d0.getTime()+hmToMin(wp.at)*MIN):null;
+      let refSpan=null;
+      if(m==="afterWin"||m==="beforeWin"){ refSpan=spanOf.get(wp.ref); if(!refSpan) return false; }
+      const bounds={dayStart:[cursor,end],morning:[cursor,noonT],afternoon:[noonT,end],evening:[eveT,end],
+        dayEnd:[cursor,end],afterTime:[atT||cursor,end],beforeTime:[cursor,atT||end],
+        afterWin:refSpan?[refSpan.end,end]:[cursor,end],beforeWin:refSpan?[cursor,refSpan.start]:[cursor,end]}[m]||[cursor,end];
+      const endAnchored=["dayEnd","beforeTime","beforeWin"].includes(m);
       let got=null;
-      if(m==="morning") got=findFwd(cursor,dur,noonT)||findFwd(cursor,dur,null);
-      else if(m==="afternoon") got=findFwd(new Date(Math.max(+noonT,+cursor)),dur,null);
-      else if(m==="evening") got=findFwd(new Date(Math.max(+eveT,+cursor)),dur,null);
-      else if(m==="dayEnd") got=findBwd(end,dur)||findFwd(cursor,dur,null);
-      else if(m==="afterWin"){ const ref=spanOf.get(f.node.winPlace&&f.node.winPlace.ref);
-        if(!ref) return false; got=findFwd(ref.end,dur,null); }
-      else if(m==="beforeWin"){ const ref=spanOf.get(f.node.winPlace&&f.node.winPlace.ref);
-        if(!ref) return false; got=findBwd(ref.start,dur)||findFwd(cursor,dur,null); }
-      else got=findFwd(cursor,dur,null);
+      if(endAnchored) got=findBwd(bounds[1],dur);
+      else got=findFwd(bounds[0],dur,m==="morning"?bounds[1]:null);
+      if(!got&&m==="morning") got=findFwd(cursor,dur,null);
+      /* flexible windows shrink into the biggest room their stretch still has */
+      if(!got&&f.node.winFirm!=="fixed"){
+        const g=bestGap(bounds[0],bounds[1]);
+        if(g){ const useDur=Math.min(dur,g.e-g.s);
+          const st=endAnchored?new Date(g.e-useDur):new Date(g.s);
+          got={st,en:new Date(+st+useDur)}; } }
+      if(!got&&(m==="dayEnd"||m==="beforeWin")) got=findFwd(cursor,dur,null);
       if(got) addSpan(f,got);
       return true; };
     let queue=floatWins.slice().sort((a,b)=>{
@@ -1595,6 +1645,22 @@ function planFor(day,proj){
     items=remaining;
   }
 
+  /* a window set to release its time disappears on days it holds nothing */
+  if(winSpans.length){
+    const hasContent=id=>inWinPlaced.some(it=>it.inWinOf&&it.inWinOf.id===id)
+      ||fixed.some(f2=>f2.inWinId===id);
+    const releasable=new Set();
+    for(const id of [...new Set(winSpans.map(x=>x.node.id))]){
+      const nd=winSpans.find(x=>x.node.id===id).node;
+      if(nd.winHoldEmpty===false&&!hasContent(id)) releasable.add(id);
+    }
+    if(releasable.size){
+      for(let i=busy.length-1;i>=0;i--) if(busy[i].win&&releasable.has(busy[i].node.id)) busy.splice(i,1);
+      fixed=fixed.filter(f2=>!(f2.win&&releasable.has(f2.node.id)));
+      for(let i=winSpans.length-1;i>=0;i--) if(releasable.has(winSpans[i].node.id)) winSpans.splice(i,1);
+    }
+  }
+
   const overlaps=(a,b)=>busy.find(f=>a<f.end&&b>f.start);
   const hasWindows=(state.settings.deepWindows||[]).length>0;
   const P=state.settings.plan;
@@ -1636,6 +1702,34 @@ function planFor(day,proj){
       ok=true;
     }
     if(!ok) unplaced.push(it);
+  }
+  /* work due today that fits nowhere may borrow a window that gives way to it */
+  if(winSpans.length&&unplaced.length){
+    const hardBusy2=[...fixed.filter(f=>!f.bg&&!f.win),...unavail];
+    const still=[];
+    for(const it of unplaced){
+      const dueToday2=!!it.dueBy||(it.node.deadline&&sameDay(it.node.deadline,day));
+      let done=false;
+      if(dueToday2&&effStatus(it.node)==="available"){
+        for(const w of winSpans){
+          if(!winGivesWayTo(it.node,w.node)) continue;
+          let c2=new Date(Math.max(+w.start,isToday?Date.now():+w.start)), g2=0;
+          while(g2++<48){
+            const fin0=new Date(+c2+it.minutes*MIN);
+            const hit=[...hardBusy2,...inWinPlaced,...placed.filter(p=>p.inWinOf)].find(f2=>c2<f2.end&&fin0>f2.start);
+            if(hit){ c2=new Date(+hit.end+5*MIN); continue; } break;
+          }
+          const fin=new Date(+c2+it.minutes*MIN);
+          if(+c2>=+w.start&&+fin<=+w.end){
+            it.start=c2; it.end=fin; it.inWinOf=w.node; it.invaded=true;
+            if(it.dueBy&&fin>it.dueBy) it.late=true;
+            placed.push(it); done=true; break;
+          }
+        }
+      }
+      if(!done) still.push(it);
+    }
+    unplaced.length=0; for(const x of still) unplaced.push(x);
   }
   const all=[...unavail,...fixed,...inWinPlaced,...placed].sort((a,b)=>a.start-b.start);
   return {blocks:all,unplaced,end,fixedCount:fixed.length};
@@ -1722,21 +1816,21 @@ function winPlaceLabel(d){
     afternoon:"in the afternoon · holds "+dur+"m",
     evening:"in the evening · holds "+dur+"m",
     dayEnd:"last thing · holds "+dur+"m",
+    afterTime:"after "+(d.winPlace&&d.winPlace.at?fmtHM(d.winPlace.at):"a time")+" · holds "+dur+"m",
+    beforeTime:"before "+(d.winPlace&&d.winPlace.at?fmtHM(d.winPlace.at):"a time")+" · holds "+dur+"m",
     afterWin:"after "+(ref?(ref.title||"a window"):"a window")+" · holds "+dur+"m",
     beforeWin:"before "+(ref?(ref.title||"a window"):"a window")+" · holds "+dur+"m"};
   return L[m]||L.set; }
 function winScopeHTML(d){
   const sc=d.windowScope||{};
   const cat=sc.type==="category"?sc.value:(sc.cat||null);
-  let h=`<div class="fieldnote" style="margin:0 20px 12px">A window belongs to one category, and inside it, one group if you want to narrow it. Its tasks and events get planned inside the window; everything else stays out. The window takes its name from this choice.</div>`
-    +sec("Category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-wsc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${cat===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
+  let h=sec("Category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-wsc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${cat===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
   if(cat){
     const gs=[...state.nodes.values()].filter(x=>x.kind==="group"&&x.id!==UNSORTED&&x.status!=="dropped"&&x.category===cat)
       .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
     h+=sec("Narrow to a group in "+esc(cat),"<span>optional</span>")+`<div class="group">
       <button class="pickrow" data-wsg=""><span>The whole category</span>${sc.type==="category"?'<span class="tick">✓</span>':""}</button>
-      ${gs.map(g=>`<button class="pickrow" data-wsg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`
-      +(gs.length?"":`<div class="fieldnote">No groups carry this category yet. Give a group this category in Browse and it will show here.</div>`);
+      ${gs.map(g=>`<button class="pickrow" data-wsg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
   }
   return h;
 }
@@ -1759,6 +1853,8 @@ function windowTimeHTML(d){
     ["afternoon","In the afternoon","Takes the first room after noon."],
     ["evening","In the evening","Takes the first room after 5pm."],
     ["dayEnd","Last thing in the day","Ends right before your day does."],
+    ["afterTime","After a clock time","Takes the first room after a time you set, like after 7pm."],
+    ["beforeTime","Before a clock time","Finished by a time you set, like before 11am."],
     ["afterWin","After another window","Somewhere later in the day than a window you pick."],
     ["beforeWin","Before another window","Finished before a window you pick begins."]];
   let h=`<div class="group">${modes.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpm="${k}"><span>${l}<span class="path">${note}</span></span>${m===k?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
@@ -1771,6 +1867,9 @@ function windowTimeHTML(d){
     h+=`<div class="field" style="margin-top:14px">
       <div class="line"><label>Holds</label><input type="number" inputmode="numeric" min="15" max="600" id="wWinDur" value="${d.winDuration||60}"><span class="unit">minutes</span></div>
       <div class="line"><label>First day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div></div>`;
+    if(m==="afterTime"||m==="beforeTime"){
+      h+=`<div class="field"><div class="line"><label>${m==="afterTime"?"After":"Before"}</label><input type="time" id="wWinAt" value="${(d.winPlace&&d.winPlace.at)||(m==="afterTime"?"19:00":"11:00")}"></div></div>`;
+    }
     if(m==="afterWin"||m==="beforeWin"){
       h+=sec("Which window")+`<div class="group">${others.length?others.map(x=>`<button class="pickrow" data-wpr="${x.id}"><span>${esc(x.title||"Untitled")}</span>${d.winPlace&&d.winPlace.ref===x.id?'<span class="tick">✓</span>':""}</button>`).join("")
         :`<div class="fieldnote" style="padding:10px 16px">No other windows yet. Until one exists this falls back to first thing in the day.</div>`}</div>`;
@@ -1783,7 +1882,9 @@ function wireWindowTime(d,redraw,onChange){
   const oc=onChange||(()=>{});
   sheetBody.querySelectorAll("[data-wpm]").forEach(b=>b.addEventListener("click",()=>{
     const m=b.dataset.wpm;
-    d.winPlace=m==="set"?{mode:"set"}:{mode:m,ref:(d.winPlace&&d.winPlace.ref)||null};
+    d.winPlace=m==="set"?{mode:"set"}
+      :{mode:m,ref:(d.winPlace&&d.winPlace.ref)||null,
+        at:(m==="afterTime"||m==="beforeTime")?((d.winPlace&&d.winPlace.at)||(m==="afterTime"?"19:00":"11:00")):null};
     d.floating=m!=="set";
     if(m!=="set"){ d.winDuration=d.winDuration||60;
       const day=dateInput(d.fixedStart)||dayKey(new Date());
@@ -1791,6 +1892,8 @@ function wireWindowTime(d,redraw,onChange){
     oc(); redraw(); }));
   sheetBody.querySelectorAll("[data-wpr]").forEach(b=>b.addEventListener("click",()=>{
     d.winPlace=Object.assign({},d.winPlace,{ref:b.dataset.wpr}); oc(); redraw(); }));
+  { const wa=$("#wWinAt"); if(wa) wa.addEventListener("change",e=>{
+      d.winPlace=Object.assign({},d.winPlace,{at:e.target.value||null}); oc(); }); }
   const wd=$("#wWinDur"); if(wd) wd.addEventListener("input",e=>{ d.winDuration=clamp(Number(e.target.value)||60,15,600); oc(); });
   const upd2=()=>{ const day=$("#wDay")?$("#wDay").value:"", st=$("#wStart")?$("#wStart").value:"", en=$("#wEnd")?$("#wEnd").value:"";
     if(d.floating){ if(day){ d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; } oc(); return; }
@@ -1798,6 +1901,15 @@ function wireWindowTime(d,redraw,onChange){
       d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); oc(); } };
   ["#wDay","#wStart","#wEnd"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("change",upd2); });
 }
+function scopeHits(n,sc){
+  if(!sc||!n) return false;
+  if(sc.type==="category") return n.category===sc.value;
+  if(sc.type==="group") return n.parentId===sc.value||inGroupTree(n,sc.value);
+  return false; }
+function winGivesWayTo(n,wNode){
+  const list=wNode&&wNode.winGivesWay;
+  if(!list||!list.length) return false;
+  return list.some(sc=>scopeHits(n,sc)); }
 function winColor(wNode){
   const sc=wNode&&wNode.windowScope;
   if(sc){ if(sc.type==="category"){ const c=catByName(sc.value); if(c&&c.color) return c.color; }
@@ -1829,10 +1941,12 @@ function winWrapHTML(g,rowsHtml){
   const s0=all.length?new Date(Math.min(...all.map(b=>+b.start))):null;
   const e0=all.length?new Date(Math.max(...all.map(b=>+b.end))):null;
   const range=s0?esc(fmtTime(s0.toISOString()))+" to "+esc(fmtTime(e0.toISOString())):"";
+  const sc2=g.node.windowScope;
+  const extra=sc2&&sc2.type==="group"&&sc2.cat?esc(sc2.cat):"";
   return `<div class="winwrap"${styl}>
     <div class="winhead" data-open="${g.node.id}"><span class="wdot"${dot}></span>
       <span class="wt">${g.node.icon?esc(g.node.icon)+" ":""}${esc(g.node.title||"Window")}</span>
-      <span class="wm">${esc(winScopeLabel(g.node))}${range?" · "+range:""}</span></div>
+      <span class="wm">${[extra,range].filter(Boolean).join(" · ")}</span></div>
     ${rowsHtml||`<div class="winempty">nothing planned in here yet</div>`}
   </div>`;
 }
@@ -2676,7 +2790,7 @@ function dayViewHTML(d,proj){
     const col=nodeColor(bk.node);
     const L=bk.lanes||1, li=bk.lane||0;
     const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
-    const winBit=bk.win?"window for "+esc(winScopeLabel(bk.node)):(bk.inWin?"during "+esc(bk.inWin):(bk.inWinOf?"in the "+esc(bk.inWinOf.title||"dedicated")+" window":null));
+    const winBit=bk.win?("work window"+(winScopeLabel(bk.node)!==(bk.node.title||"")?" for "+esc(winScopeLabel(bk.node)):"")):(bk.inWin?"during "+esc(bk.inWin):(bk.inWinOf?"in the "+esc(bk.inWinOf.title||"dedicated")+" window":null));
     const cat2=bk.node.category&&catByName(bk.node.category);
     const catTxt=cat2?`<span style="color:${esc(cat2.color||"var(--label2)")}">${cat2.icon?esc(cat2.icon)+" ":""}${esc(cat2.name)}</span>`:null;
     const sub=bk.fixed
@@ -3629,6 +3743,8 @@ function normalizeTiming(d){
       d.floating=d.winPlace.mode!=="set";
       if((d.winPlace.mode==="afterWin"||d.winPlace.mode==="beforeWin")&&(!d.winPlace.ref||!byId(d.winPlace.ref)))
         d.winPlace={mode:"dayStart"};
+      if((d.winPlace.mode==="afterTime"||d.winPlace.mode==="beforeTime")&&!d.winPlace.at)
+        d.winPlace=Object.assign({},d.winPlace,{at:d.winPlace.mode==="afterTime"?"19:00":"11:00"});
     }
     if(d.windowScope){
       if(d.windowScope.type==="group"&&!d.windowScope.cat){
@@ -3647,7 +3763,9 @@ function normalizeTiming(d){
 }
 function taskBits(n,opts={}){
   const bk=opts.block||null, bits=[], st=effStatus(n);
-  if(bk&&bk.win) bits.push("work window · "+winScopeLabel(n));
+  if(bk&&bk.win){ const wl=winScopeLabel(n);
+    bits.push("work window"+(wl&&wl!==(n.title||"")?" · "+wl:"")); }
+  if(bk&&bk.invaded) bits.push("borrowing this window");
   if(bk&&bk.inWin) bits.push("during "+bk.inWin);
   if(bk&&bk.inWinOf) bits.push("in the "+(bk.inWinOf.title||"dedicated")+" window");
   if(bk&&bk.bg) bits.push("⟳ runs alongside");
@@ -3738,7 +3856,8 @@ function applyDraft(){
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
     flagged:d.flagged,bumpCount:d.bumpCount,recurrence:d.recurrence,links:d.links,
     dependsOn:d.dependsOn||[],dependencyMode:d.dependencyMode||"none",
-    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null,floating:!!d.floating,winDuration:d.winDuration||null,winPlace:d.winPlace||null});
+    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null,floating:!!d.floating,winDuration:d.winDuration||null,winPlace:d.winPlace||null,
+    winFirm:d.winFirm||"flex",winHoldEmpty:d.winHoldEmpty!==false,winGivesWay:d.winGivesWay||null});
   return n;
 }
 function todayRank(id){
@@ -3808,6 +3927,19 @@ function drawWindowSheet(d,isNew){
        <button class="line" id="wsTime"><label>Time</label><span class="val set">${esc(winPlaceLabel(d))}</span>${ICON_CHEV}</button>
        <button class="line" id="wsRepeat"><label>Repeats</label><span class="val${d.recurrence?" set":""}">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
      </div>
+     ${sec("How it holds its ground")}
+     <div class="field">
+       <div class="line"><label style="flex:1 1 auto">Firmness</label>
+         <div class="seg mini" style="flex:0 0 auto" id="wsFirm">
+           <button data-wf="flex"${d.winFirm!=="fixed"?' class="on"':""}>Flexible</button>
+           <button data-wf="fixed"${d.winFirm==="fixed"?' class="on"':""}>Fixed</button></div></div>
+       <div class="line"><label style="flex:1 1 auto">When it holds nothing</label>
+         <div class="seg mini" style="flex:0 0 auto" id="wsHold">
+           <button data-wh="1"${d.winHoldEmpty!==false?' class="on"':""}>Hold the time</button>
+           <button data-wh="0"${d.winHoldEmpty===false?' class="on"':""}>Release it</button></div></div>
+       <button class="line" id="wsGives"><label>Gives way to</label><span class="val${d.winGivesWay&&d.winGivesWay.length?" set":""}">${d.winGivesWay&&d.winGivesWay.length?esc(d.winGivesWay.map(sc=>sc.type==="group"?((byId(sc.value)||{}).title||"group"):sc.value).join(", ")):"Nothing"}</span>${ICON_CHEV}</button>
+     </div>
+     <div class="fieldnote">Flexible shrinks or slides around events and firmer things, down to 15 minutes, then skips the day. Fixed keeps its full time; only real events sit over it. Gives way lets work due today from the picked categories or groups borrow this window when it fits nowhere else that day. Work that waits on something else can never borrow.</div>
      ${sec("Notes","<span>optional</span>")}
      <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="wsNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div></div>
      ${isNew?"":`<div class="field" style="margin-top:18px"><button class="line" data-do="drop" style="color:var(--red)">Remove this window</button></div>
@@ -3821,6 +3953,30 @@ function drawWindowSheet(d,isNew){
       wireWindowTime(d,drawWT,()=>{ normalizeTiming(d); Q(); }); };
     sheetPush(drawWT); });
   $("#wsRepeat").addEventListener("click",()=>openRepeatEditor(d,()=>Q()));
+  sheetBody.querySelectorAll("#wsFirm button").forEach(b=>b.addEventListener("click",()=>{
+    d.winFirm=b.dataset.wf; Q(); drawWindowSheet(d,isNew); }));
+  sheetBody.querySelectorAll("#wsHold button").forEach(b=>b.addEventListener("click",()=>{
+    d.winHoldEmpty=b.dataset.wh==="1"; Q(); drawWindowSheet(d,isNew); }));
+  $("#wsGives").addEventListener("click",()=>{
+    const drawGW=()=>{
+      const cur=d.winGivesWay||[];
+      const has=sc=>cur.some(x=>x.type===sc.type&&x.value===sc.value);
+      const own=d.windowScope||{};
+      const cats=state.settings.categories.filter(c=>!(own.type==="category"&&own.value===c.name));
+      const gs=[...state.nodes.values()].filter(x=>x.kind==="group"&&x.id!==UNSORTED&&x.status!=="dropped"&&!(own.type==="group"&&own.value===x.id))
+        .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+      showSheet("Gives way to",
+        `<div class="fieldnote" style="margin:0 20px 12px">Work due today from these categories or groups may borrow this window when it fits nowhere else that day. Pick as many as you want; tap again to remove one.</div>`
+        +sec("Categories")+`<div class="group">${cats.map(c=>`<button class="pickrow" data-gwc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${has({type:"category",value:c.name})?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`
+        +sec("Groups")+`<div class="group">${gs.map(g=>`<button class="pickrow" data-gwg="${g.id}"><span>${esc(g.title||"Untitled")}${g.category?` <span style="color:var(--label3);font-size:12px">${esc(g.category)}</span>`:""}</span>${has({type:"group",value:g.id})?'<span class="tick">✓</span>':""}</button>`).join("")||'<div class="fieldnote" style="padding:10px 16px">No groups yet.</div>'}</div>`,null);
+      const toggle=sc=>{ const cur2=d.winGivesWay||[];
+        const i=cur2.findIndex(x=>x.type===sc.type&&x.value===sc.value);
+        if(i>=0) cur2.splice(i,1); else cur2.push(sc);
+        d.winGivesWay=cur2.length?cur2:null; Q(); drawGW(); };
+      sheetBody.querySelectorAll("[data-gwc]").forEach(b=>b.addEventListener("click",()=>toggle({type:"category",value:b.dataset.gwc})));
+      sheetBody.querySelectorAll("[data-gwg]").forEach(b=>b.addEventListener("click",()=>toggle({type:"group",value:b.dataset.gwg})));
+    };
+    sheetPush(drawGW); });
   const nt=$("#wsNotes"); if(nt) nt.addEventListener("input",e=>{ d.notes=e.target.value; Q(); });
   sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
@@ -5318,7 +5474,7 @@ function drawWizard(){
     const rows=[];
     const jump=k2=>steps.indexOf(k2);
     const row=(k2,l,v)=>rows.push(`<button class="line" data-goto="${jump(k2)}"><label>${l}</label><span class="val">${v}</span>${ICON_CHEV}</button>`);
-    row("title","Title",d.title?esc(d.title):'<span style="color:var(--red)">needs one</span>');
+    if(d.preset!=="window") row("title","Title",d.title?esc(d.title):'<span style="color:var(--red)">needs one</span>');
     if(isTodo){
       if(d.flagged) row("dotoday","Do today","Yes");
       row("due","Due",d.deadline?esc(relDay(d.deadline))+(d.deadlineHasTime?" "+esc(fmtTime(d.deadline)):""):"None");
