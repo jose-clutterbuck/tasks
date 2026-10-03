@@ -2,7 +2,7 @@
 
 A personal task planner built as a single offline web app, made to be installed on an iPhone home screen from GitHub Pages. One person, one device, no account, no server. Everything you enter lives in your browser's local database and never leaves the phone.
 
-Current version: 3.11
+Current version: 4.0
 
 ## What it does
 
@@ -11,6 +11,10 @@ Current version: 3.11
 **Capture.** The plus button opens a short set of questions, one page at a time, with Back, Skip, and Next. It asks only what fits the thing you are adding: a to do, an event like a class, a time block like a commute, a background thing like laundry, a project, or a saved template. Typing shorthand in the title works too, like `essay draft friday 4pm ~1h #School @computer`.
 
 **Timing that matches real life.** A task can have a due date, a day or stretch you aim to do it in with an optional start, after, or before time on that day, a date it opens up (like an assignment that unlocks a week before it is due), and a loose Sometime window for things with no real date yet, as wide as a stretch of years. Sometime plans stay off the daily schedule; they collect in their own list and show on the calendar months they cover until you give them a real date. Events and blocks can repeat on chosen weekdays, on a day of the month, on something like the second Tuesday, or yearly, and can end on a date or after a set number of times. Sleep and unavailable time are subtracted automatically.
+
+**Dedicated windows.** A window carves out repeating time for one kind of work: your business three evenings a week, schoolwork daily, the gym. Tasks and events from the window's group or category get planned inside it, everything else stays out, and an event at the same time as its window, like an exam during class time, absorbs the window into one row.
+
+**Work Efficiency.** A score built like W equals F times d: effort only counts when something lands. It weighs how much resolved work got done instead of dropped or left overdue, finishes before the deadline, estimate honesty, and push drag, with the full completion log behind it.
 
 **Everything else.** Nested groups, categories with their own colors and icons (36 swatches plus a full color mixer), stakes instead of an importance rating, deep focus windows, dependencies, templates with dates stored as offsets, a calendar with month, week, and day views, weekly and monthly reviews, automatic snapshots, and full export to JSON, Markdown, CSV, or a calendar file with alerts.
 

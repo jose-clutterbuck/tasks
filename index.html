@@ -488,6 +488,8 @@ html{background:var(--bg)}
 .planrow.bg .pbar{background:repeating-linear-gradient(180deg,var(--pc,var(--gray)) 0 3px,transparent 3px 6px);opacity:.5}
 .planrow.unavail{opacity:.5}
 .planrow.unavail .pbar{background:var(--sleep);border-radius:2px}
+.dayblock.win,.wkblk.win{background:repeating-linear-gradient(90deg,rgba(var(--accent-rgb),.10) 0 8px,rgba(var(--accent-rgb),.04) 8px 16px);
+  border:1.4px dashed var(--accent)}
 .dayblock.bgtask,.wkblk.bgtask{background:transparent;border:1.4px dashed var(--label3);
   border-left:3px dashed var(--gray);opacity:.85}
 .dayblock.unav,.wkblk.unav{left:0;right:0;border-radius:0;border-left:0;
@@ -702,6 +704,7 @@ function newNode(p={}){ return Object.assign({
   flagged:false, bumpCount:0, recurrence:null, links:[],
   dependsOn:[], dependencyMode:"none",
   timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false, background:false,
+  windowScope:null, pendingDay:null,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=[
@@ -833,6 +836,7 @@ async function migrateToStakes(){
     n.preset=n.preset||null;
     if(n.deferUntil&&!n.availableFrom) n.availableFrom={mode:"absolute",at:n.deferUntil,leadDays:null};
     n.availableFrom=n.availableFrom||null; n.aimWindow=n.aimWindow||null; n.todWindow=n.todWindow||null;
+    n.windowScope=n.windowScope||null; n.pendingDay=n.pendingDay||null;
     delete n.importance; delete n.importanceOverridden; delete n.deadlineType;
     if(over&&st==="protect") report.protect.push(n.id);
     if(over&&st==="flexible") report.flexible.push(n.id);
@@ -1255,6 +1259,14 @@ function todayBands(){
     if(e>now) fixedAhead+=(e-Math.max(new Date(f.fixedStart),now))/MIN;
   }
   let budget=Math.max(0,hoursLeftToday()*60-fixedAhead);
+  /* a window's remaining time comes back, but only as far as its own work can use it */
+  for(const f of fixed){
+    if(f.preset!=="window"||!f.fixedEnd) continue;
+    const e=new Date(f.fixedEnd); if(e<=now) continue;
+    const span=(e-Math.max(new Date(f.fixedStart),now))/MIN;
+    const matchMin=actionable.filter(n=>winMatches(n,f)).reduce((a,n)=>a+(n.estMaxMinutes||P.guessMin),0);
+    budget+=Math.min(span,matchMin);
+  }
   for(const n of must) budget-=(n.estMaxMinutes||P.guessMin);
   const should=[], laterAll=[];
   for(const n of rest){
@@ -1385,14 +1397,42 @@ function planFor(day,proj){
     .filter(u=>u.end>u.start);
   for(const u of unavail) u.minutes=Math.round((u.end-u.start)/MIN);
 
-  const fixed=fixedOn(day).filter(n=>n.status!=="done")
+  let fixed=fixedOn(day).filter(n=>n.status!=="done")
     .map(n=>({node:n,start:new Date(n.fixedStart),
       end:n.fixedEnd?new Date(n.fixedEnd):new Date(new Date(n.fixedStart).getTime()+30*MIN),
-      minutes:0,fixed:true,bg:!!n.background}))
+      minutes:0,fixed:true,bg:!!n.background,win:n.preset==="window"}))
     .sort((a,b)=>a.start-b.start);
   for(const f of fixed) f.minutes=Math.round((f.end-f.start)/MIN);
 
-  const busy=[...fixed.filter(f=>!f.bg),...unavail].sort((a,b)=>a.start-b.start);
+  /* dedicated windows: their full span blocks unrelated work */
+  const winSpans=fixed.filter(f=>f.win).map(f=>({start:f.start,end:f.end,node:f.node,win:true,minutes:f.minutes}));
+  if(winSpans.length){
+    /* a same-scope event at the same time absorbs the window: one row, not two */
+    const evs=fixed.filter(f=>!f.win&&!f.bg);
+    const drawn=[];
+    for(const f of fixed){
+      if(!f.win){ drawn.push(f); continue; }
+      const mine=evs.filter(ev=>ev.start<f.end&&ev.end>f.start&&winMatches(ev.node,f.node));
+      for(const ev of mine) ev.inWin=f.node.title||"window";
+      let segs=[[+f.start,+f.end]];
+      for(const ev of mine){
+        const out=[];
+        for(const [a,b] of segs){
+          if(+ev.end<=a||+ev.start>=b){ out.push([a,b]); continue; }
+          if(+ev.start-a>0) out.push([a,+ev.start]);
+          if(b-+ev.end>0) out.push([+ev.end,b]);
+        }
+        segs=out;
+      }
+      for(const [a,b] of segs){
+        if((b-a)/MIN<15) continue;
+        drawn.push({node:f.node,start:new Date(a),end:new Date(b),minutes:Math.round((b-a)/MIN),fixed:true,bg:false,win:true});
+      }
+    }
+    fixed=drawn.sort((a,b)=>a.start-b.start);
+  }
+
+  const busy=[...fixed.filter(f=>!f.bg&&!f.win),...winSpans,...unavail].sort((a,b)=>a.start-b.start);
 
   let cursor=new Date(d0.getTime()+wake*MIN);
   if(isToday&&cursor<new Date()) cursor=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
@@ -1455,6 +1495,36 @@ function planFor(day,proj){
     items=out;
   }
 
+  /* window-scoped work is laid into its windows first, before anything else */
+  const inWinPlaced=[];
+  if(winSpans.length){
+    const floor0=new Date(cursor);
+    const hardBusy=[...fixed.filter(f=>!f.bg&&!f.win),...unavail];
+    const winFree=winSpans.map(w=>({w,cur:new Date(Math.max(+w.start,+floor0))}));
+    const remaining=[];
+    for(const it of items){
+      let done=false;
+      for(const x of winFree){
+        if(!winMatches(it.node,x.w.node)) continue;
+        let c2=new Date(x.cur), guard=0;
+        while(guard++<48){
+          const fin0=new Date(c2.getTime()+it.minutes*MIN);
+          const hit=[...hardBusy,...inWinPlaced].find(f=>c2<f.end&&fin0>f.start);
+          if(hit){ c2=new Date(+hit.end+5*MIN); continue; }
+          break;
+        }
+        const fin=new Date(c2.getTime()+it.minutes*MIN);
+        if(+c2>=+x.w.start&&+fin<=+x.w.end){
+          it.start=c2; it.end=fin; it.inWinOf=x.w.node;
+          if(it.dueBy&&fin>it.dueBy) it.late=true;
+          inWinPlaced.push(it); x.cur=new Date(+fin+5*MIN); done=true; break;
+        }
+      }
+      if(!done) remaining.push(it);
+    }
+    items=remaining;
+  }
+
   const overlaps=(a,b)=>busy.find(f=>a<f.end&&b>f.start);
   const hasWindows=(state.settings.deepWindows||[]).length>0;
   const P=state.settings.plan;
@@ -1497,7 +1567,7 @@ function planFor(day,proj){
     }
     if(!ok) unplaced.push(it);
   }
-  const all=[...unavail,...fixed,...placed].sort((a,b)=>a.start-b.start);
+  const all=[...unavail,...fixed,...inWinPlaced,...placed].sort((a,b)=>a.start-b.start);
   return {blocks:all,unplaced,end,fixedCount:fixed.length};
 }
 
@@ -1515,6 +1585,43 @@ function layoutLanes(list){
   finish(cluster);
   return bs;
 }
+
+/* events that know their day but not their clock time yet */
+function pendingOn(day){ return Array.from(state.nodes.values())
+  .filter(n=>n.pendingDay&&!n.fixedStart&&sameDay(n.pendingDay,day)&&n.status!=="done"&&n.status!=="dropped"); }
+function pendingRowHTML(n){
+  return `<div class="duemark" data-open="${n.id}"><div class="dt tnum" style="color:#FF9500">time?</div>
+    <span class="pin" style="background:#FF9500"></span>
+    <div class="dtitle"><span class="due-lbl" style="color:#FF9500;border-color:#FF9500">needs a time</span>${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}${catInline(n)}</div></div>`;
+}
+/* an event whose end has passed completes itself */
+let _evSweep=0;
+function sweepPastEvents(){
+  const now=Date.now();
+  if(now-_evSweep<60000) return; _evSweep=now;
+  for(const n of state.nodes.values()){
+    if(n.preset!=="event"||n.recurrence||n.status==="done"||n.status==="dropped") continue;
+    if(!n.fixedStart) continue;
+    const end=n.fixedEnd?+new Date(n.fixedEnd):(+new Date(n.fixedStart)+60*MIN);
+    if(end<now){ n.status="done"; n.completedAt=new Date(end).toISOString();
+      try{ putNode(n); }catch(e){} bumpRev(); }
+  }
+}
+
+/* dedicated windows: which work belongs inside one */
+function inGroupTree(n,gid){ let c=n,guard=0;
+  while(c&&c.parentId&&guard++<40){ if(c.parentId===gid) return true; c=byId(c.parentId); if(!c) break; }
+  return false; }
+function winMatches(n,wNode){
+  const sc=wNode&&wNode.windowScope; if(!sc||!n) return false;
+  if(n.preset==="window") return false;
+  if(sc.type==="category") return n.category===sc.value;
+  if(sc.type==="group") return n.parentId===sc.value||inGroupTree(n,sc.value);
+  return false; }
+function winScopeLabel(wNode){
+  const sc=wNode&&wNode.windowScope; if(!sc) return "";
+  if(sc.type==="category") return sc.value;
+  const g=byId(sc.value); return g?(g.title||"group"):"group"; }
 
 /* ===========================================================================
    NOTIFICATIONS
@@ -1692,6 +1799,7 @@ function render(){
     state.tab==="browse"?[state.browseMode,state.browseCat||"",state.browseCtx||"",state.path.join(".")].join("|"):
     state.logMode);
   if(render._vk!==undefined) SCROLLMEM[render._vk]=scrollEl.scrollTop;
+  sweepPastEvents();
   { const sb=content.querySelector(".selbar");
     if(sb&&SELBAR_TAB===state.tab) SELBAR_X=sb.scrollLeft;
     if(SELBAR_TAB!==state.tab){ SELBAR_X=0; SELBAR_TAB=state.tab; } }
@@ -1995,9 +2103,17 @@ function wireTodayList(){
       e.preventDefault();
       const y=e.touches[0].clientY;
       const rows=[...list.querySelectorAll(".planrow")].filter(r=>r!==drag);
+      const dragMin=Number(drag.dataset.min||30);
+      const prevRowOf=el=>{ let p=el.previousElementSibling;
+        while(p&&(!p.classList.contains("planrow")||p===drag)) p=p.previousElementSibling; return p; };
+      const nextRowOf=el=>{ let p=el.nextElementSibling;
+        while(p&&(!p.classList.contains("planrow")||p===drag)) p=p.nextElementSibling; return p; };
+      const fits=(a,b2)=>{ /* between two set-time blocks only if the task fits the gap */
+        if(!a||!b2||!a.dataset.lock||!b2.dataset.lock) return true;
+        return (Number(b2.dataset.fs)-Number(a.dataset.fe))/60000>=dragMin; };
       for(const r of rows){ const b=r.getBoundingClientRect();
-        if(y>b.top&&y<b.top+b.height/2){ list.insertBefore(drag,r); break; }
-        if(y>b.top+b.height/2&&y<b.bottom){ list.insertBefore(drag,r.nextSibling); break; } }
+        if(y>b.top&&y<b.top+b.height/2){ if(fits(prevRowOf(r),r)) list.insertBefore(drag,r); break; }
+        if(y>b.top+b.height/2&&y<b.bottom){ if(fits(r,nextRowOf(r))) list.insertBefore(drag,r.nextSibling); break; } }
     },{passive:false});
     h.addEventListener("touchend",async()=>{ if(!drag) return;
       drag.classList.remove("dragging"); drag=null;
@@ -2035,16 +2151,18 @@ function todayHTML(d){
     for(const id of ids){
       const bk=byIdBlock[id]; if(!bk) continue;
       const n=bk.node, col=nodeColor(n);
-      const bits=taskBits(n,{block:bk.fixed?bk:null});
-      lentries.push({t:+bk.start,h:`<div class="planrow" data-open="${n.id}">
+      const bits=taskBits(n,{block:bk});
+      const lockAttrs=bk.fixed?` data-lock="1" data-fs="${+bk.start}" data-fe="${+bk.end}"`:` data-min="${bk.minutes||30}"`;
+      lentries.push({t:+bk.start,h:`<div class="planrow" data-open="${n.id}"${lockAttrs}>
         ${markHTML(n)}
         <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
         <div class="body"><div class="title" style="font-size:15px">${n.icon?esc(n.icon)+" ":""}${esc(n.title||"Untitled")}</div>
           ${bits.length?`<div class="why">${bits.join(" · ")}</div>`:""}</div>
-        <span class="draghandle" data-drag>≡</span>
+        ${bk.fixed?`<span class="draghandle" style="color:var(--label3);font-size:13px">🔒</span>`:`<span class="draghandle" data-drag>≡</span>`}
       </div>`});
     }
     for(const n of dueToday) lentries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+    for(const n of pendingOn(d)) lentries.push({t:0,h:pendingRowHTML(n)});
     lentries.sort((a,b)=>a.t-b.t);
     lh+=lentries.map(e=>e.h).join("");
     lh+=`</div>
@@ -2080,10 +2198,9 @@ function todayHTML(d){
       </div>`});
     }
     for(const n of dueToday) entries.push({t:+new Date(n.deadline)+1,h:dueRowHTML(n)});
+    for(const n of pendingOn(d)) entries.push({t:0,h:pendingRowHTML(n)});
     entries.sort((a,b)=>a.t-b.t);
     html+=entries.map(e=>e.h).join("");
-    if(pl.unplaced.length) html+=`<div class="plannote">${pl.unplaced.length} more did not fit before your day ends: ${
-      esc(pl.unplaced.slice(0,3).map(u=>u.node.title||"Untitled").join(", "))}${pl.unplaced.length>3?"…":""}. Trim estimates, push deadlines, or let them go.</div>`;
     html+=`</div>`;
   } else if(b.waiting.length||b.blocked.length||b.doneToday.length){
     html+=sec("The plan")+`<div class="plan"><div class="plannote">Nothing to place. Everything open is waiting, blocked, or done.</div></div>`;
@@ -2092,7 +2209,6 @@ function todayHTML(d){
   if(b.waiting.length) html+=sec("Waiting on")+listHTML(b.waiting,{showPath:true});
   if(b.blocked.length) html+=sec("Blocked","<span>waiting on other tasks</span>")+listHTML(b.blocked,{showPath:true,hideNotes:true});
   if(b.quick.length) html+=sec("Quick wins","<span>10 minutes or less</span>")+listHTML(b.quick,{est:true});
-  if(b.later&&b.later.length) html+=sec("Later","<span>more than fits in today's hours</span>")+listHTML(b.later,{est:true,showPath:true});
   if(b.doneToday.length) html+=sec("Done today",`<span>${b.doneToday.length}</span>`)+listHTML(b.doneToday,{hideNotes:true});
   html+=`<div style="height:8px"></div>`+capCard;
 
@@ -2175,6 +2291,8 @@ function daySummaryHTML(d,proj){
   const load=loadOn(d,proj);
   let html=`<div class="caldate"><span>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</span>
     <span>${mins(Math.round(load))} of ${Math.round(hoursFor(d)*10)/10}h</span></div>`;
+  { const pend=pendingOn(d);
+    if(pend.length) html+=sec("Needs a time")+`<div class="plan">`+pend.map(pendingRowHTML).join("")+`</div>`; }
   if(dls.length) html+=sec("Due this day")+listHTML(dls,{hideNotes:true});
   if(fx.length) html+=sec("Fixed")+`<div class="tl">`+fx.map(n=>{
     const col=nodeColor(n);
@@ -2268,7 +2386,7 @@ function weekColsHTML(proj){
       if(bk.unavail){
         blocks+=`<div class="wkblk unav" style="top:${top}px;height:${h}px;left:0;right:0">${esc(bk.label||"")}</div>`;
         continue; }
-      const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
+      const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"")+(bk.win?" win":"");
       const L=bk.lanes||1, li=bk.lane||0;
       const pos=L>1?`left:calc(2px + (100% - 4px)*${li}/${L});width:calc((100% - 4px)/${L} - 2px);right:auto;`:"";
       const wc=bk.node.category&&catByName(bk.node.category);
@@ -2326,17 +2444,18 @@ function dayViewHTML(d,proj){
     if(bk.unavail){
       inner+=`<div class="dayblock unav" style="top:${top}px;height:${h}px">${esc(bk.label||"Unavailable")} · ${esc(fmtTime(bk.start.toISOString()))} to ${esc(fmtTime(bk.end.toISOString()))}</div>`;
       continue; }
-    const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"");
+    const cls=(bk.fixed?"":(bk.fuzzy?" fuzzy":" plan2"))+(bk.bg?" bgtask":"")+(bk.win?" win":"");
     const col=nodeColor(bk.node);
     const L=bk.lanes||1, li=bk.lane||0;
     const pos=L>1?`left:calc(56px + (100% - 66px)*${li}/${L});width:calc((100% - 66px)/${L} - 4px);right:auto;`:"";
+    const winBit=bk.win?"window for "+esc(winScopeLabel(bk.node)):(bk.inWin?"during "+esc(bk.inWin):(bk.inWinOf?"in the "+esc(bk.inWinOf.title||"dedicated")+" window":null));
     const cat2=bk.node.category&&catByName(bk.node.category);
     const catTxt=cat2?`<span style="color:${esc(cat2.color||"var(--label2)")}">${cat2.icon?esc(cat2.icon)+" ":""}${esc(cat2.name)}</span>`:null;
     const sub=bk.fixed
-      ? [(bk.bg?"⟳ runs alongside":null),
-         esc(fmtTime(bk.node.fixedStart))+(bk.node.fixedEnd?" to "+esc(fmtTime(bk.node.fixedEnd)):" · open end"),
+      ? [winBit,(bk.bg?"⟳ runs alongside":null),
+         esc(fmtTime(bk.start.toISOString()))+" to "+esc(fmtTime(bk.end.toISOString())),
          catTxt].filter(Boolean).join(" · ")
-      : [esc(fmtTime(bk.start.toISOString()))+", "+(bk.fuzzy?"~"+mins(bk.minutes)+" flexible":mins(bk.minutes)),
+      : [winBit,esc(fmtTime(bk.start.toISOString()))+", "+(bk.fuzzy?"~"+mins(bk.minutes)+" flexible":mins(bk.minutes)),
          bk.late?"⚠︎ after due time":(bk.dueBy?"due by "+esc(fmtTime(bk.node.deadline)):(bk.node.deadline?"due "+esc(relDay(bk.node.deadline)):null)),
          catTxt].filter(Boolean).join(" · ");
     inner+=`<div class="dayblock${cls}" data-open="${bk.node.id}" style="top:${top}px;height:${h}px;${pos}${col?"border-left-color:"+esc(col)+";":""}">
@@ -2432,6 +2551,8 @@ function browseHomeHTML(){
     <span class="aico" style="background:${bg}">${ico}</span><span>${label}</span>
     <span class="n tnum">${n}${ICON_CHEV}</span></button>`;
   if(uns.length) rows.push(arow("📥","rgba(var(--accent-rgb),.14)","Unsorted, still needs a home",uns.length,`data-open="${UNSORTED}"`));
+  { const pend=Array.from(state.nodes.values()).filter(n=>n.pendingDay&&!n.fixedStart&&n.status!=="done"&&n.status!=="dropped");
+    if(pend.length) rows.push(arow("🕑","rgba(255,149,0,.14)","Events that still need a time",pend.length,`data-bmode="attn:needstime"`)); }
   if(overdue.length) rows.push(arow("⏰","rgba(255,59,48,.14)","Overdue and still doable",overdue.length,`data-bmode="attn:overdue"`));
   if(fups.length) rows.push(arow("👋","rgba(255,149,0,.14)","Follow ups that are due",fups.length,`data-bmode="attn:fups"`));
   if(stalled.length) rows.push(arow("🧱","rgba(255,149,0,.14)","Stalled groups, nothing inside can move",stalled.length,`data-bmode="attn:stalled"`));
@@ -2449,6 +2570,7 @@ function browseHomeHTML(){
 function attnItems(key){
   const now=new Date();
   const open=Array.from(state.nodes.values()).filter(n=>n.id!==UNSORTED&&n.status!=="done"&&n.status!=="dropped");
+  if(key==="needstime") return open.filter(n=>n.pendingDay&&!n.fixedStart);
   if(key==="overdue") return open.filter(n=>n.kind==="task"&&n.deadline&&startOfDay(n.deadline)<startOfDay(now)&&effStatus(n)==="available");
   if(key==="fups") return open.filter(n=>n.status==="waiting"&&n.followUpDate&&new Date(n.followUpDate)<=now);
   if(key==="stalled") return open.filter(n=>n.kind==="group"&&isStalled(n));
@@ -2465,7 +2587,7 @@ function renderBrowse(){
   let items=Array.from(state.nodes.values()).filter(n=>n.id!==UNSORTED);
   if(mode.startsWith("attn:")){
     const key=mode.slice(5);
-    const label={overdue:"Overdue",fups:"Follow-ups due",stalled:"Stalled groups",bumped:"Pushed back 4+ times",expiring:"Goes moot soon"}[key]||"Attention";
+    const label={overdue:"Overdue",fups:"Follow-ups due",stalled:"Stalled groups",bumped:"Pushed back 4+ times",expiring:"Goes moot soon",needstime:"Needs a time"}[key]||"Attention";
     setTitles(label,label,"Attention");
     const its=attnItems(key).filter(n=>matchSearch(n,state.search)).sort((a,b)=>score(b)-score(a));
     content.innerHTML=searchHTML()+(its.length?listHTML(its,{showPath:true,est:true}):emptyHTML("All clear","Nothing in this list right now.",null));
@@ -2623,13 +2745,98 @@ function wireSearch(){
 /* ===========================================================================
    LOG — Activity · Weekly review · Monthly review
    =========================================================================== */
+/* =====================================================================
+   WORK EFFICIENCY — W = F x d. Effort only counts when something lands.
+   Signals: share of resolved work that got DONE (not dropped, not left
+   overdue), finishing before the deadline, how honest the estimates run,
+   pushes to another day, and deliverables actually produced.
+   ===================================================================== */
+function effSignals(days){
+  const now=new Date(), from=addDays(startOfDay(now),-days+1);
+  const all=Array.from(state.nodes.values()).filter(n=>n.kind==="task"&&n.id!==UNSORTED&&n.preset!=="window");
+  const inWin=t=>t&&new Date(t)>=from;
+  const done=all.filter(n=>n.status==="done"&&n.preset!=="event"&&inWin(n.completedAt));
+  const dropped=all.filter(n=>n.status==="dropped"&&inWin(n.completedAt||n.touchedAt));
+  const overdueOpen=all.filter(n=>n.status!=="done"&&n.status!=="dropped"&&n.deadline
+    &&new Date(n.deadline)<now&&new Date(n.deadline)>=from);
+  const denom=done.length+dropped.length+overdueOpen.length;
+  const crate=denom?done.length/denom:null;
+  const withDl=done.filter(n=>n.deadline&&n.completedAt);
+  const onTime=withDl.length?withDl.filter(n=>new Date(n.completedAt)<=new Date(n.deadline)).length/withDl.length:null;
+  const est=done.filter(n=>n.actualMinutes>0&&n.estMaxMinutes>0);
+  const ratios=est.map(n=>n.actualMinutes/n.estMaxMinutes).sort((a,b)=>a-b);
+  const medRatio=ratios.length?ratios[Math.floor(ratios.length/2)]:null;
+  const delivDone=done.filter(n=>n.deliverable).length;
+  const openTasks=all.filter(n=>n.status!=="done"&&n.status!=="dropped"&&n.actionable!==false);
+  const bumps=openTasks.reduce((a,n)=>a+(n.bumpCount||0),0);
+  const minutes=done.reduce((a,n)=>a+(n.actualMinutes||n.estMaxMinutes||0),0);
+  const estComp=medRatio==null?null:clamp(1/Math.max(medRatio,0.25),0,1);
+  const pushComp=clamp(1-(openTasks.length?bumps/openTasks.length:0)*0.15,0,1);
+  const parts=[],wts=[];
+  if(crate!=null){parts.push(crate);wts.push(0.45);}
+  if(onTime!=null){parts.push(onTime);wts.push(0.25);}
+  if(estComp!=null){parts.push(estComp);wts.push(0.15);}
+  parts.push(pushComp);wts.push(0.15);
+  const tw=wts.reduce((a,b)=>a+b,0);
+  const score=denom?Math.round(100*parts.reduce((a,p,i)=>a+p*wts[i],0)/tw):null;
+  const byDay=[];
+  for(let i=13;i>=0;i--){ const d2=addDays(startOfDay(now),-i);
+    byDay.push({d:d2,c:done.filter(n=>sameDay(n.completedAt,d2)).length}); }
+  return {days,done:done.length,dropped:dropped.length,overdueOpen:overdueOpen.length,denom,
+    crate,onTime,withDl:withDl.length,medRatio,estN:est.length,delivDone,bumps,openN:openTasks.length,
+    minutes,score,byDay};
+}
+function effHTML(){
+  const w=effSignals(7), m=effSignals(30);
+  const pct=v=>v==null?"no data yet":Math.round(v*100)+"%";
+  const scoreTxt=w.score==null?"–":String(w.score);
+  const verdict=w.score==null?"Nothing resolved in the last 7 days, so there is no reading yet. Finish or drop a few things and come back."
+    :w.score>=80?"Force is turning into distance. Work is landing."
+    :w.score>=60?"Decent movement, with some effort leaking into pushes and overruns."
+    :w.score>=40?"A lot of force, not much distance. Things slip past their day or hang open."
+    :"Most effort is not landing. Shrink the list, finish or drop, and be honest with estimates.";
+  const maxC=Math.max(1,...w.byDay.map(x=>x.c));
+  const bars=w.byDay.map(x=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:100%;max-width:16px;height:${Math.round(44*x.c/maxC)||2}px;border-radius:3px;background:${x.c?"var(--accent)":"var(--sep)"};margin-top:${44-(Math.round(44*x.c/maxC)||2)}px"></div>
+      <div style="font-size:8px;color:var(--label3)">${x.d.getDate()}</div></div>`).join("");
+  const srow=(l,v,note)=>`<div class="statrow"><span>${l}${note?`<span style="display:block;font-size:11px;color:var(--label3)">${note}</span>`:""}</span><span class="v tnum">${v}</span></div>`;
+  return `<div class="statcard" style="text-align:center;padding:18px 16px">
+      <div style="font-size:11px;letter-spacing:.08em;color:var(--label2);text-transform:uppercase">Work efficiency · last 7 days</div>
+      <div style="font-size:52px;font-weight:700;line-height:1.1" class="tnum">${scoreTxt}</div>
+      <div style="font-size:13px;color:var(--label2);max-width:300px;margin:4px auto 0">${verdict}</div>
+    </div>
+    ${sec("Finished per day","<span>last 14 days</span>")}
+    <div class="statcard"><div style="display:flex;align-items:flex-end;gap:3px;height:60px;padding-top:2px">${bars}</div></div>
+    ${sec("The signals","<span>7 days · 30 days</span>")}
+    <div class="statcard">
+      ${srow("Done, of everything resolved","45% of the score: done against done plus dropped plus left overdue"
+        ,pct(w.crate)+" · "+pct(m.crate))}
+      ${srow("Finished before the deadline","25% of the score, over "+w.withDl+" dated finishes",pct(w.onTime)+" · "+pct(m.onTime))}
+      ${srow("Estimate honesty","15%: real time against the estimate, from "+w.estN+" timed finishes",
+        w.medRatio==null?"log actual minutes to unlock":"takes "+Math.round(w.medRatio*100)+"% of the estimate")}
+      ${srow("Push drag","15%: deferrals still weighing on open tasks",w.bumps+" pushes across "+w.openN+" open")}
+    </div>
+    ${sec("Raw counts","<span>7 days · 30 days</span>")}
+    <div class="statcard">
+      ${srow("Tasks finished",w.done+" · "+m.done)}
+      ${srow("Dropped",w.dropped+" · "+m.dropped)}
+      ${srow("Slipped past their due day, still open",w.overdueOpen+" · "+m.overdueOpen)}
+      ${srow("Finished work with a deliverable",w.delivDone+" · "+m.delivDone)}
+      ${srow("Time landed",mins(w.minutes)+" · "+mins(m.minutes))}
+    </div>
+    <div class="fieldnote" style="margin-top:12px">Like W equals F times d: effort only counts when something moves. The reading is only as honest as the log, so mark things done when they are done, log real minutes, and drop what you will not do.</div>`;
+}
 function drawLogSheet(){
+  if(!["eff","activity","weekly","monthly"].includes(state.logMode)) state.logMode="eff";
   const seg=`<div class="seg mini" style="margin:0 16px 12px">
-    <button data-lgm="activity"${state.logMode==="activity"?' class="on"':""}>Activity</button>
+    <button data-lgm="eff"${state.logMode==="eff"?' class="on"':""}>Efficiency</button>
+    <button data-lgm="activity"${state.logMode==="activity"?' class="on"':""}>Log</button>
     <button data-lgm="weekly"${state.logMode==="weekly"?' class="on"':""}>Weekly</button>
     <button data-lgm="monthly"${state.logMode==="monthly"?' class="on"':""}>Monthly</button></div>`;
-  const body=state.logMode==="weekly"?weeklyReviewHTML():(state.logMode==="monthly"?monthlyReviewHTML():activityHTML());
-  showSheet("Completion Log",seg+body,null);
+  const body=state.logMode==="weekly"?weeklyReviewHTML()
+    :(state.logMode==="monthly"?monthlyReviewHTML()
+    :(state.logMode==="activity"?activityHTML():effHTML()));
+  showSheet("Work Efficiency",seg+body,null);
   sheetBody.querySelectorAll("[data-lgm]").forEach(b=>b.addEventListener("click",()=>{
     state.logMode=b.dataset.lgm; drawLogSheet(); }));
   sheetBody.querySelectorAll("[data-lm-move]").forEach(b=>b.addEventListener("click",()=>{
@@ -3186,6 +3393,7 @@ function normalizeTiming(d){
     if(!w.start&&!w.end) d.aimWindow=null;
   }
   if(d.timeframe&&(d.aimWindow||d.todWindow)) d.timeframe=null;
+  if(d.fixedStart) d.pendingDay=null;
   if(d.todWindow){
     const t=d.todWindow;
     const floor=t.start||t.after;
@@ -3197,6 +3405,9 @@ function normalizeTiming(d){
 }
 function taskBits(n,opts={}){
   const bk=opts.block||null, bits=[], st=effStatus(n);
+  if(bk&&bk.win) bits.push("dedicated window · "+winScopeLabel(n));
+  if(bk&&bk.inWin) bits.push("during "+bk.inWin);
+  if(bk&&bk.inWinOf) bits.push("in the "+(bk.inWinOf.title||"dedicated")+" window");
   if(bk&&bk.bg) bits.push("⟳ runs alongside");
   else if(n.background&&n.fixedStart) bits.push("⟳ background");
   else if(n.fixedStart) bits.push(fmtTime(n.fixedStart)+(n.fixedEnd?" to "+fmtTime(n.fixedEnd):""));
@@ -3285,7 +3496,7 @@ function applyDraft(){
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
     flagged:d.flagged,bumpCount:d.bumpCount,recurrence:d.recurrence,links:d.links,
     dependsOn:d.dependsOn||[],dependencyMode:d.dependencyMode||"none",
-    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify});
+    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null});
   return n;
 }
 function todayRank(id){
@@ -3343,7 +3554,7 @@ function drawTaskSheet(){
     <div class="capbd">${body}</div></div>`;
 
   const isTodo=d.actionable!==false;
-  const kindLbl=!isTodo?(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"Time block":(d.preset==="block"?"Time block":"Event"))):"To do";
+  const kindLbl=!isTodo?(d.preset==="window"?"Dedicated window":(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"Time block":(d.preset==="block"?"Time block":"Event")))):"To do";
   const P=state.settings.plan;
   const af=d.availableFrom;
   const afLbl=availLabel(af);
@@ -3368,7 +3579,8 @@ function drawTaskSheet(){
     <div class="line"><label>Stops mattering after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
     <div class="fieldnote inline">Past the stops mattering date, the task drops itself.</div>`:""}`
   :`
-    <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):"Set the time"}</span>${ICON_CHEV}</button>
+    ${d.preset==="window"?`<button class="line" id="tWScope"><label>Belongs to</label><span class="val${d.windowScope?" set":""}">${d.windowScope?esc(winScopeLabel(d)):"Pick what lives here"}</span>${ICON_CHEV}</button>`:""}
+    <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):(d.pendingDay?esc(fmtDate(d.pendingDay))+" · time still open":"Set the time")}</span>${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
     <button class="line" id="tBg"><label>Runs alongside other things</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button>
     <div class="fieldnote inline">An event or block sits at its time and the plan works around it. Repeats handles a class that meets on set days each week. Something that runs alongside, like laundry, never blocks other work.</div>`;
@@ -3523,6 +3735,19 @@ function wireTaskSheet(){
     if(e.target.value==="") d.estMinMinutes=null;
     normalizeTiming(d); Q(); redraw(); });
   on("#tFixed","click",()=>{ keepText(); openFixedSheet(d,Q); });
+  on("#tWScope","click",()=>{ keepText(); sheetPush(()=>{
+    const sc=d.windowScope;
+    const gs=[...state.nodes.values()].filter(n=>n.kind==="group"&&n.id!==UNSORTED&&n.status!=="dropped")
+      .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    showSheet("Belongs to",
+      `<div class="fieldnote" style="margin:0 20px 12px">Tasks and events from this group or category get planned inside the window. Everything else stays out of it.</div>`
+      +sec("A group")+`<div class="group">${gs.map(g=>`<button class="pickrow" data-esg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc&&sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("")||'<div class="fieldnote" style="padding:10px 16px">No groups yet.</div>'}</div>`
+      +sec("A category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-esc2="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${sc&&sc.type==="category"&&sc.value===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`,null);
+    sheetBody.querySelectorAll("[data-esg]").forEach(b=>b.addEventListener("click",()=>{
+      d.windowScope={type:"group",value:b.dataset.esg}; Q(); sheetPop(); }));
+    sheetBody.querySelectorAll("[data-esc2]").forEach(b=>b.addEventListener("click",()=>{
+      d.windowScope={type:"category",value:b.dataset.esc2}; Q(); sheetPop(); }));
+  }); });
   on("#tRepeat","click",()=>{ keepText(); openRepeatEditor(d,()=>{ S("rec"); Q(); }); });
   on("#tMoreWhen","click",()=>{ d._moreWhen=!d._moreWhen; redraw(); });
   on("#tTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf;
@@ -4672,6 +4897,7 @@ function openCapture(pre){
    --------------------------------------------------------------------------- */
 function wizSteps(){
   const d=state.capDraft;
+  if(d&&d.preset==="window") return ["type","title","wscope","time","repeat","review"];
   return (d&&d.actionable===false)
     ? ["type","title","time","repeat","shape","review"]
     : ["type","title","dotoday","due","window","repeat","effort","shape","review"];
@@ -4707,12 +4933,13 @@ function drawWizard(){
       ["todo","To do","Something you do and finish. Most things."],
       ["event","Event","You attend it at its time. A class, a visit, a meeting."],
       ["block","Time block","Walls off time. Commute, gym, quiet hours."],
+      ["window","Dedicated window","Carves out repeating time for one kind of work. Its own tasks and events get planned inside it."],
       ["bgp","Background thing","Runs by itself while you do other work. Laundry."],
       ["project","Project","A group that holds steps inside it."],
       ["template","From a template","Start from a saved shape."]
     ];
     const cur=state.capWiz.launch||(d.actionable===false
-      ?(d.preset==="event"?"event":(d.background?"bgp":"block"))
+      ?(d.preset==="event"?"event":(d.preset==="window"?"window":(d.background?"bgp":"block")))
       :"todo");
     h=q("What is this?","Tap to choose, then press Next. A custom sleep night is set in Settings, then Sleep, under per day overrides.")+
       `<div class="group">${opts.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpre="${k}">
@@ -4720,7 +4947,7 @@ function drawWizard(){
   }
   if(key==="title"){
     const isTodo=d.actionable!==false;
-    title=isTodo?"To do":(d.preset==="event"?"Event":"Time block");
+    title=isTodo?"To do":(d.preset==="event"?"Event":(d.preset==="window"?"Dedicated window":"Time block"));
     h=q(isTodo?"What needs doing?":"What is it called?",
         isTodo?'Shorthand works: "essay draft friday 4pm ~1h #School @computer". It turns into chips you can dismiss.':"")+
       `<div class="field">
@@ -4728,6 +4955,16 @@ function drawWizard(){
         <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="wNotes" placeholder="Notes, if any">${esc(d.notes||"")}</textarea></div>
       </div>
       <div class="chips" id="capChips" style="display:none"></div>`;
+  }
+  if(key==="wscope"){
+    title="Belongs to";
+    const sc=d.windowScope;
+    const gs=[...state.nodes.values()].filter(n=>n.kind==="group"&&n.id!==UNSORTED&&n.status!=="dropped")
+      .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    const gRows=gs.map(g=>`<button class="pickrow" data-wsg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc&&sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("");
+    h=q("What kind of work lives here?","Tasks and events from this group or category get planned inside the window. Everything else stays out of it.")+
+      sec("A group")+`<div class="group">${gRows||'<div class="fieldnote" style="padding:10px 16px">No groups yet. Pick a category instead.</div>'}</div>`+
+      sec("A category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-wsc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${sc&&sc.type==="category"&&sc.value===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
   }
   if(key==="dotoday"){
     title="Timing";
@@ -4772,7 +5009,8 @@ function drawWizard(){
         <div class="line"><label>End</label><input type="time" id="wEnd" value="${timeInput(d.fixedEnd)}"></div>
       </div>
       ${d.preset!=="event"?`<div class="field"><button class="line" id="wBg"><label>Runs alongside other things</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button></div>
-      <div class="fieldnote">On means it never blocks other work and does not eat your hours. Laundry, a download.</div>`:""}`;
+      <div class="fieldnote">On means it never blocks other work and does not eat your hours. Laundry, a download.</div>`
+      :`<div class="fieldnote">Only know the day so far? Leave Start blank. The event sits on that day marked as needing a time, and the app keeps nudging until you set one.${d.pendingDay?' Right now it is set to '+esc(fmtDate(d.pendingDay))+' with the time still open.':''}</div>`}`;
   }
   if(key==="repeat"){
     title="Repeats";
@@ -4827,7 +5065,9 @@ function drawWizard(){
       if(d.energy) row("effort","Energy",d.energy==="deep"?"Deep focus":"Shallow");
       if(d.stakesOverridden) row("shape","Stakes",STAKES_LABEL[d.stakes||"normal"]);
     } else {
-      row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):'<span style="color:var(--red)">needs a time</span>');
+      if(d.preset==="window") row("wscope","Belongs to",d.windowScope?esc(winScopeLabel(d)):'<span style="color:var(--red)">pick a group or category</span>');
+      row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")
+        :(d.pendingDay?esc(fmtDate(d.pendingDay))+' · <span style="color:#FF9500">time still open</span>':'<span style="color:var(--red)">needs a time</span>'));
       if(d.background) row("time","Background","Yes");
     }
     if(d.recurrence) row("repeat","Repeats",esc(recurLabel(d.recurrence)));
@@ -4876,7 +5116,8 @@ function wireWizard(key){
       state.capWiz.launch=null;
       if(k==="todo"){ applyTaskType(d,"todo"); d.background=false; }
       if(k==="event") applyTaskType(d,"event");
-      if(k==="block"){ applyTaskType(d,"block"); d.background=false; }
+      if(k==="block"){ applyTaskType(d,"block"); d.background=false; if(d.preset==="window") d.preset="block"; }
+      if(k==="window"){ applyTaskType(d,"block"); d.background=false; d.preset="window"; }
       if(k==="bgp"){ applyTaskType(d,"block");
         if(!d.fixedStart){ const t=new Date(Math.ceil(Date.now()/(15*MIN))*(15*MIN));
           d.fixedStart=t.toISOString(); d.fixedEnd=new Date(t.getTime()+60*MIN).toISOString(); }
@@ -4895,6 +5136,12 @@ function wireWizard(key){
       nn.addEventListener("input",e=>{ d.notes=e.target.value; grow(); }); grow(); }
     refreshWizChips();
     setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
+  }
+  if(key==="wscope"){
+    sheetBody.querySelectorAll("[data-wsg]").forEach(b=>b.addEventListener("click",()=>{
+      d.windowScope={type:"group",value:b.dataset.wsg}; drawWizard(); }));
+    sheetBody.querySelectorAll("[data-wsc]").forEach(b=>b.addEventListener("click",()=>{
+      d.windowScope={type:"category",value:b.dataset.wsc}; drawWizard(); }));
   }
   if(key==="dotoday"){
     sheetBody.querySelectorAll("[data-wdt]").forEach(b=>b.addEventListener("click",()=>{
@@ -4925,7 +5172,9 @@ function wireWizard(key){
     const upd=()=>{ const day=$("#wDay").value, st=$("#wStart").value, en=$("#wEnd").value;
       if(day&&st){ d.fixedStart=new Date(day+"T"+st+":00").toISOString();
         d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); }
-      else if(!st){ d.fixedStart=null; d.fixedEnd=null; } };
+      else if(day&&!st&&d.preset==="event"){ d.fixedStart=null; d.fixedEnd=null;
+        d.pendingDay=new Date(day+"T12:00:00").toISOString(); }
+      else if(!st){ d.fixedStart=null; d.fixedEnd=null; d.pendingDay=null; } };
     ["#wDay","#wStart","#wEnd"].forEach(sel=>on(sel,"change",upd));
     on("#wBg","click",()=>{ d.background=!d.background; drawWizard(); });
   }
@@ -5027,7 +5276,7 @@ async function commitCapture(again){
   if(!d.title){ toast("Give it a name");
     if(state.capWiz){ wizGo(wizSteps().indexOf("title")); }
     const t2=$("#tTitle")||$("#wTitle"); if(t2) t2.focus(); return; }
-  if(d.actionable===false&&!d.fixedStart){ toast("Set its time first. Events and blocks live at a time");
+  if(d.actionable===false&&!d.fixedStart&&!(d.pendingDay&&d.preset==="event")){ toast("Set its time first. Events and blocks live at a time");
     if(state.capWiz){ wizGo(wizSteps().indexOf("time")); } else { CAP_OPEN.when=true; drawTaskSheet(); } return; }
   const p=parseNL(d.title);
   const ig=state.capIgnore, st=state.capSet;
@@ -5160,7 +5409,7 @@ function renderSettings(){
      ${secBig("Manage")}
      <div class="field">
       <button class="line" data-s="lists"><label>Lists Manager</label><span class="val">groups · categories · contexts</span>${ICON_CHEV}</button>
-      <button class="line" data-s="log"><label>Completion Log</label><span class="val">activity · weekly · monthly</span>${ICON_CHEV}</button>
+      <button class="line" data-s="log"><label>Work Efficiency</label><span class="val">score · completion log</span>${ICON_CHEV}</button>
       <button class="line" data-s="templates"><label>Templates</label><span class="val">${state.templates.length||""}</span>${ICON_CHEV}</button>
       <button class="line" data-s="sometime"><label>Sometime Collection</label><span class="val">${timeframeItems().length||""}</span>${ICON_CHEV}</button>
      </div>
@@ -5252,7 +5501,7 @@ function renderSettings(){
   content.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{
     const k=b.dataset.s;
     if(k==="lists") return sheetRoot(drawListsManager);
-    if(k==="log") return sheetRoot(drawLogSheet);
+    if(k==="log"){ state.logMode="eff"; return sheetRoot(drawLogSheet); }
     if(k==="templates") return sheetRoot(drawTemplates);
     if(k==="sometime") return sheetRoot(drawSometimeList);
     if(k==="sleep") sheetRoot(drawSleep);
