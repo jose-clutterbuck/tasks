@@ -445,6 +445,8 @@ input.cw::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;bo
 .wizq{font-size:22px;font-weight:700;letter-spacing:-.02em;padding:4px 20px 2px}
 .wizsub{font-size:14px;color:var(--label2);padding:0 20px 14px;line-height:1.4}
 .wizrow .path{display:block;margin-top:2px}
+.wizrow{position:relative;padding-right:46px}
+.wizrow>.tick{position:absolute;right:16px;top:50%;transform:translateY(-50%);margin:0}
 /* capture parse chips */
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px 2px}
 .chip{display:inline-flex;align-items:center;gap:5px;background:rgba(var(--accent-rgb),.13);color:var(--accent);
@@ -717,7 +719,7 @@ function newNode(p={}){ return Object.assign({
   flagged:false, bumpCount:0, recurrence:null, links:[],
   dependsOn:[], dependencyMode:"none",
   timeframe:null, icon:null, color:null, notify:null, deadlineHasTime:false, background:false,
-  windowScope:null, pendingDay:null, floating:false, winDuration:null,
+  windowScope:null, pendingDay:null, floating:false, winDuration:null, winPlace:null,
   createdAt:nowISO(), touchedAt:nowISO(), completedAt:null },p); }
 
 const PALETTE=[
@@ -851,7 +853,7 @@ async function migrateToStakes(){
     if(n.deferUntil&&!n.availableFrom) n.availableFrom={mode:"absolute",at:n.deferUntil,leadDays:null};
     n.availableFrom=n.availableFrom||null; n.aimWindow=n.aimWindow||null; n.todWindow=n.todWindow||null;
     n.windowScope=n.windowScope||null; n.pendingDay=n.pendingDay||null;
-    n.floating=!!n.floating; n.winDuration=n.winDuration||null;
+    n.floating=!!n.floating; n.winDuration=n.winDuration||null; n.winPlace=n.winPlace||null;
     delete n.importance; delete n.importanceOverridden; delete n.deadlineType;
     if(over&&st==="protect") report.protect.push(n.id);
     if(over&&st==="flexible") report.flexible.push(n.id);
@@ -1459,19 +1461,48 @@ function planFor(day,proj){
     const aw=awakeAt(); if(aw&&aw>cursor) cursor=new Date(aw);
   }
   if(floatWins.length){
-    let fc=new Date(cursor);
-    for(const f of floatWins.sort((a,b)=>a.start-b.start)){
-      const dur=(f.node.winDuration||60)*MIN;
-      let st=new Date(fc), guard=0;
-      while(guard++<48){ const hit=busy.find(b2=>st<b2.end&&new Date(+st+dur)>b2.start);
+    const spanOf=new Map();
+    for(const w of winSpans) spanOf.set(w.node.id,w);
+    const findFwd=(floor,dur,ceil)=>{ let st=new Date(Math.max(+floor,+cursor)); let g=0;
+      while(g++<48){ const hit=busy.find(b2=>st<b2.end&&new Date(+st+dur)>b2.start);
         if(hit){ st=new Date(+hit.end+5*MIN); continue; } break; }
-      let en=new Date(+st+dur); if(en>end) en=new Date(+end);
-      if(en>st){
-        const blk={node:f.node,start:st,end:en,minutes:Math.round((en-st)/MIN),fixed:true,bg:false,win:true,floating:true};
-        fixed.push(blk); winSpans.push({start:st,end:en,node:f.node,win:true,minutes:blk.minutes});
-        busy.push(blk);
-        fc=new Date(+en+5*MIN);
-      }
+      let en=new Date(+st+dur);
+      if(ceil&&+en>+ceil) return null;
+      if(en>end) en=new Date(+end);
+      return en>st?{st,en}:null; };
+    const findBwd=(ceil,dur)=>{ let st=new Date(+ceil-dur); let g=0;
+      while(g++<48){ const hit=busy.find(b2=>st<b2.end&&new Date(+st+dur)>b2.start);
+        if(hit){ st=new Date(+hit.start-dur); continue; } break; }
+      if(+st<+cursor) return null;
+      return {st,en:new Date(+st+dur)}; };
+    const addSpan=(f,got)=>{ const blk={node:f.node,start:got.st,end:got.en,minutes:Math.round((got.en-got.st)/MIN),fixed:true,bg:false,win:true,floating:true};
+      fixed.push(blk); winSpans.push({start:got.st,end:got.en,node:f.node,win:true,minutes:blk.minutes});
+      busy.push(blk); spanOf.set(f.node.id,blk); };
+    const place1=f=>{
+      const m=winPlaceMode(f.node), dur=(f.node.winDuration||60)*MIN;
+      const noonT=new Date(d0.getTime()+12*60*MIN), eveT=new Date(d0.getTime()+17*60*MIN);
+      let got=null;
+      if(m==="morning") got=findFwd(cursor,dur,noonT)||findFwd(cursor,dur,null);
+      else if(m==="afternoon") got=findFwd(new Date(Math.max(+noonT,+cursor)),dur,null);
+      else if(m==="evening") got=findFwd(new Date(Math.max(+eveT,+cursor)),dur,null);
+      else if(m==="dayEnd") got=findBwd(end,dur)||findFwd(cursor,dur,null);
+      else if(m==="afterWin"){ const ref=spanOf.get(f.node.winPlace&&f.node.winPlace.ref);
+        if(!ref) return false; got=findFwd(ref.end,dur,null); }
+      else if(m==="beforeWin"){ const ref=spanOf.get(f.node.winPlace&&f.node.winPlace.ref);
+        if(!ref) return false; got=findBwd(ref.start,dur)||findFwd(cursor,dur,null); }
+      else got=findFwd(cursor,dur,null);
+      if(got) addSpan(f,got);
+      return true; };
+    let queue=floatWins.slice().sort((a,b)=>{
+      const rel=n2=>["afterWin","beforeWin"].includes(winPlaceMode(n2.node))?1:0;
+      return rel(a)-rel(b)||(+a.start-+b.start); }), guard=0;
+    while(queue.length&&guard++<4){
+      const next=[];
+      for(const f of queue){ if(!place1(f)) next.push(f); }
+      if(next.length===queue.length){
+        for(const f of next){ const got=findFwd(cursor,(f.node.winDuration||60)*MIN,null); if(got) addSpan(f,got); }
+        queue=[];
+      } else queue=next;
     }
     fixed.sort((a,b)=>a.start-b.start); busy.sort((a,b)=>a.start-b.start);
   }
@@ -1678,6 +1709,95 @@ function winScopeLabel(wNode){
   const sc=wNode&&wNode.windowScope; if(!sc) return "";
   if(sc.type==="category") return sc.value;
   const g=byId(sc.value); return g?(g.title||"group"):"group"; }
+function winScopeTitle(d){ const sc=d&&d.windowScope; if(!sc) return "";
+  if(sc.type==="group"){ const g=byId(sc.value); return g?(g.title||""):""; }
+  return sc.value||""; }
+function winPlaceMode(n){ return n.winPlace&&n.winPlace.mode?n.winPlace.mode:(n.floating?"dayStart":"set"); }
+function winPlaceLabel(d){
+  const m=winPlaceMode(d), dur=d.winDuration||60;
+  const ref=d.winPlace&&d.winPlace.ref?byId(d.winPlace.ref):null;
+  const L={set:d.fixedStart?fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart)+(d.fixedEnd?" to "+fmtTime(d.fixedEnd):""):"set the time",
+    dayStart:"first thing · holds "+dur+"m",
+    morning:"in the morning · holds "+dur+"m",
+    afternoon:"in the afternoon · holds "+dur+"m",
+    evening:"in the evening · holds "+dur+"m",
+    dayEnd:"last thing · holds "+dur+"m",
+    afterWin:"after "+(ref?(ref.title||"a window"):"a window")+" · holds "+dur+"m",
+    beforeWin:"before "+(ref?(ref.title||"a window"):"a window")+" · holds "+dur+"m"};
+  return L[m]||L.set; }
+function winScopeHTML(d){
+  const sc=d.windowScope||{};
+  const cat=sc.type==="category"?sc.value:(sc.cat||null);
+  let h=`<div class="fieldnote" style="margin:0 20px 12px">A window belongs to one category, and inside it, one group if you want to narrow it. Its tasks and events get planned inside the window; everything else stays out. The window takes its name from this choice.</div>`
+    +sec("Category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-wsc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${cat===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
+  if(cat){
+    const gs=[...state.nodes.values()].filter(x=>x.kind==="group"&&x.id!==UNSORTED&&x.status!=="dropped"&&x.category===cat)
+      .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    h+=sec("Narrow to a group in "+esc(cat),"<span>optional</span>")+`<div class="group">
+      <button class="pickrow" data-wsg=""><span>The whole category</span>${sc.type==="category"?'<span class="tick">✓</span>':""}</button>
+      ${gs.map(g=>`<button class="pickrow" data-wsg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`
+      +(gs.length?"":`<div class="fieldnote">No groups carry this category yet. Give a group this category in Browse and it will show here.</div>`);
+  }
+  return h;
+}
+function wireWinScope(d,redraw){
+  sheetBody.querySelectorAll("[data-wsc]").forEach(b=>b.addEventListener("click",()=>{
+    d.windowScope={type:"category",value:b.dataset.wsc}; normalizeTiming(d); redraw(); }));
+  sheetBody.querySelectorAll("[data-wsg]").forEach(b=>b.addEventListener("click",()=>{
+    const sc=d.windowScope||{}; const cat=sc.type==="category"?sc.value:sc.cat;
+    if(!cat) return;
+    d.windowScope=b.dataset.wsg?{type:"group",value:b.dataset.wsg,cat:cat}:{type:"category",value:cat};
+    normalizeTiming(d); redraw(); }));
+}
+function windowTimeHTML(d){
+  const m=winPlaceMode(d);
+  const selfId=d.id||state.editing;
+  const others=[...state.nodes.values()].filter(x=>x.preset==="window"&&x.id!==selfId&&x.status!=="dropped");
+  const modes=[["set","At set times","Pinned to the clock, like a class schedule."],
+    ["dayStart","First thing in the day","Opens when your day starts, or when you press Awake."],
+    ["morning","In the morning","Takes the first room it finds before noon."],
+    ["afternoon","In the afternoon","Takes the first room after noon."],
+    ["evening","In the evening","Takes the first room after 5pm."],
+    ["dayEnd","Last thing in the day","Ends right before your day does."],
+    ["afterWin","After another window","Somewhere later in the day than a window you pick."],
+    ["beforeWin","Before another window","Finished before a window you pick begins."]];
+  let h=`<div class="group">${modes.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpm="${k}"><span>${l}<span class="path">${note}</span></span>${m===k?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
+  if(m==="set"){
+    h+=`<div class="field" style="margin-top:14px">
+      <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
+      <div class="line"><label>Start</label><input type="time" id="wStart" value="${timeInput(d.fixedStart)}"></div>
+      <div class="line"><label>End</label><input type="time" id="wEnd" value="${timeInput(d.fixedEnd)}"></div></div>`;
+  } else {
+    h+=`<div class="field" style="margin-top:14px">
+      <div class="line"><label>Holds</label><input type="number" inputmode="numeric" min="15" max="600" id="wWinDur" value="${d.winDuration||60}"><span class="unit">minutes</span></div>
+      <div class="line"><label>First day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div></div>`;
+    if(m==="afterWin"||m==="beforeWin"){
+      h+=sec("Which window")+`<div class="group">${others.length?others.map(x=>`<button class="pickrow" data-wpr="${x.id}"><span>${esc(x.title||"Untitled")}</span>${d.winPlace&&d.winPlace.ref===x.id?'<span class="tick">✓</span>':""}</button>`).join("")
+        :`<div class="fieldnote" style="padding:10px 16px">No other windows yet. Until one exists this falls back to first thing in the day.</div>`}</div>`;
+    }
+  }
+  h+=`<div class="fieldnote">The days it happens on come from Repeats. If the asked-for spot has no room that day, the window takes the first room it finds.</div>`;
+  return h;
+}
+function wireWindowTime(d,redraw,onChange){
+  const oc=onChange||(()=>{});
+  sheetBody.querySelectorAll("[data-wpm]").forEach(b=>b.addEventListener("click",()=>{
+    const m=b.dataset.wpm;
+    d.winPlace=m==="set"?{mode:"set"}:{mode:m,ref:(d.winPlace&&d.winPlace.ref)||null};
+    d.floating=m!=="set";
+    if(m!=="set"){ d.winDuration=d.winDuration||60;
+      const day=dateInput(d.fixedStart)||dayKey(new Date());
+      d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; }
+    oc(); redraw(); }));
+  sheetBody.querySelectorAll("[data-wpr]").forEach(b=>b.addEventListener("click",()=>{
+    d.winPlace=Object.assign({},d.winPlace,{ref:b.dataset.wpr}); oc(); redraw(); }));
+  const wd=$("#wWinDur"); if(wd) wd.addEventListener("input",e=>{ d.winDuration=clamp(Number(e.target.value)||60,15,600); oc(); });
+  const upd2=()=>{ const day=$("#wDay")?$("#wDay").value:"", st=$("#wStart")?$("#wStart").value:"", en=$("#wEnd")?$("#wEnd").value:"";
+    if(d.floating){ if(day){ d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; } oc(); return; }
+    if(day&&st){ d.fixedStart=new Date(day+"T"+st+":00").toISOString();
+      d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); oc(); } };
+  ["#wDay","#wStart","#wEnd"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("change",upd2); });
+}
 function winColor(wNode){
   const sc=wNode&&wNode.windowScope;
   if(sc){ if(sc.type==="category"){ const c=catByName(sc.value); if(c&&c.color) return c.color; }
@@ -1729,7 +1849,7 @@ function dayFlowHTML(day,proj){
     const pt=bk.fixed?`<b>${esc(fmtTime(bk.start.toISOString()))}</b>${bk.minutes?mins(bk.minutes):""}`
       :`<b>${esc(mins(bk.minutes))}</b>`;
     let bits=taskBits(n,{block:bk});
-    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^work window/.test(b2));
     return `<div class="planrow${bk.fixed?"":" ghost"}${bk.fuzzy?" fuzzy":""}" data-open="${n.id}">
       <div class="pt tnum">${pt}</div>
       <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
@@ -2102,7 +2222,7 @@ function dayPlanListHTML(day,proj){
     const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
     const col=nodeColor(n);
     let bits=taskBits(n,{block:bk});
-    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+    if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^work window/.test(b2));
     return `<div class="planrow ${cls}" data-open="${n.id}">
       <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
       <div class="pbar"${col?` style="--pc:${esc(col)}"`:""}></div>
@@ -2240,7 +2360,7 @@ function todayHTML(d){
     const mkListRow=(bk,inWin)=>{
       const n=bk.node, col=nodeColor(n);
       let bits=taskBits(n,{block:bk});
-      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^work window/.test(b2));
       const lockAttrs=bk.fixed?` data-lock="1" data-fs="${+bk.start}" data-fe="${+bk.end}"`:` data-min="${bk.minutes||30}"`;
       const handle=inWin?"":(bk.fixed?`<span class="draghandle" style="color:var(--label3);font-size:13px">🔒</span>`:`<span class="draghandle" data-drag>≡</span>`);
       return `<div class="planrow" data-open="${n.id}"${lockAttrs}>
@@ -2274,14 +2394,15 @@ function todayHTML(d){
     return html;
   }
   if(pl.blocks.length||dueToday.length){
-    html+=sec("The plan",`<span>${esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`;
+    { const aw2=state.settings.sleep.manualWake?awakeAt():null;
+      html+=sec("The plan",`<span>${aw2?esc(fmtTime(aw2.toISOString())):esc(fmtHM(sleepFor(d).wake))} to ${esc(fmtHM(sleepFor(d).bed))}</span>`)+`<div class="plan">`; }
     const entries=[];
     const mkSchedRow=(bk,inWin)=>{
       const n=bk.node, past=bk.end.getTime()<now;
       const cls=(bk.fixed?"":(bk.fuzzy?"ghost fuzzy":"ghost"))+(bk.bg?" bg":"");
       const col=nodeColor(n);
       let bits=taskBits(n,{block:bk});
-      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^dedicated window/.test(b2));
+      if(inWin) bits=bits.filter(b2=>!/^in the /.test(b2)&&!/^during /.test(b2)&&!/^work window/.test(b2));
       return `<div class="planrow ${cls}${past?" past":""}" data-open="${n.id}">
         ${markHTML(n)}
         <div class="pt tnum"><b>${esc(fmtTime(bk.start.toISOString()))}</b>${mins(bk.minutes)}</div>
@@ -3501,6 +3622,20 @@ function normalizeTiming(d){
   }
   if(d.timeframe&&(d.aimWindow||d.todWindow)) d.timeframe=null;
   if(d.fixedStart) d.pendingDay=null;
+  if(d.preset==="window"){
+    d.actionable=false; d.background=false;
+    if(d.floating&&!d.winPlace) d.winPlace={mode:"dayStart"};
+    if(d.winPlace&&d.winPlace.mode){
+      d.floating=d.winPlace.mode!=="set";
+      if((d.winPlace.mode==="afterWin"||d.winPlace.mode==="beforeWin")&&(!d.winPlace.ref||!byId(d.winPlace.ref)))
+        d.winPlace={mode:"dayStart"};
+    }
+    if(d.windowScope){
+      if(d.windowScope.type==="group"&&!d.windowScope.cat){
+        const g=byId(d.windowScope.value); if(g&&g.category) d.windowScope.cat=g.category; }
+      const t2=winScopeTitle(d); if(t2) d.title=t2;
+    }
+  }
   if(d.todWindow){
     const t=d.todWindow;
     const floor=t.start||t.after;
@@ -3512,7 +3647,7 @@ function normalizeTiming(d){
 }
 function taskBits(n,opts={}){
   const bk=opts.block||null, bits=[], st=effStatus(n);
-  if(bk&&bk.win) bits.push("dedicated window · "+winScopeLabel(n));
+  if(bk&&bk.win) bits.push("work window · "+winScopeLabel(n));
   if(bk&&bk.inWin) bits.push("during "+bk.inWin);
   if(bk&&bk.inWinOf) bits.push("in the "+(bk.inWinOf.title||"dedicated")+" window");
   if(bk&&bk.bg) bits.push("⟳ runs alongside");
@@ -3603,7 +3738,7 @@ function applyDraft(){
     category:d.category,deliverable:d.deliverable,context:d.context,energy:d.energy,
     flagged:d.flagged,bumpCount:d.bumpCount,recurrence:d.recurrence,links:d.links,
     dependsOn:d.dependsOn||[],dependencyMode:d.dependencyMode||"none",
-    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null,floating:!!d.floating,winDuration:d.winDuration||null});
+    timeframe:d.timeframe,icon:d.icon,color:d.color,notify:d.notify,windowScope:d.windowScope||null,pendingDay:d.pendingDay||null,floating:!!d.floating,winDuration:d.winDuration||null,winPlace:d.winPlace||null});
   return n;
 }
 function todayRank(id){
@@ -3652,16 +3787,57 @@ function taskCtx(){
   return state.capDraft?{d:state.capDraft,isNew:true,node:null}
                        :{d:state.draft,isNew:false,node:byId(state.editing)};
 }
+/* a Dedicated Work Window carries only what a container needs:
+   what it holds, when it holds time, how it repeats, and notes. */
+function drawWindowSheet(d,isNew){
+  const Q=isNew?()=>{}:queueTaskSave;
+  normalizeTiming(d);
+  const scopeVal=d.windowScope
+    ?(d.windowScope.type==="group"
+      ?esc((d.windowScope.cat||"")+(d.windowScope.cat?" · ":"")+winScopeTitle(d))
+      :esc(winScopeTitle(d)))
+    :"Pick a category";
+  showSheet("Dedicated Work Window",
+    `<div class="fieldnote" style="margin:0 20px 12px">A container for one kind of work. It is named after what it holds, takes no estimates or due dates, and the planner fills it with its own tasks and events.</div>
+     ${sec("What it holds")}
+     <div class="field">
+       <button class="line" id="wsScope"><label>Belongs to</label><span class="val${d.windowScope?" set":""}">${scopeVal}</span>${ICON_CHEV}</button>
+     </div>
+     ${sec("When it holds time")}
+     <div class="field">
+       <button class="line" id="wsTime"><label>Time</label><span class="val set">${esc(winPlaceLabel(d))}</span>${ICON_CHEV}</button>
+       <button class="line" id="wsRepeat"><label>Repeats</label><span class="val${d.recurrence?" set":""}">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
+     </div>
+     ${sec("Notes","<span>optional</span>")}
+     <div class="field"><div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="wsNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div></div>
+     ${isNew?"":`<div class="field" style="margin-top:18px"><button class="line" data-do="drop" style="color:var(--red)">Remove this window</button></div>
+     <div class="fieldnote">Removing the window never touches the tasks that belong to its category or group; they simply get planned in open time again.</div>`}`,null);
+  $("#wsScope").addEventListener("click",()=>{
+    const drawWS=()=>{ showSheet("Belongs to",winScopeHTML(d),null);
+      wireWinScope(d,()=>{ Q(); drawWS(); }); };
+    sheetPush(drawWS); });
+  $("#wsTime").addEventListener("click",()=>{
+    const drawWT=()=>{ showSheet("Window time",windowTimeHTML(d),null);
+      wireWindowTime(d,drawWT,()=>{ normalizeTiming(d); Q(); }); };
+    sheetPush(drawWT); });
+  $("#wsRepeat").addEventListener("click",()=>openRepeatEditor(d,()=>Q()));
+  const nt=$("#wsNotes"); if(nt) nt.addEventListener("input",e=>{ d.notes=e.target.value; Q(); });
+  sheetBody.querySelectorAll("[data-clearx]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(b.dataset.clearx==="recur"){ d.recurrence=null; Q(); drawWindowSheet(d,isNew); } }));
+  sheetBody.querySelectorAll("[data-do]").forEach(b=>b.addEventListener("click",()=>detailAction(b.dataset.do)));
+}
 function drawTaskSheet(){
   const {d,isNew,node:n}=taskCtx();
   if(!d||(!isNew&&!n)){ closeSheet(); return; }
+  if(d.preset==="window") return drawWindowSheet(d,isNew);
   const cat=catByName(d.category);
   const capsec=(key,title,body,summary)=>`<div class="capsec${CAP_OPEN[key]?" open":""}" data-sec="${key}">
     <button class="caphd" data-sechd="${key}"><span class="arr">▶</span>${esc(title)}<span class="n">${esc(summary||"")}</span></button>
     <div class="capbd">${body}</div></div>`;
 
   const isTodo=d.actionable!==false;
-  const kindLbl=!isTodo?(d.preset==="window"?"Dedicated window":(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"Time block":(d.preset==="block"?"Time block":"Event")))):"To do";
+  const kindLbl=!isTodo?(d.preset==="window"?"Dedicated Work Window":(d.preset&&d.preset!=="event"&&d.preset!=="block"?d.preset:(d.background?"No-Task Block":(d.preset==="block"?"No-Task Block":"Event")))):"To do";
   const P=state.settings.plan;
   const af=d.availableFrom;
   const afLbl=availLabel(af);
@@ -3686,7 +3862,6 @@ function drawTaskSheet(){
     <div class="line"><label>Stops mattering after</label><input type="date" id="tExpiry" value="${dateInput(d.expiry)}">${CLRX("expiry",!!d.expiry)}</div>
     <div class="fieldnote inline">Past the stops mattering date, the task drops itself.</div>`:""}`
   :`
-    ${d.preset==="window"?`<button class="line" id="tWScope"><label>Belongs to</label><span class="val${d.windowScope?" set":""}">${d.windowScope?esc(winScopeLabel(d)):"Pick what lives here"}</span>${ICON_CHEV}</button>`:""}
     <button class="line" id="tFixed"><label>Time</label><span class="val${d.fixedStart?" set":""}">${d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):""):(d.pendingDay?esc(fmtDate(d.pendingDay))+" · time still open":"Set the time")}</span>${ICON_CHEV}</button>
     <button class="line" id="tRepeat"><label>Repeats</label><span class="val">${recurLabel(d.recurrence)}</span>${CLRX("recur",!!d.recurrence)}${ICON_CHEV}</button>
     <button class="line" id="tBg"><label>Runs alongside other things</label><span class="val"></span><span class="toggle${d.background?" on":""}"></span></button>
@@ -3760,7 +3935,7 @@ function drawTaskSheet(){
     :`<div class="seg" id="tType" style="margin-bottom:12px">
       <button data-tt="todo"${isTodo?' class="on"':""}>To do</button>
       <button data-tt="event"${!isTodo&&d.preset==="event"?' class="on"':""}>Event</button>
-      <button data-tt="block"${!isTodo&&d.preset!=="event"?' class="on"':""}>Time block</button></div>`}
+      <button data-tt="block"${!isTodo&&d.preset!=="event"?' class="on"':""}>No-Task Block</button></div>`}
     <div class="field">
       <div class="line"><input class="big" id="tTitle" value="${esc(d.title)}" placeholder="${isTodo?"Title":"Name, like Class, Gym, or Commute"}" autocapitalize="sentences" enterkeyhint="done"></div>
       <div class="line" style="align-items:flex-start;padding-top:12px"><textarea id="tNotes" placeholder="Notes">${esc(d.notes||"")}</textarea></div>
@@ -3842,19 +4017,7 @@ function wireTaskSheet(){
     if(e.target.value==="") d.estMinMinutes=null;
     normalizeTiming(d); Q(); redraw(); });
   on("#tFixed","click",()=>{ keepText(); openFixedSheet(d,Q); });
-  on("#tWScope","click",()=>{ keepText(); sheetPush(()=>{
-    const sc=d.windowScope;
-    const gs=[...state.nodes.values()].filter(n=>n.kind==="group"&&n.id!==UNSORTED&&n.status!=="dropped")
-      .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
-    showSheet("Belongs to",
-      `<div class="fieldnote" style="margin:0 20px 12px">Tasks and events from this group or category get planned inside the window. Everything else stays out of it.</div>`
-      +sec("A group")+`<div class="group">${gs.map(g=>`<button class="pickrow" data-esg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc&&sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("")||'<div class="fieldnote" style="padding:10px 16px">No groups yet.</div>'}</div>`
-      +sec("A category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-esc2="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${sc&&sc.type==="category"&&sc.value===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`,null);
-    sheetBody.querySelectorAll("[data-esg]").forEach(b=>b.addEventListener("click",()=>{
-      d.windowScope={type:"group",value:b.dataset.esg}; Q(); sheetPop(); }));
-    sheetBody.querySelectorAll("[data-esc2]").forEach(b=>b.addEventListener("click",()=>{
-      d.windowScope={type:"category",value:b.dataset.esc2}; Q(); sheetPop(); }));
-  }); });
+
   on("#tRepeat","click",()=>{ keepText(); openRepeatEditor(d,()=>{ S("rec"); Q(); }); });
   on("#tMoreWhen","click",()=>{ d._moreWhen=!d._moreWhen; redraw(); });
   on("#tTimeframe","click",()=>{ keepText(); openTimeframe(d.timeframe,tf=>{ d.timeframe=tf;
@@ -5004,7 +5167,7 @@ function openCapture(pre){
    --------------------------------------------------------------------------- */
 function wizSteps(){
   const d=state.capDraft;
-  if(d&&d.preset==="window") return ["type","title","wscope","time","repeat","review"];
+  if(d&&d.preset==="window") return ["type","wscope","time","repeat","review"];
   return (d&&d.actionable===false)
     ? ["type","title","time","repeat","shape","review"]
     : ["type","title","dotoday","due","window","repeat","effort","shape","review"];
@@ -5039,8 +5202,8 @@ function drawWizard(){
     const opts=[
       ["todo","To do","Something you do and finish. The planner picks when it happens."],
       ["event","Event","You attend it at its time. A class, a meeting, an exam. It can hold just a day while the clock time is still open."],
-      ["block","Busy time","Time not available for any task. Commute, meals, quiet hours. A switch inside lets it run alongside instead, like laundry."],
-      ["window","Dedicated window","Repeating time reserved for one kind of work. Its group or category is planned inside it, everything else stays out."],
+      ["block","No-Task Block","Time no task can touch. Commute, meals, quiet hours. A switch inside lets it run alongside instead, like laundry."],
+      ["window","Dedicated Work Window","Repeating time reserved for one category or group of work. Its work is planned inside it, everything else stays out. Named after what it holds."],
       ["group","New group","A container in Browse that holds related work, like a project and its steps."],
       ["category","New category","A colored label that cuts across groups, like School or Health."],
       ["template","From a template","Start from a saved shape."]
@@ -5048,13 +5211,13 @@ function drawWizard(){
     const cur=state.capWiz.launch||(d.actionable===false
       ?(d.preset==="event"?"event":(d.preset==="window"?"window":(d.background?"bgp":"block")))
       :"todo");
-    h=q("What is this?","Tap to choose, then press Next. A custom sleep night is set in Settings, then Sleep, under per day overrides.")+
+    h=q("What is this?","")+
       `<div class="group">${opts.map(([k,l,note])=>`<button class="pickrow wizrow" data-wpre="${k}">
         <span>${l}<span class="path">${note}</span></span>${k===cur?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
   }
   if(key==="title"){
     const isTodo=d.actionable!==false;
-    title=isTodo?"To do":(d.preset==="event"?"Event":(d.preset==="window"?"Dedicated window":"Busy time"));
+    title=isTodo?"To do":(d.preset==="event"?"Event":(d.preset==="window"?"Dedicated Work Window":"No-Task Block"));
     h=q(isTodo?"What needs doing?":"What is it called?",
         isTodo?'Shorthand works: "essay draft friday 4pm ~1h #School @computer". It turns into chips you can dismiss.':"")+
       `<div class="field">
@@ -5065,13 +5228,7 @@ function drawWizard(){
   }
   if(key==="wscope"){
     title="Belongs to";
-    const sc=d.windowScope;
-    const gs=[...state.nodes.values()].filter(n=>n.kind==="group"&&n.id!==UNSORTED&&n.status!=="dropped")
-      .sort((a,b)=>(a.title||"").localeCompare(b.title||""));
-    const gRows=gs.map(g=>`<button class="pickrow" data-wsg="${g.id}"><span>${esc(g.title||"Untitled")}</span>${sc&&sc.type==="group"&&sc.value===g.id?'<span class="tick">✓</span>':""}</button>`).join("");
-    h=q("What kind of work lives here?","Tasks and events from this group or category get planned inside the window. Everything else stays out of it.")+
-      sec("A group")+`<div class="group">${gRows||'<div class="fieldnote" style="padding:10px 16px">No groups yet. Pick a category instead.</div>'}</div>`+
-      sec("A category")+`<div class="group">${state.settings.categories.map(c=>`<button class="pickrow" data-wsc="${esc(c.name)}"><span>${c.icon?esc(c.icon)+" ":""}${esc(c.name)}</span>${sc&&sc.type==="category"&&sc.value===c.name?'<span class="tick">✓</span>':""}</button>`).join("")}</div>`;
+    h=q("What work lives here?","Pick the category first. Narrow to one of its groups if you want. The window is named after this choice.")+winScopeHTML(d);
   }
   if(key==="dotoday"){
     title="Timing";
@@ -5109,25 +5266,10 @@ function drawWizard(){
   }
   if(key==="time"&&d.preset==="window"){
     title="Window time";
-    h=q("When does this window hold time?","Set times pin it to the clock. First thing makes it start whenever your day starts, on the days it repeats.")+
-      `<div class="seg" id="wWinMode" style="margin:0 16px 12px">
-        <button data-wm="set"${!d.floating?' class="on"':""}>At set times</button>
-        <button data-wm="float"${d.floating?' class="on"':""}>First thing in the day</button></div>`+
-      (d.floating
-        ?`<div class="field">
-            <div class="line"><label>Holds</label><input type="number" inputmode="numeric" min="15" max="600" id="wWinDur" value="${d.winDuration||60}"><span class="unit">minutes</span></div>
-            <div class="line"><label>First day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
-          </div>
-          <div class="fieldnote">It opens at the start of your day and holds that much time for its work. With the manual wake button on, the day starts when you press Awake. Pick the days it repeats on the next page.</div>`
-        :`<div class="field">
-            <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
-            <div class="line"><label>Start</label><input type="time" id="wStart" value="${timeInput(d.fixedStart)}"></div>
-            <div class="line"><label>End</label><input type="time" id="wEnd" value="${timeInput(d.fixedEnd)}"></div>
-          </div>
-          <div class="fieldnote">Repeats are set on the next page.</div>`);
+    h=q("When does this window hold time?","")+windowTimeHTML(d);
   }
   else if(key==="time"){
-    title=d.preset==="event"?"Event time":"Busy time";
+    title=d.preset==="event"?"Event time":"No-Task Block";
     h=q("When does it happen?",d.preset==="Sleep"?"Filled in from your sleep schedule. Adjust if this night differs.":"")+
       `<div class="field">
         <div class="line"><label>Day</label><input type="date" id="wDay" value="${dateInput(d.fixedStart)||dayKey(new Date())}"></div>
@@ -5192,7 +5334,7 @@ function drawWizard(){
       if(d.stakesOverridden) row("shape","Stakes",STAKES_LABEL[d.stakes||"normal"]);
     } else {
       if(d.preset==="window") row("wscope","Belongs to",d.windowScope?esc(winScopeLabel(d)):'<span style="color:var(--red)">pick a group or category</span>');
-      if(d.preset==="window"&&d.floating) row("time","Time","first thing in the day · holds "+(d.winDuration||60)+"m");
+      if(d.preset==="window") row("time","Time",esc(winPlaceLabel(d)));
       else row("time","Time",d.fixedStart?esc(fmtDate(d.fixedStart)+" "+fmtTime(d.fixedStart))+(d.fixedEnd?" to "+esc(fmtTime(d.fixedEnd)):"")
         :(d.pendingDay?esc(fmtDate(d.pendingDay))+' · <span style="color:#FF9500">time still open</span>':'<span style="color:var(--red)">needs a time</span>'));
       if(d.background) row("time","Background","Yes");
@@ -5261,12 +5403,7 @@ function wireWizard(key){
     refreshWizChips();
     setTimeout(()=>{ const t=$("#wTitle"); if(t&&!t.value) t.focus(); },250);
   }
-  if(key==="wscope"){
-    sheetBody.querySelectorAll("[data-wsg]").forEach(b=>b.addEventListener("click",()=>{
-      d.windowScope={type:"group",value:b.dataset.wsg}; drawWizard(); }));
-    sheetBody.querySelectorAll("[data-wsc]").forEach(b=>b.addEventListener("click",()=>{
-      d.windowScope={type:"category",value:b.dataset.wsc}; drawWizard(); }));
-  }
+  if(key==="wscope"){ wireWinScope(d,drawWizard); }
   if(key==="dotoday"){
     sheetBody.querySelectorAll("[data-wdt]").forEach(b=>b.addEventListener("click",()=>{
       d.flagged=b.dataset.wdt==="1"; wizGo(state.capWiz.i+1); }));
@@ -5293,9 +5430,8 @@ function wireWizard(key){
       if(tf){ d.aimWindow=null; d.todWindow=null; } }));
   }
   if(key==="time"){
-    const upd=()=>{ const day=$("#wDay")?$("#wDay").value:"", st=$("#wStart")?$("#wStart").value:"", en=$("#wEnd")?$("#wEnd").value:"";
-      if(d.preset==="window"&&d.floating){
-        if(day){ d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; } return; }
+    const upd=()=>{ if(d.preset==="window") return;
+      const day=$("#wDay")?$("#wDay").value:"", st=$("#wStart")?$("#wStart").value:"", en=$("#wEnd")?$("#wEnd").value:"";
       if(day&&st){ d.fixedStart=new Date(day+"T"+st+":00").toISOString();
         d.fixedEnd=en?new Date(day+"T"+en+":00").toISOString():null; normalizeTiming(d); }
       else if(day&&!st&&d.preset==="event"){ d.fixedStart=null; d.fixedEnd=null;
@@ -5303,13 +5439,7 @@ function wireWizard(key){
       else if(!st){ d.fixedStart=null; d.fixedEnd=null; d.pendingDay=null; } };
     ["#wDay","#wStart","#wEnd"].forEach(sel=>on(sel,"change",upd));
     on("#wBg","click",()=>{ d.background=!d.background; drawWizard(); });
-    sheetBody.querySelectorAll("#wWinMode button").forEach(b=>b.addEventListener("click",()=>{
-      d.floating=b.dataset.wm==="float";
-      if(d.floating){ d.winDuration=d.winDuration||60;
-        const day=($("#wDay")&&$("#wDay").value)||dayKey(new Date());
-        d.fixedStart=new Date(day+"T04:00:00").toISOString(); d.fixedEnd=null; }
-      drawWizard(); }));
-    on("#wWinDur","input",e=>{ d.winDuration=clamp(Number(e.target.value)||60,15,600); });
+    if(d.preset==="window") wireWindowTime(d,drawWizard,null);
   }
   if(key==="repeat"){
     on("#wRepeat","click",()=>openRepeatEditor(d,null));
@@ -5409,6 +5539,11 @@ async function commitCapture(again){
   if(!d.title){ toast("Give it a name");
     if(state.capWiz){ wizGo(wizSteps().indexOf("title")); }
     const t2=$("#tTitle")||$("#wTitle"); if(t2) t2.focus(); return; }
+  if(d.preset==="window"){
+    if(!d.windowScope){ toast("Pick what this window belongs to");
+      if(state.capWiz){ wizGo(wizSteps().indexOf("wscope")); } return; }
+    normalizeTiming(d);
+  }
   if(d.actionable===false&&!d.fixedStart&&!(d.pendingDay&&d.preset==="event")){ toast("Set its time first. Events and blocks live at a time");
     if(state.capWiz){ wizGo(wizSteps().indexOf("time")); } else { CAP_OPEN.when=true; drawTaskSheet(); } return; }
   const p=parseNL(d.title);
